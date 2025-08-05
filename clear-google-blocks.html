@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Google Login Blocks</title>
+</head>
+<body>
+    <h1>Clear Google Login Blocks</h1>
+    <p>This page will clear all Google login blocks and rate limiting data from your browser.</p>
+    <button onclick="clearAllBlocks()">Clear All Blocks</button>
+    <div id="result"></div>
+
+    <script>
+        function clearAllBlocks() {
+            const keys = Object.keys(localStorage);
+            let clearedCount = 0;
+            
+            // Clear all Google-related blocks and rate limiting
+            keys.forEach(key => {
+                if (key.includes('googleAttempts:') || 
+                    key.includes('lastGoogleAttempt:') || 
+                    key.includes('googleSignupBlock:') || 
+                    key.includes('firebaseDisabled:') || 
+                    key.includes('signupRedirected:') ||
+                    key.includes('handlingGoogleSignup') ||
+                    key.includes('pendingGoogleSignup')) {
+                    localStorage.removeItem(key);
+                    clearedCount++;
+                }
+            });
+            
+            document.getElementById('result').innerHTML = 
+                `<p style="color: green;">Cleared ${clearedCount} blocking items. You can now try Google login again.</p>`;
+        }
+    </script>
+</body>
+</html>

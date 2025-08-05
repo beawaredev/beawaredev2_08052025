@@ -1,0 +1,3 @@
+workflows:
+  - name: Start application
+    command: npm run dev

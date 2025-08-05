@@ -1,0 +1,16 @@
+run = "bash start-all.sh"
+modules = ["nodejs-20:v8-20240322-57791c9"]
+entrypoint = "start-all.sh"
+
+hidden = [".config", "package-lock.json"]
+
+[nix]
+channel = "stable-23_11"
+
+[deployment]
+run = ["bash", "start-all.sh"]
+deploymentTarget = "cloudrun"
+ignorePorts = false
+
+[env]
+PORT = "5001"
