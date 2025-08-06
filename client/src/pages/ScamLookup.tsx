@@ -7,8 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { AlertCircle, Search, Shield, Phone, Mail, Globe, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { AlertCircle, Search, Shield, Phone, Mail, Globe, Clock, CheckCircle, XCircle, Lock, LogIn } from 'lucide-react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import { useAuth } from '@/contexts/AuthContext';
+import { Link } from 'wouter';
 
 interface ApiConfig {
   id: number;
@@ -37,11 +39,53 @@ interface LookupResponse {
 }
 
 export default function ScamLookup() {
+  const { user } = useAuth();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [emailAddress, setEmailAddress] = useState('');
   const [website, setWebsite] = useState('');
   const [activeTab, setActiveTab] = useState('phone');
   const [results, setResults] = useState<Record<string, LookupResult>>({});
+
+  // Check if user is authenticated
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+        <div className="container mx-auto px-4 py-12">
+          <div className="max-w-md mx-auto">
+            <Card>
+              <CardHeader className="text-center">
+                <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                  <Lock className="w-6 h-6 text-blue-600" />
+                </div>
+                <CardTitle className="text-2xl font-bold">Login Required</CardTitle>
+              </CardHeader>
+              <CardContent className="text-center space-y-4">
+                <p className="text-gray-600">
+                  You need to be logged in to access the scam lookup feature.
+                </p>
+                <p className="text-sm text-gray-500">
+                  This service is available exclusively to registered users to ensure quality and prevent abuse.
+                </p>
+                <div className="flex gap-3 justify-center">
+                  <Link to="/login">
+                    <Button className="flex items-center gap-2">
+                      <LogIn className="w-4 h-4" />
+                      Login
+                    </Button>
+                  </Link>
+                  <Link to="/signup">
+                    <Button variant="outline" className="flex items-center gap-2">
+                      Sign Up
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Fetch available API configurations (public endpoint - no auth required)
   const { data: apiConfigs = [], isLoading: isLoadingConfigs } = useQuery<ApiConfig[]>({

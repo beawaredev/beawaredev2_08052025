@@ -21,13 +21,23 @@ export default function MobileNav() {
           <span className="text-xs mt-1">Home</span>
         </Link>
         
-        <Link 
-          href="/search" 
-          className={`flex flex-col items-center py-2 ${isActive("/search") ? "text-primary" : "text-gray-600"}`}
-        >
-          <SearchIcon className="h-5 w-5" />
-          <span className="text-xs mt-1">Search</span>
-        </Link>
+        {user ? (
+          <Link 
+            href="/scam-lookup" 
+            className={`flex flex-col items-center py-2 ${isActive("/scam-lookup") ? "text-primary" : "text-gray-600"}`}
+          >
+            <SearchIcon className="h-5 w-5" />
+            <span className="text-xs mt-1">Lookup</span>
+          </Link>
+        ) : (
+          <Link 
+            href="/reports" 
+            className={`flex flex-col items-center py-2 ${isActive("/reports") ? "text-primary" : "text-gray-600"}`}
+          >
+            <SearchIcon className="h-5 w-5" />
+            <span className="text-xs mt-1">Reports</span>
+          </Link>
+        )}
         
         <Link 
           href="/contact" 

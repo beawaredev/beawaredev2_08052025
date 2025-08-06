@@ -70,11 +70,6 @@ export default function Sidebar({
   // Content navigation items accessible by all users
   const contentNavItems = [
     {
-      name: "Scam Lookup",
-      path: "/scam-lookup",
-      icon: <SearchIcon className="h-5 w-5" />,
-    },
-    {
       name: "Educational Videos",
       path: "/scam-videos",
       icon: <VideoIcon className="h-5 w-5" />,
@@ -97,6 +92,11 @@ export default function Sidebar({
       name: "Dashboard",
       path: "/dashboard",
       icon: <LayoutDashboardIcon className="h-5 w-5" />,
+    },
+    {
+      name: "Scam Lookup",
+      path: "/scam-lookup",
+      icon: <SearchIcon className="h-5 w-5" />,
     },
     {
       name: "Report Scam",

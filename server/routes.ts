@@ -2934,8 +2934,8 @@ ${message}
     }
   });
 
-  // User-facing scam lookup endpoint
-  apiRouter.post("/scam-lookup", async (req: Request, res: Response) => {
+  // User-facing scam lookup endpoint (requires authentication)
+  apiRouter.post("/scam-lookup", requireAuth, async (req: Request, res: Response) => {
     try {
       console.log('🔍 Scam lookup request received:', {
         body: req.body,
@@ -3022,8 +3022,8 @@ ${message}
     }
   });
 
-  // API CONFIG ROUTES (Public endpoint for user-facing scam lookup)
-  apiRouter.get("/api-configs/public", async (req: Request, res: Response) => {
+  // API CONFIG ROUTES (Authenticated endpoint for user-facing scam lookup)
+  apiRouter.get("/api-configs/public", requireAuth, async (req: Request, res: Response) => {
     try {
       console.log("Fetching public API configurations");
       const apiConfigs = await storage.getApiConfigs();
