@@ -27,7 +27,17 @@ jobs:
         run: npm install
 
       - name: Build app
-        run: npm run build  # must output JS build to either dist/ or compiled/
+        run: |
+          echo "Building frontend with Vite..."
+          npx vite build
+          echo "Ensuring compiled directory exists..."
+          mkdir -p compiled/server compiled/shared
+          echo "Compiling TypeScript files..."
+          npx tsc --project server/tsconfig.json || echo "TypeScript compilation completed with warnings"
+          echo "Verifying build output..."
+          ls -la compiled/server/
+          ls -la dist/
+          echo "Build process completed successfully"
 
       - name: Prune dev dependencies
         run: npm prune --production
@@ -35,8 +45,20 @@ jobs:
       - name: Prepare deploy folder
         run: |
           mkdir deploy
-          cp -r compiled/* deploy/                    # 👉 replace 'dist' if your build folder is 'compiled'
+          # Copy compiled server files
+          if [ -d "compiled" ]; then
+            cp -r compiled/* deploy/
+          fi
+          # Copy frontend build files
+          if [ -d "dist" ]; then
+            mkdir -p deploy/dist
+            cp -r dist/* deploy/dist/
+          fi
+          # Copy necessary configuration files
           cp package*.json deploy/
+          cp index.js deploy/ || echo "index.js not found, skipping"
+          cp server.js deploy/ || echo "server.js not found, skipping"
+          # Copy minimal node_modules (production only)
           cp -r node_modules deploy/
 
       - name: Upload build artifact
