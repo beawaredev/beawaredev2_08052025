@@ -35,7 +35,7 @@ jobs:
       - name: Prepare deploy folder
         run: |
           mkdir deploy
-          cp -r dist/* deploy/                    # 👉 replace 'dist' if your build folder is 'compiled'
+          cp -r compiled/* deploy/                    # 👉 replace 'dist' if your build folder is 'compiled'
           cp package*.json deploy/
           cp -r node_modules deploy/
 
