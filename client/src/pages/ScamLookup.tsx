@@ -419,15 +419,7 @@ export default function ScamLookup() {
         </p>
       </div>
 
-      {/* Debug Results Display (temporary) */}
-      {Object.keys(results).length > 0 && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <h3 className="font-semibold text-blue-900 mb-2">Debug: Current Results State</h3>
-          <pre className="text-xs text-blue-800 overflow-auto max-h-40">
-            {JSON.stringify(results, null, 2)}
-          </pre>
-        </div>
-      )}
+
 
       {isLoadingConfigs ? (
         <div className="text-center py-8">
