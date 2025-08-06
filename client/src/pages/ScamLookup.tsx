@@ -328,6 +328,38 @@ export default function ScamLookup() {
                 </span>
               </div>
             )}
+            {(result.details?.voip !== undefined || result.voip !== undefined) && (
+              <div className="flex justify-between">
+                <span className="text-gray-600">VOIP:</span>
+                <span className={(result.details?.voip || result.voip) ? 'text-orange-600' : 'text-green-600'}>
+                  {(result.details?.voip || result.voip) ? '⚠️ Yes' : '✓ No'}
+                </span>
+              </div>
+            )}
+            {(result.details?.active !== undefined || result.active !== undefined) && (
+              <div className="flex justify-between">
+                <span className="text-gray-600">Active:</span>
+                <span className={(result.details?.active || result.active) ? 'text-green-600' : 'text-red-600'}>
+                  {(result.details?.active || result.active) ? '✓ Yes' : '✗ No'}
+                </span>
+              </div>
+            )}
+            {(result.details?.spammer !== undefined || result.spammer !== undefined) && (
+              <div className="flex justify-between">
+                <span className="text-gray-600">Spammer:</span>
+                <span className={(result.details?.spammer || result.spammer) ? 'text-red-600' : 'text-green-600'}>
+                  {(result.details?.spammer || result.spammer) ? '🚨 Detected' : '✓ Clean'}
+                </span>
+              </div>
+            )}
+            {(result.details?.leaked !== undefined || result.leaked !== undefined) && (
+              <div className="flex justify-between">
+                <span className="text-gray-600">Leaked:</span>
+                <span className={(result.details?.leaked || result.leaked) ? 'text-red-600' : 'text-green-600'}>
+                  {(result.details?.leaked || result.leaked) ? '🔓 Yes' : '🔒 No'}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -408,14 +440,14 @@ export default function ScamLookup() {
   const availableTypes = [...new Set(apiConfigs.map(config => config.type))];
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-5xl">
-      <div className="text-center mb-6">
-        <div className="flex items-center justify-center mb-2">
-          <Shield className="h-6 w-6 text-blue-500 mr-2" />
-          <h1 className="text-2xl font-bold">Security Check</h1>
+    <div className="container mx-auto px-4 py-4 max-w-5xl">
+      <div className="text-center mb-4">
+        <div className="flex items-center justify-center mb-1">
+          <Shield className="h-5 w-5 text-blue-500 mr-2" />
+          <h1 className="text-xl font-bold">Security Check</h1>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Verify phone numbers, emails, and websites against security databases
+        <p className="text-xs text-muted-foreground">
+          Verify phone numbers, emails, and websites
         </p>
       </div>
 
@@ -438,26 +470,26 @@ export default function ScamLookup() {
         </Card>
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full h-14 mb-6" style={{ gridTemplateColumns: `repeat(${availableTypes.length}, 1fr)` }}>
+          <TabsList className="grid w-full h-10 mb-4" style={{ gridTemplateColumns: `repeat(${availableTypes.length}, 1fr)` }}>
             {availableTypes.includes('phone') && (
-              <TabsTrigger value="phone" className="flex items-center gap-2 h-12 text-base font-medium">
+              <TabsTrigger value="phone" className="flex items-center gap-1 h-8 text-sm font-medium">
                 {getTabIcon('phone')}
-                <span className="hidden sm:inline">Phone Number</span>
-                <span className="sm:hidden">Phone</span>
+                <span className="hidden sm:inline">Phone</span>
+                <span className="sm:hidden">Ph</span>
               </TabsTrigger>
             )}
             {availableTypes.includes('email') && (
-              <TabsTrigger value="email" className="flex items-center gap-2 h-12 text-base font-medium">
+              <TabsTrigger value="email" className="flex items-center gap-1 h-8 text-sm font-medium">
                 {getTabIcon('email')}
-                <span className="hidden sm:inline">Email Address</span>
-                <span className="sm:hidden">Email</span>
+                <span className="hidden sm:inline">Email</span>
+                <span className="sm:hidden">Em</span>
               </TabsTrigger>
             )}
             {availableTypes.includes('url') && (
-              <TabsTrigger value="url" className="flex items-center gap-2 h-12 text-base font-medium">
+              <TabsTrigger value="url" className="flex items-center gap-1 h-8 text-sm font-medium">
                 {getTabIcon('url')}
-                <span className="hidden sm:inline">Website URL</span>
-                <span className="sm:hidden">Website</span>
+                <span className="hidden sm:inline">Website</span>
+                <span className="sm:hidden">Web</span>
               </TabsTrigger>
             )}
           </TabsList>
@@ -465,22 +497,22 @@ export default function ScamLookup() {
           {availableTypes.includes('phone') && (
             <TabsContent value="phone" className="space-y-4">
               <Card>
-                <CardContent className="pt-6">
+                <CardContent className="pt-4">
                   <div className="flex gap-2">
                     <Input
                       id="phone"
                       placeholder="Enter phone number (e.g., +1234567890)"
                       value={phoneNumber}
                       onChange={(e) => setPhoneNumber(e.target.value)}
-                      className="text-base"
+                      className="text-sm"
                     />
                     <Button 
                       onClick={() => handleLookup('phone', phoneNumber)}
                       disabled={lookupMutation.isPending}
-                      size="lg"
-                      className="px-8"
+                      size="sm"
+                      className="px-4"
                     >
-                      {lookupMutation.isPending ? 'Checking...' : 'Check Security'}
+                      {lookupMutation.isPending ? 'Checking...' : 'Check'}
                     </Button>
                   </div>
                 </CardContent>
@@ -531,7 +563,7 @@ export default function ScamLookup() {
           {availableTypes.includes('email') && (
             <TabsContent value="email" className="space-y-4">
               <Card>
-                <CardContent className="pt-6">
+                <CardContent className="pt-4">
                   <div className="flex gap-2">
                     <Input
                       id="email"
@@ -539,15 +571,15 @@ export default function ScamLookup() {
                       placeholder="Enter email address"
                       value={emailAddress}
                       onChange={(e) => setEmailAddress(e.target.value)}
-                      className="text-base"
+                      className="text-sm"
                     />
                     <Button 
                       onClick={() => handleLookup('email', emailAddress)}
                       disabled={lookupMutation.isPending}
-                      size="lg"
-                      className="px-8"
+                      size="sm"
+                      className="px-4"
                     >
-                      {lookupMutation.isPending ? 'Checking...' : 'Check Security'}
+                      {lookupMutation.isPending ? 'Checking...' : 'Check'}
                     </Button>
                   </div>
                 </CardContent>
@@ -598,22 +630,22 @@ export default function ScamLookup() {
           {availableTypes.includes('url') && (
             <TabsContent value="url" className="space-y-4">
               <Card>
-                <CardContent className="pt-6">
+                <CardContent className="pt-4">
                   <div className="flex gap-2">
                     <Input
                       id="website"
                       placeholder="Enter website URL (e.g., https://example.com)"
                       value={website}
                       onChange={(e) => setWebsite(e.target.value)}
-                      className="text-base"
+                      className="text-sm"
                     />
                     <Button 
                       onClick={() => handleLookup('url', website)}
                       disabled={lookupMutation.isPending}
-                      size="lg"
-                      className="px-8"
+                      size="sm"
+                      className="px-4"
                     >
-                      {lookupMutation.isPending ? 'Checking...' : 'Check Security'}
+                      {lookupMutation.isPending ? 'Checking...' : 'Check'}
                     </Button>
                   </div>
                 </CardContent>
