@@ -4,7 +4,7 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "build": "vite build && tsc --transpileOnly",
+    "build": "vite build && tsx build",
     "start": "node compiled/server/index.js",
     "db:push": "drizzle-kit push",
     "dev": "export TS_NODE_TRANSPILE_ONLY=true && export NODE_OPTIONS=\"--experimental-modules --es-module-specifier-resolution=node --no-warnings\" && npx tsx server/index.ts",
