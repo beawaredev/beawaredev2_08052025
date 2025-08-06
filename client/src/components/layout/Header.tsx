@@ -49,6 +49,8 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
         return "Admin Panel";
       case "/settings":
         return "Settings";
+      case "/secure-your-digital-presence":
+        return "Secure Your Digital Presence";
       default:
         if (location.startsWith("/reports/")) {
           return "Scam Report Details";
@@ -85,6 +87,8 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
         return "Verify reports and manage the platform";
       case "/settings":
         return "Configure your account and preferences";
+      case "/secure-your-digital-presence":
+        return "Complete security tasks to protect your online identity and personal data";
       default:
         return "";
     }

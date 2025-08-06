@@ -529,7 +529,7 @@ export default function DigitalSecurityChecklist() {
           </TabsList>
 
           <TabsContent value={selectedCategory}>
-            <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2">
               {filteredItems.map((item: SecurityChecklistItem) => {
                 const progress = progressMap[item.id];
                 const isCompleted = Boolean(progress?.isCompleted);
