@@ -468,15 +468,7 @@ export default function DigitalSecurityChecklist() {
   return (
     <div className="flex-1 p-4 md:p-6 lg:p-8">
       <div className="max-w-6xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-4">
-            Secure Your Digital Presence
-          </h1>
-          <p className="text-gray-600 mb-6">
-            Take control of your online security with our comprehensive
-            checklist. Each item includes specific recommendations to help
-            protect your identity and personal data.
-          </p>
+        <div className="mb-6">
 
           {!isAuthenticated && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
@@ -496,18 +488,15 @@ export default function DigitalSecurityChecklist() {
           )}
 
           {/* Progress Overview */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CheckCircleIcon className="h-5 w-5 text-green-500" />
-                Your Progress
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+          <Card className="mb-4">
+            <CardContent className="pt-4">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">
-                  {completedItems} of {totalItems} items completed
-                </span>
+                <div className="flex items-center gap-2">
+                  <CheckCircleIcon className="h-4 w-4 text-green-500" />
+                  <span className="text-sm font-medium">
+                    {completedItems} of {totalItems} completed
+                  </span>
+                </div>
                 <span className="text-sm text-gray-600">
                   {completionPercentage}%
                 </span>
@@ -518,8 +507,8 @@ export default function DigitalSecurityChecklist() {
         </div>
 
         <Tabs value={selectedCategory} onValueChange={setSelectedCategory}>
-          <TabsList className="grid w-full grid-cols-7 mb-6">
-            <TabsTrigger value="all">All</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-7 mb-4">
+            <TabsTrigger value="all" className="text-xs">All</TabsTrigger>
             {categories.map((category) => {
               const Icon =
                 categoryIcons[category as keyof typeof categoryIcons] ||
@@ -530,8 +519,8 @@ export default function DigitalSecurityChecklist() {
                   value={category}
                   className="text-xs"
                 >
-                  <Icon className="h-4 w-4 mr-1" />
-                  <span className="hidden sm:inline">
+                  <Icon className="h-3 w-3 mr-1" />
+                  <span className="hidden sm:inline text-xs">
                     {categoryLabels[category as keyof typeof categoryLabels]}
                   </span>
                 </TabsTrigger>
@@ -557,23 +546,23 @@ export default function DigitalSecurityChecklist() {
                     key={item.id}
                     className={`transition-all ${isCompleted ? "bg-green-50 border-green-200" : ""}`}
                   >
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-3 flex-1">
-                          <Checkbox
-                            checked={isCompleted}
-                            onCheckedChange={(checked) => {
-                              handleToggleComplete(item);
-                            }}
-                            disabled={updateProgressMutation.isPending}
-                            className="mt-1 cursor-pointer"
-                          />
+                    <CardHeader className="pb-2">
+                      <div className="flex items-start gap-2">
+                        <Checkbox
+                          checked={isCompleted}
+                          onCheckedChange={(checked) => {
+                            handleToggleComplete(item);
+                          }}
+                          disabled={updateProgressMutation.isPending}
+                          className="mt-0.5 cursor-pointer"
+                        />
 
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Icon className="h-4 w-4 text-gray-600" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <div className="flex items-center gap-1 flex-1 min-w-0">
+                              <Icon className="h-3 w-3 text-gray-600 flex-shrink-0" />
                               <CardTitle
-                                className={`text-lg ${isCompleted ? "line-through text-gray-600" : ""}`}
+                                className={`text-sm font-medium leading-tight ${isCompleted ? "line-through text-gray-600" : ""}`}
                               >
                                 {item.title}
                               </CardTitle>
@@ -582,89 +571,82 @@ export default function DigitalSecurityChecklist() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleEditItem(item)}
-                                  className="h-6 w-6 p-0 ml-2"
+                                  className="h-5 w-5 p-0 flex-shrink-0"
                                 >
                                   <EditIcon className="h-3 w-3" />
                                 </Button>
                               )}
                             </div>
-                            <CardDescription className="text-sm">
-                              {item.description}
-                            </CardDescription>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {getPriorityIcon(item.priority)}
+                              <Badge
+                                variant={
+                                  priorityColors[
+                                    item.priority as keyof typeof priorityColors
+                                  ]
+                                }
+                                className="text-xs"
+                              >
+                                {item.priority}
+                              </Badge>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-2 ml-4">
-                          {item.toolLaunchUrl && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => window.open(item.toolLaunchUrl!, '_blank')}
-                              className="flex items-center gap-1"
-                            >
-                              <LinkIcon className="h-3 w-3" />
-                              Launch Tool
-                            </Button>
-                          )}
-                          {getPriorityIcon(item.priority)}
-                          <Badge
-                            variant={
-                              priorityColors[
-                                item.priority as keyof typeof priorityColors
-                              ]
-                            }
-                          >
-                            {item.priority}
-                          </Badge>
+                          <CardDescription className="text-xs text-gray-600 line-clamp-2">
+                            {item.description}
+                          </CardDescription>
                         </div>
                       </div>
                     </CardHeader>
 
                     <CardContent className="pt-0">
                       {!isCompleted && (
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                        <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mb-3">
                           <div className="flex items-start gap-2">
-                            <InfoIcon className="h-4 w-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                            <InfoIcon className="h-3 w-3 text-yellow-600 mt-0.5 flex-shrink-0" />
                             <div className="flex-1">
-                              <p className="text-sm text-yellow-800 font-medium mb-1">
-                                Recommendation:
-                              </p>
-                              <p className="text-sm text-yellow-700">
+                              <p className="text-xs text-yellow-700 leading-tight">
                                 {item.recommendationText}
                               </p>
                             </div>
                           </div>
 
-                          <div className="flex items-center justify-between mt-3">
-                            <div className="flex items-center gap-4">
-                              {item.estimatedTimeMinutes && (
-                                <div className="flex items-center gap-1 text-xs text-gray-600">
-                                  <ClockIcon className="h-3 w-3" />
-                                  {item.estimatedTimeMinutes} min
-                                </div>
-                              )}
-                              {item.helpUrl && (
-                                <a
-                                  href={item.helpUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
-                                >
-                                  <ExternalLinkIcon className="h-3 w-3" />
-                                  Learn more
-                                </a>
-                              )}
-                            </div>
+                          <div className="flex items-center gap-3 mt-2">
+                            {item.estimatedTimeMinutes && (
+                              <div className="flex items-center gap-1 text-xs text-gray-600">
+                                <ClockIcon className="h-3 w-3" />
+                                {item.estimatedTimeMinutes}m
+                              </div>
+                            )}
+                            {item.toolLaunchUrl && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => window.open(item.toolLaunchUrl!, '_blank')}
+                                className="h-6 text-xs px-2 py-1"
+                              >
+                                <LinkIcon className="h-3 w-3 mr-1" />
+                                🔗 Launch Tool
+                              </Button>
+                            )}
+                            {item.helpUrl && (
+                              <a
+                                href={item.helpUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+                              >
+                                <ExternalLinkIcon className="h-3 w-3" />
+                                Learn
+                              </a>
+                            )}
                           </div>
                         </div>
                       )}
 
-                      {/* Notes section */}
-                      <div className="border-t pt-3">
+                      {/* Compact Notes section */}
+                      <div className="border-t pt-2">
                         {expandedNotes[item.id] ? (
                           <div className="space-y-2">
-                            <label className="text-sm font-medium">
-                              Notes (optional):
-                            </label>
                             <Textarea
                               value={
                                 notesText[item.id] || progress?.notes || ""
@@ -672,16 +654,18 @@ export default function DigitalSecurityChecklist() {
                               onChange={(e) =>
                                 handleNotesChange(item.id, e.target.value)
                               }
-                              placeholder="Add any notes about this security step..."
-                              rows={3}
+                              placeholder="Add notes..."
+                              rows={2}
+                              className="text-xs"
                             />
-                            <div className="flex gap-2">
+                            <div className="flex gap-1">
                               <Button
                                 size="sm"
                                 onClick={() => handleSaveNotes(item)}
                                 disabled={updateProgressMutation.isPending}
+                                className="h-6 text-xs px-2 py-1"
                               >
-                                Save Notes
+                                Save
                               </Button>
                               <Button
                                 size="sm"
@@ -692,6 +676,7 @@ export default function DigitalSecurityChecklist() {
                                     [item.id]: false,
                                   }))
                                 }
+                                className="h-6 text-xs px-2 py-1"
                               >
                                 Cancel
                               </Button>
@@ -700,12 +685,12 @@ export default function DigitalSecurityChecklist() {
                         ) : (
                           <div className="flex items-center justify-between">
                             {progress?.notes ? (
-                              <p className="text-sm text-gray-600 italic">
+                              <p className="text-xs text-gray-600 italic truncate flex-1 mr-2">
                                 "{progress.notes}"
                               </p>
                             ) : (
-                              <span className="text-sm text-gray-500">
-                                No notes added
+                              <span className="text-xs text-gray-400 flex-1">
+                                No notes
                               </span>
                             )}
                             <Button
@@ -721,8 +706,9 @@ export default function DigitalSecurityChecklist() {
                                   [item.id]: progress?.notes || "",
                                 }));
                               }}
+                              className="h-6 text-xs px-2 py-1"
                             >
-                              {progress?.notes ? "Edit Notes" : "Add Notes"}
+                              {progress?.notes ? "Edit" : "Add"}
                             </Button>
                           </div>
                         )}
