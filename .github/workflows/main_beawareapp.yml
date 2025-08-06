@@ -6,9 +6,15 @@ on:
       - main
   workflow_dispatch:
 
+# Global permissions required for OIDC login to Azure
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -21,19 +27,19 @@ jobs:
         run: npm install
 
       - name: Build app
-        run: npm run build      # must produce a folder like dist/ or compiled/
+        run: npm run build  # must output JS build to either dist/ or compiled/
 
-      - name: Prune devDependencies
+      - name: Prune dev dependencies
         run: npm prune --production
 
-      - name: Prepare artifact folder
+      - name: Prepare deploy folder
         run: |
           mkdir deploy
-          cp -r dist/* deploy/              # <-- change 'dist' to your actual build folder
-          cp package.json package-lock.json deploy/
+          cp -r dist/* deploy/                    # 👉 replace 'dist' if your build folder is 'compiled'
+          cp package*.json deploy/
           cp -r node_modules deploy/
 
-      - name: Upload artifact
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: node-app
@@ -42,12 +48,13 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build
+
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: node-app
 
-      - name: Login to Azure
+      - name: Azure Login
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_35E5315EDCBD454A89028DC816115969 }}
