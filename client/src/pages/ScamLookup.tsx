@@ -251,52 +251,9 @@ export default function ScamLookup() {
           </div>
         </div>
 
-        {/* Risk Score Section */}
-        {(riskScore > 0 || fraudScore !== undefined) && (
-          <div className="border rounded-lg p-3 bg-gray-50">
-            <h4 className="font-semibold text-sm text-gray-700 mb-2">Risk Assessment</h4>
-            {riskScore > 0 && (
-              <div className="mb-2">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm">Risk Score:</span>
-                  <span className="font-semibold">{riskScore}/100</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className={`h-2 rounded-full ${riskScore >= 75 ? 'bg-red-500' : riskScore >= 50 ? 'bg-yellow-500' : 'bg-green-500'}`}
-                    style={{ width: `${Math.min(riskScore, 100)}%` }}
-                  ></div>
-                </div>
-                <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border mt-2 ${getRiskLevel(riskScore).color}`}>
-                  <span className="mr-1">{getRiskLevel(riskScore).icon}</span>
-                  {getRiskLevel(riskScore).level}
-                </div>
-              </div>
-            )}
-            {fraudScore !== undefined && fraudScore > 0 && (
-              <div className="text-sm">
-                <span className="font-medium">Fraud Score: </span>
-                <span className={fraudScore >= 75 ? 'text-red-600 font-semibold' : fraudScore >= 50 ? 'text-yellow-600 font-medium' : 'text-green-600'}>
-                  {fraudScore}/100
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Debug API Response */}
-        <div className="border rounded-lg p-2 bg-yellow-50 border-yellow-200 mb-3">
-          <details>
-            <summary className="text-xs text-yellow-800 cursor-pointer">Debug: API Response Structure</summary>
-            <pre className="text-xs text-yellow-900 mt-2 overflow-auto max-h-32">
-              {JSON.stringify(result, null, 2)}
-            </pre>
-          </details>
-        </div>
-
-        {/* Details Section */}
+        {/* Security Details Section */}
         <div className="border rounded-lg p-3 bg-gray-50">
-          <h4 className="font-semibold text-sm text-gray-700 mb-2">Details</h4>
+          <h4 className="font-semibold text-sm text-gray-700 mb-2">Security Details</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
             {(result.details?.valid !== undefined || result.valid !== undefined) && (
               <div className="flex justify-between">
@@ -363,70 +320,28 @@ export default function ScamLookup() {
                 {(result.details?.leaked || result.leaked) ? '🔓 Yes' : '🔒 No'}
               </span>
             </div>
+            
+            {/* Security Status Indicators */}
+            {(result.details?.recent_abuse || result.recent_abuse) && (
+              <div className="flex justify-between">
+                <span className="text-gray-600">Recent Abuse:</span>
+                <span className="text-red-600">🚨 Detected</span>
+              </div>
+            )}
+            {(result.details?.bot_status || result.bot_status) && (
+              <div className="flex justify-between">
+                <span className="text-gray-600">Bot Activity:</span>
+                <span className="text-orange-600">🤖 Detected</span>
+              </div>
+            )}
+            {(result.details?.proxy || result.proxy) && (
+              <div className="flex justify-between">
+                <span className="text-gray-600">Proxy:</span>
+                <span className="text-yellow-600">🌐 Detected</span>
+              </div>
+            )}
           </div>
         </div>
-
-        {/* Security Indicators */}
-        {(result.details?.recent_abuse || result.details?.bot_status || result.details?.proxy || result.recent_abuse || result.bot_status || result.proxy) && (
-          <div className="border rounded-lg p-3 bg-red-50 border-red-200">
-            <h4 className="font-semibold text-sm text-red-700 mb-2">Security Alerts</h4>
-            <div className="space-y-1 text-sm">
-              {(result.details?.recent_abuse || result.recent_abuse) && (
-                <div className="flex items-center text-red-600">
-                  <span className="mr-2">🚨</span>
-                  Recent abuse detected
-                </div>
-              )}
-              {(result.details?.bot_status || result.bot_status) && (
-                <div className="flex items-center text-orange-600">
-                  <span className="mr-2">🤖</span>
-                  Bot activity detected
-                </div>
-              )}
-              {(result.details?.proxy || result.proxy) && (
-                <div className="flex items-center text-yellow-600">
-                  <span className="mr-2">🌐</span>
-                  Proxy connection detected
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Additional Information (Collapsed by default) */}
-        {(result.country || result.region || result.carrier || result.line_type || result.lineType) && (
-          <details className="border rounded-lg p-3">
-            <summary className="font-semibold text-sm text-gray-700 cursor-pointer hover:text-gray-900">
-              Additional Information
-            </summary>
-            <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-              {result.country && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Location:</span>
-                  <span>{result.country}</span>
-                </div>
-              )}
-              {result.region && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Region:</span>
-                  <span>{result.region}</span>
-                </div>
-              )}
-              {result.carrier && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Service Provider:</span>
-                  <span>{result.carrier}</span>
-                </div>
-              )}
-              {(result.line_type || result.lineType) && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Connection Type:</span>
-                  <span>{result.line_type || result.lineType}</span>
-                </div>
-              )}
-            </div>
-          </details>
-        )}
       </div>
     );
   };
