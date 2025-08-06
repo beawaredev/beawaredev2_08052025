@@ -128,12 +128,18 @@ export default function ScamLookup() {
     },
     onSuccess: (data: LookupResponse, variables) => {
       console.log('✅ Mutation success:', { data, variables });
-      if (data.success && data.results) {
+      console.log('📊 Processing response data:', { data, hasResults: !!data.results, resultsLength: data.results?.length });
+      if (data.success && data.results && Array.isArray(data.results)) {
         // Store results from all APIs
         const newResults: Record<string, LookupResult> = {};
-        data.results.forEach(result => {
-          newResults[`${variables.type}_${result.apiId || result.apiName}`] = result;
+        data.results.forEach((result, index) => {
+          console.log(`📋 Processing result ${index}:`, result);
+          // Create clean unique key for each result (remove spaces and special chars)
+          const cleanApiName = (result.apiName || 'unknown').replace(/[^a-zA-Z0-9]/g, '_');
+          const resultKey = `${variables.type}_${cleanApiName}_${index}`;
+          newResults[resultKey] = result;
         });
+        console.log('💾 Setting new results:', newResults);
         setResults(prev => ({
           ...prev,
           ...newResults
@@ -202,6 +208,7 @@ export default function ScamLookup() {
   };
 
   const formatResult = (result: any, type: string) => {
+    console.log('🎨 Formatting result:', { result, type });
     if (!result || typeof result !== 'object') {
       return <div className="text-sm text-gray-600">No detailed information available</div>;
     }
@@ -221,48 +228,59 @@ export default function ScamLookup() {
       return 'bg-gray-100 text-gray-800 border-gray-200';
     };
 
+    // Extract scores from result data - handle nested details object
+    const riskScore = result.riskScore || result.details?.risk_score || result.details?.fraud_score || 0;
+    const fraudScore = result.details?.fraud_score;
+    const reputation = result.reputation;
+    const status = result.status;
+
     return (
       <div className="space-y-4">
+        {/* Basic Status */}
+        <div className="border rounded-lg p-3 bg-gray-50">
+          <h4 className="font-semibold text-sm text-gray-700 mb-2">Security Status</h4>
+          <div className="flex items-center gap-2">
+            <Badge className={status === 'safe' ? 'bg-green-100 text-green-800' : status === 'risky' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}>
+              {status || 'Unknown'}
+            </Badge>
+            {reputation && reputation !== 'unknown' && (
+              <Badge className={getReputationBadge(reputation)}>
+                {reputation.charAt(0).toUpperCase() + reputation.slice(1)}
+              </Badge>
+            )}
+          </div>
+        </div>
+
         {/* Risk Score Section */}
-        {(result.risk_score !== undefined || result.fraud_score !== undefined) && (
+        {(riskScore > 0 || fraudScore !== undefined) && (
           <div className="border rounded-lg p-3 bg-gray-50">
             <h4 className="font-semibold text-sm text-gray-700 mb-2">Risk Assessment</h4>
-            {result.risk_score !== undefined && (
+            {riskScore > 0 && (
               <div className="mb-2">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-sm">Risk Score:</span>
-                  <span className="font-semibold">{result.risk_score}/100</span>
+                  <span className="font-semibold">{riskScore}/100</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div 
-                    className={`h-2 rounded-full ${result.risk_score >= 75 ? 'bg-red-500' : result.risk_score >= 50 ? 'bg-yellow-500' : 'bg-green-500'}`}
-                    style={{ width: `${Math.min(result.risk_score, 100)}%` }}
+                    className={`h-2 rounded-full ${riskScore >= 75 ? 'bg-red-500' : riskScore >= 50 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                    style={{ width: `${Math.min(riskScore, 100)}%` }}
                   ></div>
                 </div>
-                <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border mt-2 ${getRiskLevel(result.risk_score).color}`}>
-                  <span className="mr-1">{getRiskLevel(result.risk_score).icon}</span>
-                  {getRiskLevel(result.risk_score).level}
+                <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border mt-2 ${getRiskLevel(riskScore).color}`}>
+                  <span className="mr-1">{getRiskLevel(riskScore).icon}</span>
+                  {getRiskLevel(riskScore).level}
                 </div>
               </div>
             )}
-            {result.fraud_score !== undefined && (
+            {fraudScore !== undefined && fraudScore > 0 && (
               <div className="text-sm">
                 <span className="font-medium">Fraud Score: </span>
-                <span className={result.fraud_score >= 75 ? 'text-red-600 font-semibold' : result.fraud_score >= 50 ? 'text-yellow-600 font-medium' : 'text-green-600'}>
-                  {result.fraud_score}/100
+                <span className={fraudScore >= 75 ? 'text-red-600 font-semibold' : fraudScore >= 50 ? 'text-yellow-600 font-medium' : 'text-green-600'}>
+                  {fraudScore}/100
                 </span>
               </div>
             )}
-          </div>
-        )}
-
-        {/* Reputation Section */}
-        {result.reputation && (
-          <div className="border rounded-lg p-3 bg-gray-50">
-            <h4 className="font-semibold text-sm text-gray-700 mb-2">Reputation</h4>
-            <Badge className={`${getReputationBadge(result.reputation)} border`}>
-              {result.reputation.charAt(0).toUpperCase() + result.reputation.slice(1)}
-            </Badge>
           </div>
         )}
 
@@ -270,43 +288,43 @@ export default function ScamLookup() {
         <div className="border rounded-lg p-3 bg-gray-50">
           <h4 className="font-semibold text-sm text-gray-700 mb-2">Details</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-            {result.valid !== undefined && (
+            {(result.details?.valid !== undefined || result.valid !== undefined) && (
               <div className="flex justify-between">
                 <span className="text-gray-600">Valid:</span>
-                <span className={result.valid ? 'text-green-600' : 'text-red-600'}>
-                  {result.valid ? '✓ Yes' : '✗ No'}
+                <span className={result.details?.valid || result.valid ? 'text-green-600' : 'text-red-600'}>
+                  {result.details?.valid || result.valid ? '✓ Yes' : '✗ No'}
                 </span>
               </div>
             )}
-            {result.carrier && (
+            {(result.details?.carrier || result.carrier) && (
               <div className="flex justify-between">
                 <span className="text-gray-600">Carrier:</span>
-                <span>{result.carrier}</span>
+                <span>{result.details?.carrier || result.carrier}</span>
               </div>
             )}
-            {result.country && (
+            {(result.details?.country || result.country) && (
               <div className="flex justify-between">
                 <span className="text-gray-600">Country:</span>
-                <span>{result.country}</span>
+                <span>{result.details?.country || result.country}</span>
               </div>
             )}
-            {result.region && (
+            {(result.details?.region || result.region) && (
               <div className="flex justify-between">
                 <span className="text-gray-600">Region:</span>
-                <span>{result.region}</span>
+                <span>{result.details?.region || result.region}</span>
               </div>
             )}
-            {result.line_type && (
+            {(result.details?.lineType || result.details?.line_type || result.line_type) && (
               <div className="flex justify-between">
                 <span className="text-gray-600">Line Type:</span>
-                <span>{result.line_type}</span>
+                <span>{result.details?.lineType || result.details?.line_type || result.line_type}</span>
               </div>
             )}
-            {result.mobile !== undefined && (
+            {(result.details?.mobile !== undefined || result.mobile !== undefined) && (
               <div className="flex justify-between">
                 <span className="text-gray-600">Mobile:</span>
-                <span className={result.mobile ? 'text-blue-600' : 'text-gray-600'}>
-                  {result.mobile ? '📱 Yes' : 'No'}
+                <span className={(result.details?.mobile || result.mobile) ? 'text-blue-600' : 'text-gray-600'}>
+                  {(result.details?.mobile || result.mobile) ? '📱 Yes' : 'No'}
                 </span>
               </div>
             )}
@@ -314,23 +332,23 @@ export default function ScamLookup() {
         </div>
 
         {/* Security Indicators */}
-        {(result.recent_abuse || result.bot_status || result.proxy) && (
+        {(result.details?.recent_abuse || result.details?.bot_status || result.details?.proxy || result.recent_abuse || result.bot_status || result.proxy) && (
           <div className="border rounded-lg p-3 bg-red-50 border-red-200">
             <h4 className="font-semibold text-sm text-red-700 mb-2">Security Alerts</h4>
             <div className="space-y-1 text-sm">
-              {result.recent_abuse && (
+              {(result.details?.recent_abuse || result.recent_abuse) && (
                 <div className="flex items-center text-red-600">
                   <span className="mr-2">🚨</span>
                   Recent abuse detected
                 </div>
               )}
-              {result.bot_status && (
+              {(result.details?.bot_status || result.bot_status) && (
                 <div className="flex items-center text-orange-600">
                   <span className="mr-2">🤖</span>
                   Bot activity detected
                 </div>
               )}
-              {result.proxy && (
+              {(result.details?.proxy || result.proxy) && (
                 <div className="flex items-center text-yellow-600">
                   <span className="mr-2">🌐</span>
                   Proxy connection detected
@@ -400,6 +418,16 @@ export default function ScamLookup() {
           Check phone numbers, emails, and websites against our scam detection services
         </p>
       </div>
+
+      {/* Debug Results Display (temporary) */}
+      {Object.keys(results).length > 0 && (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <h3 className="font-semibold text-blue-900 mb-2">Debug: Current Results State</h3>
+          <pre className="text-xs text-blue-800 overflow-auto max-h-40">
+            {JSON.stringify(results, null, 2)}
+          </pre>
+        </div>
+      )}
 
       {isLoadingConfigs ? (
         <div className="text-center py-8">
