@@ -49,7 +49,7 @@ export function SecurityScore() {
   if (!user) return null;
 
   return (
-    <Link href="/digital-security-checklist">
+    <Link href="/secure-your-digital-presence">
       <div className="flex items-center gap-1 px-2 py-1 bg-gray-50 rounded-full border border-gray-200 hover:bg-gray-100 cursor-pointer transition-colors" title={`Security Score: ${securityScore}% - Click to improve`}>
         <div className={getScoreColor(securityScore)}>
           {getScoreIcon(securityScore)}
