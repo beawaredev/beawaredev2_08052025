@@ -2982,12 +2982,43 @@ ${message}
           
           const responseTime = Date.now() - startTime;
           
+          // Sanitize the result for user consumption - remove sensitive data
+          const sanitizedResult = {
+            type: result.type,
+            input: result.input,
+            provider: result.provider,
+            riskScore: result.riskScore || 0,
+            reputation: result.reputation,
+            status: result.status,
+            details: {
+              // Only include user-friendly details
+              valid: result.details?.valid,
+              country: result.details?.country,
+              region: result.details?.region,
+              carrier: result.details?.carrier,
+              lineType: result.details?.lineType || result.details?.line_type,
+              mobile: result.details?.mobile,
+              riskFactors: result.details?.riskFactors,
+              lastSeen: result.details?.lastSeen,
+              reportCount: result.details?.reportCount,
+              recent_abuse: result.details?.recent_abuse,
+              bot_status: result.details?.bot_status,
+              proxy: result.details?.proxy,
+              // For raw response, only include non-sensitive fields
+              risk_score: result.details?.risk_score,
+              fraud_score: result.details?.fraud_score,
+              // Exclude API keys, URLs, and internal system data
+            },
+            timestamp: result.timestamp
+            // Completely exclude: rawResponse, apiCallDetails
+          };
+          
           results.push({
             success: true,
-            data: result,
+            data: sanitizedResult,
             apiName: config.name,
             responseTime,
-            apiId: config.id
+            // Don't include apiId to avoid exposing internal IDs
           });
           
         } catch (lookupError) {

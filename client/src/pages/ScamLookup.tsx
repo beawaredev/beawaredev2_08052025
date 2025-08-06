@@ -340,15 +340,40 @@ export default function ScamLookup() {
           </div>
         )}
 
-        {/* Raw Data (Collapsed by default) */}
-        <details className="border rounded-lg p-3">
-          <summary className="font-semibold text-sm text-gray-700 cursor-pointer hover:text-gray-900">
-            View Raw Response Data
-          </summary>
-          <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-40">
-            {JSON.stringify(result, null, 2)}
-          </pre>
-        </details>
+        {/* Additional Information (Collapsed by default) */}
+        {(result.country || result.region || result.carrier || result.line_type || result.lineType) && (
+          <details className="border rounded-lg p-3">
+            <summary className="font-semibold text-sm text-gray-700 cursor-pointer hover:text-gray-900">
+              Additional Information
+            </summary>
+            <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+              {result.country && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Location:</span>
+                  <span>{result.country}</span>
+                </div>
+              )}
+              {result.region && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Region:</span>
+                  <span>{result.region}</span>
+                </div>
+              )}
+              {result.carrier && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Service Provider:</span>
+                  <span>{result.carrier}</span>
+                </div>
+              )}
+              {(result.line_type || result.lineType) && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Connection Type:</span>
+                  <span>{result.line_type || result.lineType}</span>
+                </div>
+              )}
+            </div>
+          </details>
+        )}
       </div>
     );
   };
@@ -467,7 +492,18 @@ export default function ScamLookup() {
                     {result.success ? (
                       formatResult(result.data, 'phone')
                     ) : (
-                      <div className="text-red-600">{result.error}</div>
+                      <div className="text-red-600 bg-red-50 p-4 rounded-lg border border-red-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertCircle className="h-5 w-5" />
+                          <span className="font-medium">Service Unavailable</span>
+                        </div>
+                        <p className="text-sm">
+                          {result.error?.includes('API') ? 
+                            'The security service is temporarily unavailable. Please try again later.' : 
+                            result.error || 'Unable to complete security check at this time.'
+                          }
+                        </p>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
@@ -529,7 +565,18 @@ export default function ScamLookup() {
                     {result.success ? (
                       formatResult(result.data, 'email')
                     ) : (
-                      <div className="text-red-600">{result.error}</div>
+                      <div className="text-red-600 bg-red-50 p-4 rounded-lg border border-red-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertCircle className="h-5 w-5" />
+                          <span className="font-medium">Service Unavailable</span>
+                        </div>
+                        <p className="text-sm">
+                          {result.error?.includes('API') ? 
+                            'The security service is temporarily unavailable. Please try again later.' : 
+                            result.error || 'Unable to complete security check at this time.'
+                          }
+                        </p>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
@@ -590,7 +637,18 @@ export default function ScamLookup() {
                     {result.success ? (
                       formatResult(result.data, 'url')
                     ) : (
-                      <div className="text-red-600">{result.error}</div>
+                      <div className="text-red-600 bg-red-50 p-4 rounded-lg border border-red-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertCircle className="h-5 w-5" />
+                          <span className="font-medium">Service Unavailable</span>
+                        </div>
+                        <p className="text-sm">
+                          {result.error?.includes('API') ? 
+                            'The security service is temporarily unavailable. Please try again later.' : 
+                            result.error || 'Unable to complete security check at this time.'
+                          }
+                        </p>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
@@ -602,10 +660,15 @@ export default function ScamLookup() {
 
       <div className="mt-8 text-center">
         <Separator className="mb-4" />
-        <p className="text-sm text-muted-foreground">
-          This service uses multiple third-party APIs to provide comprehensive scam detection. 
-          Results are provided for informational purposes only.
-        </p>
+        <div className="max-w-2xl mx-auto space-y-2">
+          <p className="text-sm text-muted-foreground">
+            Our security checks use trusted third-party services to analyze phone numbers, emails, and websites. 
+            Results are for informational purposes only and should not be the sole basis for important decisions.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Your privacy is protected - we do not store the information you check, and sensitive API details are never displayed.
+          </p>
+        </div>
       </div>
     </div>
   );
