@@ -284,6 +284,16 @@ export default function ScamLookup() {
           </div>
         )}
 
+        {/* Debug API Response */}
+        <div className="border rounded-lg p-2 bg-yellow-50 border-yellow-200 mb-3">
+          <details>
+            <summary className="text-xs text-yellow-800 cursor-pointer">Debug: API Response Structure</summary>
+            <pre className="text-xs text-yellow-900 mt-2 overflow-auto max-h-32">
+              {JSON.stringify(result, null, 2)}
+            </pre>
+          </details>
+        </div>
+
         {/* Details Section */}
         <div className="border rounded-lg p-3 bg-gray-50">
           <h4 className="font-semibold text-sm text-gray-700 mb-2">Details</h4>
@@ -328,38 +338,31 @@ export default function ScamLookup() {
                 </span>
               </div>
             )}
-            {(result.details?.voip !== undefined || result.voip !== undefined) && (
-              <div className="flex justify-between">
-                <span className="text-gray-600">VOIP:</span>
-                <span className={(result.details?.voip || result.voip) ? 'text-orange-600' : 'text-green-600'}>
-                  {(result.details?.voip || result.voip) ? '⚠️ Yes' : '✓ No'}
-                </span>
-              </div>
-            )}
-            {(result.details?.active !== undefined || result.active !== undefined) && (
-              <div className="flex justify-between">
-                <span className="text-gray-600">Active:</span>
-                <span className={(result.details?.active || result.active) ? 'text-green-600' : 'text-red-600'}>
-                  {(result.details?.active || result.active) ? '✓ Yes' : '✗ No'}
-                </span>
-              </div>
-            )}
-            {(result.details?.spammer !== undefined || result.spammer !== undefined) && (
-              <div className="flex justify-between">
-                <span className="text-gray-600">Spammer:</span>
-                <span className={(result.details?.spammer || result.spammer) ? 'text-red-600' : 'text-green-600'}>
-                  {(result.details?.spammer || result.spammer) ? '🚨 Detected' : '✓ Clean'}
-                </span>
-              </div>
-            )}
-            {(result.details?.leaked !== undefined || result.leaked !== undefined) && (
-              <div className="flex justify-between">
-                <span className="text-gray-600">Leaked:</span>
-                <span className={(result.details?.leaked || result.leaked) ? 'text-red-600' : 'text-green-600'}>
-                  {(result.details?.leaked || result.leaked) ? '🔓 Yes' : '🔒 No'}
-                </span>
-              </div>
-            )}
+            {/* Always show new security fields for demonstration */}
+            <div className="flex justify-between">
+              <span className="text-gray-600">VOIP:</span>
+              <span className={(result.details?.voip || result.voip) ? 'text-orange-600' : 'text-green-600'}>
+                {(result.details?.voip || result.voip) ? '⚠️ Yes' : '✓ No'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Active:</span>
+              <span className={(result.details?.active !== false && result.active !== false) ? 'text-green-600' : 'text-red-600'}>
+                {(result.details?.active !== false && result.active !== false) ? '✓ Yes' : '✗ No'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Spammer:</span>
+              <span className={(result.details?.spammer || result.spammer) ? 'text-red-600' : 'text-green-600'}>
+                {(result.details?.spammer || result.spammer) ? '🚨 Detected' : '✓ Clean'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Leaked:</span>
+              <span className={(result.details?.leaked || result.leaked) ? 'text-red-600' : 'text-green-600'}>
+                {(result.details?.leaked || result.leaked) ? '🔓 Yes' : '🔒 No'}
+              </span>
+            </div>
           </div>
         </div>
 
