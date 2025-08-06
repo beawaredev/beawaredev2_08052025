@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { SecurityScore } from "@/components/security/SecurityScore";
 import { 
   MenuIcon, 
   Search, 
@@ -105,7 +106,10 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
           <ShieldCheckIcon className="h-5 w-5 text-primary" />
           <div className="flex flex-col ml-2">
             <h1 className="text-lg font-semibold text-primary leading-tight">{getPageTitle()}</h1>
-            <span className="text-xs text-primary/80 leading-none -mt-1">Digital Safety</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-primary/80 leading-none">Digital Safety</span>
+              {user && <SecurityScore />}
+            </div>
           </div>
         </div>
 
@@ -128,6 +132,9 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
             </>
           ) : (
             <>
+              {/* Security Score */}
+              <SecurityScore />
+              
               {/* BeAware Username Display */}
               {user?.beawareUsername ? (
                 <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-full border border-primary/20">
