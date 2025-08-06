@@ -252,21 +252,22 @@ export default function ScamLookup() {
         </div>
 
         {/* Security Details Section */}
-        <div className="border rounded-lg p-3 bg-gray-50">
-          <h4 className="font-semibold text-sm text-gray-700 mb-2">Security Details</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+        <div className="border rounded-lg p-2 bg-gray-50">
+          <h4 className="font-semibold text-xs text-gray-700 mb-1">Security Details</h4>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-1 text-xs">
+            {/* Core Info */}
             {(result.details?.valid !== undefined || result.valid !== undefined) && (
               <div className="flex justify-between">
                 <span className="text-gray-600">Valid:</span>
                 <span className={result.details?.valid || result.valid ? 'text-green-600' : 'text-red-600'}>
-                  {result.details?.valid || result.valid ? '✓ Yes' : '✗ No'}
+                  {result.details?.valid || result.valid ? '✓' : '✗'}
                 </span>
               </div>
             )}
             {(result.details?.carrier || result.carrier) && (
               <div className="flex justify-between">
                 <span className="text-gray-600">Carrier:</span>
-                <span>{result.details?.carrier || result.carrier}</span>
+                <span className="truncate">{(result.details?.carrier || result.carrier).substring(0, 12)}</span>
               </div>
             )}
             {(result.details?.country || result.country) && (
@@ -275,69 +276,56 @@ export default function ScamLookup() {
                 <span>{result.details?.country || result.country}</span>
               </div>
             )}
-            {(result.details?.region || result.region) && (
-              <div className="flex justify-between">
-                <span className="text-gray-600">Region:</span>
-                <span>{result.details?.region || result.region}</span>
-              </div>
-            )}
-            {(result.details?.lineType || result.details?.line_type || result.line_type) && (
-              <div className="flex justify-between">
-                <span className="text-gray-600">Line Type:</span>
-                <span>{result.details?.lineType || result.details?.line_type || result.line_type}</span>
-              </div>
-            )}
             {(result.details?.mobile !== undefined || result.mobile !== undefined) && (
               <div className="flex justify-between">
                 <span className="text-gray-600">Mobile:</span>
                 <span className={(result.details?.mobile || result.mobile) ? 'text-blue-600' : 'text-gray-600'}>
-                  {(result.details?.mobile || result.mobile) ? '📱 Yes' : 'No'}
+                  {(result.details?.mobile || result.mobile) ? '📱' : '✗'}
                 </span>
               </div>
             )}
-            {/* Always show new security fields for demonstration */}
+            {/* Security Status */}
             <div className="flex justify-between">
               <span className="text-gray-600">VOIP:</span>
               <span className={(result.details?.voip || result.voip) ? 'text-orange-600' : 'text-green-600'}>
-                {(result.details?.voip || result.voip) ? '⚠️ Yes' : '✓ No'}
+                {(result.details?.voip || result.voip) ? '⚠️' : '✓'}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Active:</span>
               <span className={(result.details?.active !== false && result.active !== false) ? 'text-green-600' : 'text-red-600'}>
-                {(result.details?.active !== false && result.active !== false) ? '✓ Yes' : '✗ No'}
+                {(result.details?.active !== false && result.active !== false) ? '✓' : '✗'}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Spammer:</span>
               <span className={(result.details?.spammer || result.spammer) ? 'text-red-600' : 'text-green-600'}>
-                {(result.details?.spammer || result.spammer) ? '🚨 Detected' : '✓ Clean'}
+                {(result.details?.spammer || result.spammer) ? '🚨' : '✓'}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Leaked:</span>
               <span className={(result.details?.leaked || result.leaked) ? 'text-red-600' : 'text-green-600'}>
-                {(result.details?.leaked || result.leaked) ? '🔓 Yes' : '🔒 No'}
+                {(result.details?.leaked || result.leaked) ? '🔓' : '🔒'}
               </span>
             </div>
-            
-            {/* Security Status Indicators */}
+            {/* Additional Security */}
             {(result.details?.recent_abuse || result.recent_abuse) && (
               <div className="flex justify-between">
-                <span className="text-gray-600">Recent Abuse:</span>
-                <span className="text-red-600">🚨 Detected</span>
+                <span className="text-gray-600">Abuse:</span>
+                <span className="text-red-600">🚨</span>
               </div>
             )}
             {(result.details?.bot_status || result.bot_status) && (
               <div className="flex justify-between">
-                <span className="text-gray-600">Bot Activity:</span>
-                <span className="text-orange-600">🤖 Detected</span>
+                <span className="text-gray-600">Bot:</span>
+                <span className="text-orange-600">🤖</span>
               </div>
             )}
             {(result.details?.proxy || result.proxy) && (
               <div className="flex justify-between">
                 <span className="text-gray-600">Proxy:</span>
-                <span className="text-yellow-600">🌐 Detected</span>
+                <span className="text-yellow-600">🌐</span>
               </div>
             )}
           </div>
