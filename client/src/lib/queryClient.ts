@@ -12,6 +12,33 @@ import { getApiUrl } from "./api";
 // Re-export getApiUrl for convenience
 export { getApiUrl };
 
+function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  
+  // Get user from localStorage
+  const storedUser = localStorage.getItem("user");
+  if (storedUser) {
+    try {
+      const user = JSON.parse(storedUser);
+      if (user) {
+        headers['x-user-id'] = user.id.toString();
+        headers['x-user-email'] = user.email;
+        headers['x-user-role'] = user.role || 'user';
+        
+        console.log('Adding auth headers:', {
+          id: user.id,
+          email: user.email,
+          role: user.role
+        });
+      }
+    } catch (error) {
+      console.error("Error parsing user data for auth headers:", error);
+    }
+  }
+  
+  return headers;
+}
+
 export async function apiRequest(
   url: string,
   options?: RequestInit,
@@ -22,8 +49,16 @@ export async function apiRequest(
   
   console.log(`API Request to: ${fullUrl}`);
   
+  // Merge auth headers with existing headers
+  const authHeaders = getAuthHeaders();
+  const headers = {
+    ...authHeaders,
+    ...options?.headers,
+  };
+  
   const res = await fetch(fullUrl, {
     ...options,
+    headers,
     credentials: "include",
   });
 
@@ -51,7 +86,11 @@ export const getQueryFn: <T>(options: {
       console.log(`Direct query to: ${url}`);
     }
     
+    // Add auth headers for queries too
+    const authHeaders = getAuthHeaders();
+    
     const res = await fetch(url, {
+      headers: authHeaders,
       credentials: "include",
     });
 

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test User Setup for Digital Security Checklist</title>
+</head>
+<body>
+    <h1>Set up test user for Digital Security Checklist</h1>
+    <button onclick="setupTestUser()">Setup Test User</button>
+    <button onclick="clearUser()">Clear User</button>
+    <button onclick="checkUser()">Check Current User</button>
+    <div id="output"></div>
+
+    <script>
+        function setupTestUser() {
+            const testUser = {
+                id: 1,
+                email: "test@beaware.com",
+                role: "user",
+                displayName: "Test User",
+                authProvider: "local"
+            };
+            
+            localStorage.setItem("user", JSON.stringify(testUser));
+            document.getElementById("output").innerHTML = "<p>✅ Test user set up: " + JSON.stringify(testUser, null, 2) + "</p>";
+        }
+        
+        function clearUser() {
+            localStorage.removeItem("user");
+            document.getElementById("output").innerHTML = "<p>🗑️ User data cleared</p>";
+        }
+        
+        function checkUser() {
+            const user = localStorage.getItem("user");
+            if (user) {
+                document.getElementById("output").innerHTML = "<p>👤 Current user: " + user + "</p>";
+            } else {
+                document.getElementById("output").innerHTML = "<p>❌ No user data found</p>";
+            }
+        }
+    </script>
+</body>
+</html>
