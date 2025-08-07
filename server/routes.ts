@@ -143,48 +143,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return next();
       }
       
-      // Fallback: try to get admin user from database
-      console.log("Attempting to authenticate admin user from database");
-      try {
-        // Check for admin@beaware.com first (primary admin)
-        let user = await storage.getUserByEmail("admin@beaware.com");
-        
-        if (!user) {
-          // Check for backup admin@beaware.fyi
-          user = await storage.getUserByEmail("admin@beaware.fyi");
-        }
-        
-        if (!user) {
-          console.log("Admin user not found, creating admin@beaware.com user");
-          user = await storage.createUser({
-            email: "admin@beaware.com",
-            password: "password123", 
-            displayName: "Administrator",
-            beawareUsername: "admin_beaware",
-            role: "admin",
-            authProvider: "local"
-          });
-          console.log("Admin user created successfully:", user);
-        } else {
-          console.log("Admin user found in database:", user);
-          // Ensure the user has admin role
-          if (user.role !== "admin") {
-            console.log("Updating user role to admin");
-            user = await storage.updateUser(user.id, { role: "admin" });
-          }
-        }
-        
-        (req as any).user = user;
-        console.log("Set user object with role:", user.role);
-        next();
-        
-      } catch (dbError) {
-        console.error("Database authentication failed:", dbError);
-        // If database fails, proceed without authentication for now
-        console.log("Proceeding without authentication due to database error");
-        (req as any).user = null;
-        next();
-      }
+      // No authentication headers - return 401
+      console.log("No authentication headers provided");
+      return res.status(401).json({ message: "Authentication required" });
       
     } catch (err) {
       console.error("Error in requireAuth middleware:", err);

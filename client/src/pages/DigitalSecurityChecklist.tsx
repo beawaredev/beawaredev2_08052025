@@ -138,6 +138,11 @@ export default function DigitalSecurityChecklist() {
   >({
     queryKey: ["/api/security-checklist/progress"],
     enabled: !!user,
+    // For non-authenticated users, return empty array to ensure clean state
+    select: (data) => {
+      if (!user) return [];
+      return data || [];
+    },
   });
 
   // Edit form
@@ -372,8 +377,8 @@ export default function DigitalSecurityChecklist() {
       ? (checklistItems as SecurityChecklistItem[])
       : fallbackItems;
 
-  // Create progress map for easy lookup
-  const progressMap = (userProgress as UserSecurityProgress[]).reduce(
+  // Create progress map for easy lookup - only for authenticated users
+  const progressMap = user ? (userProgress as UserSecurityProgress[]).reduce(
     (
       acc: Record<number, UserSecurityProgress>,
       progress: UserSecurityProgress,
@@ -382,7 +387,7 @@ export default function DigitalSecurityChecklist() {
       return acc;
     },
     {},
-  );
+  ) : {}; // Empty progress map for non-authenticated users
 
   // Filter items by category
   const filteredItems =
@@ -392,11 +397,11 @@ export default function DigitalSecurityChecklist() {
           (item: SecurityChecklistItem) => item.category === selectedCategory,
         );
 
-  // Calculate completion statistics
+  // Calculate completion statistics - only for authenticated users
   const totalItems = effectiveItems.length;
-  const completedItems = (userProgress as UserSecurityProgress[]).filter(
+  const completedItems = user ? (userProgress as UserSecurityProgress[]).filter(
     (p: UserSecurityProgress) => p.isCompleted,
-  ).length;
+  ).length : 0;
   const completionPercentage =
     totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
 
