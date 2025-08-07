@@ -377,8 +377,8 @@ export default function DigitalSecurityChecklist() {
       ? (checklistItems as SecurityChecklistItem[])
       : fallbackItems;
 
-  // Create progress map for easy lookup - only for authenticated users
-  const progressMap = user ? (userProgress as UserSecurityProgress[]).reduce(
+  // Create progress map for easy lookup
+  const progressMap = (userProgress as UserSecurityProgress[]).reduce(
     (
       acc: Record<number, UserSecurityProgress>,
       progress: UserSecurityProgress,
@@ -387,7 +387,7 @@ export default function DigitalSecurityChecklist() {
       return acc;
     },
     {},
-  ) : {}; // Empty progress map for non-authenticated users
+  );
 
   // Filter items by category
   const filteredItems =
@@ -397,11 +397,11 @@ export default function DigitalSecurityChecklist() {
           (item: SecurityChecklistItem) => item.category === selectedCategory,
         );
 
-  // Calculate completion statistics - only for authenticated users
+  // Calculate completion statistics
   const totalItems = effectiveItems.length;
-  const completedItems = user ? (userProgress as UserSecurityProgress[]).filter(
+  const completedItems = (userProgress as UserSecurityProgress[]).filter(
     (p: UserSecurityProgress) => p.isCompleted,
-  ).length : 0;
+  ).length;
   const completionPercentage =
     totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
 
@@ -430,11 +430,11 @@ export default function DigitalSecurityChecklist() {
       userAuthenticated: !!user,
     });
 
-    // If no user, just update local state for demo
+      // If no user, just update local state for demo
     if (!user) {
       console.log("👤 No user - updating local state only");
 
-      // Update progressMap directly for immediate UI update
+      // Create mock progress for local state
       const mockProgress = {
         id: Date.now(),
         userId: 0,
@@ -443,12 +443,10 @@ export default function DigitalSecurityChecklist() {
         notes: currentProgress?.notes || null,
         completedAt: newCompletedState ? new Date().toISOString() : null,
         updatedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
       };
 
-      // Force immediate update by updating the progressMap
-      progressMap[item.id] = mockProgress;
-
-      // Also update query cache to trigger re-render
+      // Update query cache to trigger re-render with new progress state
       queryClient.setQueryData(
         ["/api/security-checklist/progress"],
         (oldData: any) => {
