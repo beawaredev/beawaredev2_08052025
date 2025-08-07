@@ -30,6 +30,7 @@ import {
 import { sql, eq } from "drizzle-orm";
 import { z } from "zod";
 import { ScamLookupService } from "./scamLookupService.js";
+import { hashPassword, verifyPassword, validatePasswordStrength } from './utils/passwordUtils.js';
 
 // Path to the uploads directory
 const uploadDir = path.join(process.cwd(), "uploads");
@@ -335,7 +336,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
         
-        console.log("Creating user with data:", JSON.stringify(userData));
+        // Validate password strength if password is provided (local auth)
+        if (userData.password) {
+          const passwordValidation = validatePasswordStrength(userData.password);
+          if (!passwordValidation.isValid) {
+            return res.status(400).json({ message: passwordValidation.message });
+          }
+          
+          // Hash the password before storing
+          console.log("Hashing password for security...");
+          userData.password = await hashPassword(userData.password);
+        }
+        
+        console.log("Creating user with data:", JSON.stringify({ ...userData, password: "[HASHED]" }));
         
         // Create the user
         const user = await storage.createUser(userData);
@@ -596,15 +609,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!adminUser) {
         console.log("Creating admin user for testing...");
+        
+        // Hash the admin password for security
+        const hashedAdminPassword = await hashPassword("password123");
+        
         adminUser = await storage.createUser({
           email: "admin@beaware.com",
-          password: "password123",
+          password: hashedAdminPassword,
           displayName: "Administrator",
           beawareUsername: "admin_beaware",
           role: "admin",
           authProvider: "local"
         });
-        console.log("Admin user created:", adminUser);
+        console.log("Admin user created with hashed password");
       } else {
         // Ensure the user has admin role
         if (adminUser.role !== "admin") {
@@ -825,12 +842,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
       
-      // For non-admin users or incorrect admin password
-      // Check password - simplified version to handle both hashed and non-hashed
-      if (user.password !== password && 
-          !(email === "admin@beaware.com" && password === "password123")) {
+      // For non-admin users - verify password with bcrypt
+      console.log("Verifying password for user:", email);
+      const isPasswordValid = await verifyPassword(password, user.password);
+      
+      if (!isPasswordValid) {
+        console.log("Password verification failed for user:", email);
         return res.status(401).json({ message: "Invalid credentials" });
       }
+      
+      console.log("Password verification successful for user:", email);
       
       // Remove password from response
       const { password: _, ...userWithoutPassword } = user;
@@ -914,8 +935,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Token and new password are required" });
       }
 
-      if (newPassword.length < 6) {
-        return res.status(400).json({ message: "Password must be at least 6 characters long" });
+      // Validate password strength
+      const passwordValidation = validatePasswordStrength(newPassword);
+      if (!passwordValidation.isValid) {
+        return res.status(400).json({ message: passwordValidation.message });
       }
 
       // Validate reset token
@@ -924,8 +947,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid or expired reset token" });
       }
 
-      // Update user password
-      const passwordUpdated = await storage.updateUserPassword(resetRecord.userId, newPassword);
+      // Hash the new password
+      console.log("Hashing new password for security...");
+      const hashedPassword = await hashPassword(newPassword);
+
+      // Update user password with hashed password
+      const passwordUpdated = await storage.updateUserPassword(resetRecord.userId, hashedPassword);
       if (!passwordUpdated) {
         return res.status(500).json({ message: "Failed to update password" });
       }

@@ -92,17 +92,34 @@ export class MemStorage implements IStorage {
   private userSecurityProgressId: number = 1;
   
   constructor() {
-    // Seed an admin user
-    this.createUser({
-      email: "admin@beaware.fyi",
-      password: "adminpassword",
-      displayName: "Admin User",
-      role: "admin",
-      authProvider: "local"
-    });
-    
-    // Initialize security checklist items
+    // Initialize security checklist items first
     this.seedSecurityChecklistItems();
+    
+    // Seed an admin user with hashed password
+    this.seedAdminUser();
+  }
+  
+  private async seedAdminUser() {
+    try {
+      // Only create admin user if it doesn't exist
+      const existingAdmin = await this.getUserByEmail("admin@beaware.fyi");
+      if (!existingAdmin) {
+        // Import bcrypt dynamically to avoid circular dependency
+        const bcrypt = await import('bcrypt');
+        const hashedPassword = await bcrypt.hash("adminpassword", 12);
+        
+        this.createUser({
+          email: "admin@beaware.fyi",
+          password: hashedPassword,
+          displayName: "Admin User",
+          role: "admin",
+          authProvider: "local"
+        });
+        console.log("Admin user seeded with hashed password");
+      }
+    } catch (error) {
+      console.error("Error seeding admin user:", error);
+    }
   }
   
   async getUser(id: number): Promise<User | undefined> {
