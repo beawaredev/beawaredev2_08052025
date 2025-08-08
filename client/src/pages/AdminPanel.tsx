@@ -1581,9 +1581,8 @@ function AdminSecurityChecklistPanel() {
                 <Badge variant="outline" className="capitalize text-xs">
                   {item.category?.replace('_', ' ')}
                 </Badge>
-                {/* Temporarily hidden - these fields are not available in Azure SQL yet */}
-                {/* {item.toolLaunchUrl && <span title="Has launch tool">🔗</span>} */}
-                {/* {item.youtubeVideoUrl && <span title="Has video">📹</span>} */}
+                {item.toolLaunchUrl && <span title="Has launch tool">🔗</span>}
+                {item.youtubeVideoUrl && <span title="Has video">📹</span>}
               </div>
             </CardHeader>
             <CardContent className="pt-2">
@@ -1687,9 +1686,6 @@ function AdminSecurityChecklistPanel() {
                 placeholder="https://example.com/help"
               />
             </div>
-            {/* Temporarily hidden - Azure SQL database doesn't have these columns yet */}
-            {/* TODO: Add tool_launch_url and youtube_video_url columns to Azure SQL */}
-            {/*
             <div>
               <Label htmlFor="create-tool-url">Tool Launch URL (optional)</Label>
               <Input
@@ -1706,7 +1702,6 @@ function AdminSecurityChecklistPanel() {
                 placeholder="https://youtube.com/watch?v=..."
               />
             </div>
-            */}
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
                 Cancel
@@ -1808,9 +1803,6 @@ function AdminSecurityChecklistPanel() {
                 placeholder="https://example.com/help"
               />
             </div>
-            {/* Temporarily hidden - Azure SQL database doesn't have these columns yet */}
-            {/* TODO: Add tool_launch_url and youtube_video_url columns to Azure SQL */}
-            {/*
             <div>
               <Label htmlFor="edit-tool-url">Tool Launch URL (optional)</Label>
               <Input
@@ -1827,7 +1819,6 @@ function AdminSecurityChecklistPanel() {
                 placeholder="https://youtube.com/watch?v=..."
               />
             </div>
-            */}
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                 Cancel

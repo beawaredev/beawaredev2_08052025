@@ -1275,16 +1275,14 @@ export class AzureStorage implements IStorage {
         updateFields.push('help_url = @helpUrl');
         params.helpUrl = updates.helpUrl;
       }
-      // Temporarily disabled - these columns don't exist in the Azure SQL database yet
-      // TODO: Add these columns to Azure SQL database
-      // if (updates.toolLaunchUrl !== undefined) {
-      //   updateFields.push('tool_launch_url = @toolLaunchUrl');
-      //   params.toolLaunchUrl = updates.toolLaunchUrl;
-      // }
-      // if (updates.youtubeVideoUrl !== undefined) {
-      //   updateFields.push('youtube_video_url = @youtubeVideoUrl');
-      //   params.youtubeVideoUrl = updates.youtubeVideoUrl;
-      // }
+      if (updates.toolLaunchUrl !== undefined) {
+        updateFields.push('tool_launch_url = @toolLaunchUrl');
+        params.toolLaunchUrl = updates.toolLaunchUrl;
+      }
+      if (updates.youtubeVideoUrl !== undefined) {
+        updateFields.push('youtube_video_url = @youtubeVideoUrl');
+        params.youtubeVideoUrl = updates.youtubeVideoUrl;
+      }
       if (updates.estimatedTimeMinutes !== undefined) {
         updateFields.push('estimated_time_minutes = @estimatedTimeMinutes');
         params.estimatedTimeMinutes = updates.estimatedTimeMinutes;
