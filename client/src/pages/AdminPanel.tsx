@@ -1382,12 +1382,25 @@ function AdminSecurityChecklistPanel() {
 
   const updateItemMutation = useMutation({
     mutationFn: async (data: any) => {
-      return apiRequest(`/api/security-checklist/${editingItem.id}`, {
-        method: 'PUT',
-        body: data,
+      console.log('Updating security checklist item:', {
+        itemId: editingItem.id,
+        data: data
       });
+      
+      const response = await apiRequest(`/api/security-checklist/${editingItem.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      
+      const result = await response.json();
+      console.log('Update response:', result);
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      console.log('Update successful, invalidating cache and closing dialog');
       queryClient.invalidateQueries({ queryKey: ["/api/security-checklist"] });
       setIsEditDialogOpen(false);
       setEditingItem(null);
@@ -1397,6 +1410,7 @@ function AdminSecurityChecklistPanel() {
       });
     },
     onError: (error) => {
+      console.error('Update error:', error);
       toast({
         title: "Update Failed",
         description: `Failed to update component: ${error}`,
@@ -1453,6 +1467,8 @@ function AdminSecurityChecklistPanel() {
   });
 
   const onSubmitEdit = (values: any) => {
+    console.log('Edit form submitted with values:', values);
+    console.log('Current editing item:', editingItem);
     updateItemMutation.mutate(values);
   };
 
