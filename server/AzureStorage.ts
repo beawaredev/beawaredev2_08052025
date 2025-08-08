@@ -1287,6 +1287,14 @@ export class AzureStorage implements IStorage {
         updateFields.push('estimated_time_minutes = @estimatedTimeMinutes');
         params.estimatedTimeMinutes = updates.estimatedTimeMinutes;
       }
+      if (updates.category !== undefined) {
+        updateFields.push('category = @category');
+        params.category = updates.category;
+      }
+      if (updates.priority !== undefined) {
+        updateFields.push('priority = @priority');
+        params.priority = updates.priority;
+      }
 
       if (updateFields.length === 0) {
         // No updates to apply, return current item
