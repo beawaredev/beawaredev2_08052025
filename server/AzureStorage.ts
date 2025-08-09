@@ -1287,6 +1287,14 @@ export class AzureStorage implements IStorage {
         updateFields.push('estimated_time_minutes = @estimatedTimeMinutes');
         params.estimatedTimeMinutes = updates.estimatedTimeMinutes;
       }
+      if (updates.category !== undefined) {
+        updateFields.push('category = @category');
+        params.category = updates.category;
+      }
+      if (updates.priority !== undefined) {
+        updateFields.push('priority = @priority');
+        params.priority = updates.priority;
+      }
 
       if (updateFields.length === 0) {
         // No updates to apply, return current item
@@ -1881,38 +1889,8 @@ export class AzureStorage implements IStorage {
   async createApiConfig(config: InsertApiConfig): Promise<ApiConfig> {
     try {
       await this.ensureConnection();
-      const request = pool.request();
       
-      // First, try to create the table if it doesn't exist
-      const createTableQuery = `
-        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'api_configs')
-        BEGIN
-            CREATE TABLE api_configs (
-                id INT IDENTITY(1,1) PRIMARY KEY,
-                name NVARCHAR(100) NOT NULL,
-                type NVARCHAR(50) NOT NULL,
-                url NVARCHAR(500) NOT NULL,
-                api_key NVARCHAR(255) NOT NULL,
-                enabled BIT NOT NULL DEFAULT 1,
-                description NVARCHAR(500),
-                rate_limit INT DEFAULT 100,
-                timeout INT DEFAULT 30,
-                parameter_mapping NVARCHAR(MAX),
-                headers NVARCHAR(MAX),
-                created_at DATETIME2 DEFAULT GETDATE(),
-                updated_at DATETIME2 DEFAULT GETDATE()
-            );
-        END
-      `;
-      
-      try {
-        await request.query(createTableQuery);
-        console.log('API configs table created or verified');
-      } catch (createError) {
-        console.log('Could not create table (may already exist):', createError.message);
-      }
-      
-      // Now try to insert the config
+      // Insert the config directly into the existing table
       const insertRequest = pool.request();
       insertRequest.input('name', sql.VarChar, config.name);
       insertRequest.input('type', sql.VarChar, config.type);
