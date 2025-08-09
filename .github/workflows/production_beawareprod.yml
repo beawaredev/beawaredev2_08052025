@@ -74,10 +74,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build
-    environment:
-      name: prod
-      url: https://${{ env.Beaware-Prod}}.azurewebsites.net
-    steps:
+      steps:
       - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
@@ -96,3 +93,4 @@ jobs:
           app-name: ${{ env.WEBAPP_NAME }}
           slot-name: ${{ env.SLOT_NAME }}
           package: .
+
