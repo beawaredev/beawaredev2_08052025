@@ -1,4 +1,4 @@
-name: Build and deploy Node.js app to Azure Web App (PROD)
+name: Build & Deploy (PROD)
 
 on:
   push:
@@ -7,12 +7,12 @@ on:
 
 permissions:
   contents: read
-  id-token: write   # required for OIDC -> azure/login
+  id-token: write
 
 env:
   NODE_VERSION: '20.x'
-  WEBAPP_NAME: 'beaware-prod-01'   # <-- change to your actual prod web app name
-  SLOT_NAME: 'Production'          # keep if you don't use slots
+  WEBAPP_NAME: 'Beaware-Prod'    # your PROD App Service
+  SLOT_NAME: 'Production'
   ARTIFACT_NAME: 'node-app'
 
 jobs:
@@ -20,52 +20,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build app
+      - run: npm ci || npm install
+      - name: Build
         run: |
-          echo "Building frontend with Vite..."
           npx vite build
-          echo "Ensuring compiled directory exists..."
           mkdir -p compiled/server compiled/shared
-          echo "Compiling TypeScript files..."
-          npx tsc --project server/tsconfig.json || echo "TypeScript compilation completed with warnings"
-          echo "Verifying build output..."
-          ls -la compiled/server/ || true
-          ls -la dist/ || true
+          npx tsc --project server/tsconfig.json || echo "tsc warnings ignored"
+      - run: npm prune --production
 
-      - name: Prune dev dependencies
-        run: npm prune --production
-
-      - name: Prepare deploy folder
+      - name: Pack artifact
         run: |
           rm -rf deploy && mkdir deploy
-          # Copy compiled server files
-          if [ -d "compiled" ]; then
-            cp -r compiled/* deploy/
-          fi
-          # Copy frontend build files
-          if [ -d "dist" ]; then
-            mkdir -p deploy/dist
-            cp -r dist/* deploy/dist/
-          fi
-          # Runtime files
+          [ -d compiled ] && cp -r compiled/* deploy/
+          if [ -d dist ]; then mkdir -p deploy/dist && cp -r dist/* deploy/dist/; fi
           cp package*.json deploy/ || true
-          cp index.js deploy/ 2>/dev/null || echo "index.js not found, skipping"
-          cp server.js deploy/ 2>/dev/null || echo "server.js not found, skipping"
-          # Production node_modules
+          cp index.js deploy/ 2>/dev/null || true
+          cp server.js deploy/ 2>/dev/null || true
           cp -r node_modules deploy/
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT_NAME }}
           path: deploy/
@@ -73,13 +51,8 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build
-    # If your Entra federated credential uses Environment=prod, uncomment:
-    # environment:
-    #   name: prod
-    #   url: https://${{ env.WEBAPP_NAME }}.azurewebsites.net
     steps:
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: ${{ env.ARTIFACT_NAME }}
 
