@@ -2801,6 +2801,17 @@ ${message}
     }
   });
 
+  // Serve version.json at root level for frontend consumption
+  app.get("/version.json", async (req: Request, res: Response) => {
+    try {
+      const versionInfo = getVersionInfo();
+      res.json(versionInfo);
+    } catch (error) {
+      console.error("Error getting version info for /version.json:", error);
+      res.status(500).json({ error: "Failed to get version information" });
+    }
+  });
+
   // SCAM LOOKUP API ENDPOINTS
   
   // Check if input is a scam (phone, email, URL, etc.)

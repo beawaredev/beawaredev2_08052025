@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { getVersionInfo, formatVersionDisplay, type VersionInfo } from '@/lib/version';
+import { getVersionInfo, formatVersionDisplay, type VersionInfo } from '../lib/version';
 
 export function VersionDisplay() {
   const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
 
   useEffect(() => {
     // Force refresh version info to avoid caching
-    setVersionInfo(getVersionInfo());
+    getVersionInfo().then(setVersionInfo);
   }, []);
 
   if (!versionInfo) return null;
@@ -22,7 +22,7 @@ export function AdminVersionInfo() {
   const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
 
   useEffect(() => {
-    setVersionInfo(getVersionInfo());
+    getVersionInfo().then(setVersionInfo);
   }, []);
 
   if (!versionInfo) return null;

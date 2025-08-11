@@ -1,0 +1,8 @@
+{
+  "app": "BeAware",
+  "environment": "__ENV__",
+  "version": "__VERSION__",
+  "build": "__BUILD__",
+  "commit": "__COMMIT__",
+  "builtAt": "__BUILT_AT__"
+}
