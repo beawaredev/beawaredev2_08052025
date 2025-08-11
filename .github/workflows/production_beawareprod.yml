@@ -1,0 +1,105 @@
+name: Build & Deploy (PROD)
+
+on:
+  push:
+    branches: [ production ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write   # required for OIDC (azure/login)
+
+env:
+  NODE_VERSION: '20.x'
+  ENV_NAME: 'prod'                # <- used in version.json
+  WEBAPP_NAME: 'Beaware-Prod'     # your PROD App Service name
+  SLOT_NAME: 'Production'         # keep if not using slots
+  ARTIFACT_NAME: 'node-app'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci || npm install
+
+      - name: Build
+        run: |
+          npx vite build
+          mkdir -p compiled/server compiled/shared
+          npx tsc --project server/tsconfig.json || echo "tsc warnings ignored"
+
+      - name: Inject version.json (PROD)
+        run: |
+          set -e
+          VERSION="${VERSION:-$(node -p "require('./package.json').version")}"
+          BUILD="${GITHUB_RUN_NUMBER}"
+          COMMIT="${GITHUB_SHA}"
+          BUILT_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          mkdir -p dist/public
+          cat > dist/public/version.json <<'JSON'
+          {
+            "app": "BeAware",
+            "environment": "__ENV__",
+            "version": "__VERSION__",
+            "build": "__BUILD__",
+            "commit": "__COMMIT__",
+            "builtAt": "__BUILT_AT__"
+          }
+          JSON
+          sed -i "s/__ENV__/${ENV_NAME}/"      dist/public/version.json
+          sed -i "s/__VERSION__/${VERSION}/"   dist/public/version.json
+          sed -i "s/__BUILD__/${BUILD}/"       dist/public/version.json
+          sed -i "s/__COMMIT__/${COMMIT}/"     dist/public/version.json
+          sed -i "s/__BUILT_AT__/${BUILT_AT}/" dist/public/version.json
+          echo "Stamped version.json:"
+          cat dist/public/version.json
+
+      - name: Prune dev deps
+        run: npm prune --production
+
+      - name: Pack artifact
+        run: |
+          rm -rf deploy && mkdir deploy
+          [ -d compiled ] && cp -r compiled/* deploy/
+          if [ -d dist ]; then mkdir -p deploy/dist && cp -r dist/* deploy/dist/; fi
+          cp package*.json deploy/ || true
+          cp index.js deploy/ 2>/dev/null || true
+          cp server.js deploy/ 2>/dev/null || true
+          cp -r node_modules deploy/
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: deploy/
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+
+      - name: Azure Login (OIDC - PROD)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_PROD }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_PROD }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_PROD }}
+
+      - name: Deploy to Azure Web App (PROD)
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.WEBAPP_NAME }}
+          slot-name: ${{ env.SLOT_NAME }}
+          package: .
