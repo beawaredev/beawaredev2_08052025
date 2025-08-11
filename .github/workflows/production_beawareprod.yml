@@ -11,8 +11,9 @@ permissions:
 
 env:
   NODE_VERSION: '20.x'
-  WEBAPP_NAME: 'Beaware-Prod'    # your PROD App Service name
-  SLOT_NAME: 'Production'        # keep if not using slots
+  ENV_NAME: 'prod'                # <- used in version.json
+  WEBAPP_NAME: 'Beaware-Prod'     # your PROD App Service name
+  SLOT_NAME: 'Production'         # keep if not using slots
   ARTIFACT_NAME: 'node-app'
 
 jobs:
@@ -34,6 +35,32 @@ jobs:
           npx vite build
           mkdir -p compiled/server compiled/shared
           npx tsc --project server/tsconfig.json || echo "tsc warnings ignored"
+
+      - name: Inject version.json (PROD)
+        run: |
+          set -e
+          VERSION="${VERSION:-$(node -p "require('./package.json').version")}"
+          BUILD="${GITHUB_RUN_NUMBER}"
+          COMMIT="${GITHUB_SHA}"
+          BUILT_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          mkdir -p dist/public
+          cat > dist/public/version.json <<'JSON'
+          {
+            "app": "BeAware",
+            "environment": "__ENV__",
+            "version": "__VERSION__",
+            "build": "__BUILD__",
+            "commit": "__COMMIT__",
+            "builtAt": "__BUILT_AT__"
+          }
+          JSON
+          sed -i "s/__ENV__/${ENV_NAME}/"      dist/public/version.json
+          sed -i "s/__VERSION__/${VERSION}/"   dist/public/version.json
+          sed -i "s/__BUILD__/${BUILD}/"       dist/public/version.json
+          sed -i "s/__COMMIT__/${COMMIT}/"     dist/public/version.json
+          sed -i "s/__BUILT_AT__/${BUILT_AT}/" dist/public/version.json
+          echo "Stamped version.json:"
+          cat dist/public/version.json
 
       - name: Prune dev deps
         run: npm prune --production
