@@ -16,9 +16,7 @@ let config = {
         port: parseInt(process.env.AZURE_SQL_PORT || '1433'),
         database: process.env.AZURE_SQL_DATABASE || 'Beawaredevdb',
         user: process.env.AZURE_SQL_USER || 'beawaredevadmin',
-        password: process.env.AZURE_SQL_PASSWORD || 'Getmeup81$',
-        // Keep legacy url for backward compatibility checks
-        url: process.env.DATABASE_URL
+        password: process.env.AZURE_SQL_PASSWORD || 'Getmeup81$'
     },
     firebase: {
         apiKey: process.env.VITE_FIREBASE_API_KEY,
