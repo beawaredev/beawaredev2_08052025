@@ -33,6 +33,7 @@ Preferred communication style: Simple, everyday language.
 - **Scam Reporting System**: User-submitted reports by category, admin verification, comment system, consolidated scam tracking.
 - **Admin Panel**: Report verification, user management, system statistics, scam video management (planned), and comprehensive security checklist management (CRUD, statistics, filtering).
 - **Scam Lookup Interface**: User-facing tool to check phone numbers, emails, and websites against configured APIs, with real-time results, risk assessment, and detailed formatting.
+- **Version Management System**: Comprehensive version tracking with client/server synchronization, footer display showing "BeAware • {environment} • v{version} • build {build}", supports build-time injection and /version.json endpoint.
 
 ### Security & Design Decisions
 - **Authentication**: Bcrypt hashing for passwords (12 rounds), strong password validation, secure admin user seeding.
@@ -40,6 +41,7 @@ Preferred communication style: Simple, everyday language.
 - **API Security**: All third-party scam lookup API calls use POST methods to hide sensitive information.
 - **UI/UX**: Compact, optimized interfaces for footer, scam lookup, and digital security checklist with card-based layouts and responsive design.
 - **Error Handling**: Comprehensive error handling and user-friendly error messages.
+- **Version Display**: Multi-tiered version system (window.__VERSION_INFO__ → /version.json → fallback) with footer badge showing complete environment and build information.
 
 ## External Dependencies
 

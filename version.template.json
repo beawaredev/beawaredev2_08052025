@@ -1,0 +1,8 @@
+{
+  "version": "1.1.0",
+  "build": "{{BUILD_NUMBER}}",
+  "hash": "{{COMMIT_HASH}}",
+  "branch": "{{BRANCH_NAME}}",
+  "timestamp": "{{BUILD_TIMESTAMP}}",
+  "environment": "{{ENVIRONMENT}}"
+}
