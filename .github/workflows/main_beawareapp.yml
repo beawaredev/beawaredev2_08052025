@@ -11,6 +11,10 @@ permissions:
   contents: read
   id-token: write
 
+env:
+  ENV_NAME: dev          # <-- shown in the UI (dev/prod)
+  NODE_VERSION: '20.x'
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,7 +25,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20.x'
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Install dependencies
         run: npm install
@@ -35,30 +39,59 @@ jobs:
           echo "Compiling TypeScript files..."
           npx tsc --project server/tsconfig.json || echo "TypeScript compilation completed with warnings"
           echo "Verifying build output..."
-          ls -la compiled/server/
-          ls -la dist/
+          ls -la compiled/server/ || true
+          ls -la dist/ || true
           echo "Build process completed successfully"
+
+      - name: Inject version.json (from CI)
+        run: |
+          set -e
+          VERSION="${VERSION:-$(node -p "require('./package.json').version")}"
+          BUILD="${GITHUB_RUN_NUMBER}"
+          COMMIT="${GITHUB_SHA}"
+          BUILT_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+          mkdir -p dist/public
+          cat > dist/public/version.json <<'JSON'
+          {
+            "app": "BeAware",
+            "environment": "__ENV__",
+            "version": "__VERSION__",
+            "build": "__BUILD__",
+            "commit": "__COMMIT__",
+            "builtAt": "__BUILT_AT__"
+          }
+          JSON
+
+          sed -i "s/__ENV__/${ENV_NAME}/"        dist/public/version.json
+          sed -i "s/__VERSION__/${VERSION}/"     dist/public/version.json
+          sed -i "s/__BUILD__/${BUILD}/"         dist/public/version.json
+          sed -i "s/__COMMIT__/${COMMIT}/"       dist/public/version.json
+          sed -i "s/__BUILT_AT__/${BUILT_AT}/"   dist/public/version.json
+
+          echo "----- dist/public/version.json -----"
+          cat dist/public/version.json
 
       - name: Prune dev dependencies
         run: npm prune --production
 
       - name: Prepare deploy folder
         run: |
-          mkdir deploy
+          mkdir -p deploy
           # Copy compiled server files
           if [ -d "compiled" ]; then
             cp -r compiled/* deploy/
           fi
-          # Copy frontend build files
+          # Copy frontend build files (includes version.json)
           if [ -d "dist" ]; then
             mkdir -p deploy/dist
             cp -r dist/* deploy/dist/
           fi
           # Copy necessary configuration files
-          cp package*.json deploy/
-          cp index.js deploy/ || echo "index.js not found, skipping"
-          cp server.js deploy/ || echo "server.js not found, skipping"
-          # Copy minimal node_modules (production only)
+          cp package*.json deploy/ || true
+          cp index.js deploy/ 2>/dev/null || echo "index.js not found, skipping"
+          cp server.js deploy/ 2>/dev/null || echo "server.js not found, skipping"
+          # Copy production node_modules
           cp -r node_modules deploy/
 
       - name: Upload build artifact
