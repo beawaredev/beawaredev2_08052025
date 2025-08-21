@@ -2,14 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { SecurityScore } from "@/components/security/SecurityScore";
-import { 
-  MenuIcon, 
-  Search, 
-  ShieldCheckIcon, 
-  Bell, 
-  PlusCircle,
-  LogOut
-} from "lucide-react";
+import { MenuIcon, Search, ShieldCheckIcon, LogOut } from "lucide-react";
 
 interface HeaderProps {
   onMobileMenuToggle: () => void;
@@ -17,18 +10,15 @@ interface HeaderProps {
 
 export default function Header({ onMobileMenuToggle }: HeaderProps) {
   const [location] = useLocation();
-  const { user, logout, isLoading } = useAuth();
-  
+  const { user, logout } = useAuth();
 
-  
   const getPageTitle = () => {
     switch (location) {
       case "/":
         return "Home";
       case "/dashboard":
         return "Dashboard";
-      case "/report":
-        return "Submit Report";
+      // 🚫 removed: "/report"
       case "/reports":
         return "Scam Reports";
       case "/search":
@@ -58,19 +48,18 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
         return "Digital Safety Platform";
     }
   };
-  
+
   const getPageDescription = () => {
     switch (location) {
       case "/":
-        return "Report and search for scam activity";
+        return "Search suspicious numbers or links and follow a guided security checklist.";
       case "/dashboard":
-        return "Overview of recent scam reports and statistics";
-      case "/report":
-        return "Submit a new scam report";
+        return "Overview of recent checks and your security progress";
+      // 🚫 removed: "/report" description
       case "/reports":
         return "Browse and search through reported scams";
       case "/search":
-        return "Search for specific scam phone numbers, emails, or businesses";
+        return "Search for specific scam phone numbers, emails, or websites";
       case "/scam-videos":
         return "Learn how to identify and avoid scams through educational content";
       case "/help":
@@ -93,12 +82,12 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
         return "";
     }
   };
-  
+
   return (
     <header className="bg-white border-b border-gray-200 shadow-sm">
       <div className="flex items-center justify-between p-4">
         {/* Mobile Menu Button */}
-        <button 
+        <button
           className="md:hidden text-gray-600 hover:text-gray-900 focus:outline-none"
           onClick={onMobileMenuToggle}
         >
@@ -109,9 +98,13 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
         <div className="flex md:hidden items-center">
           <ShieldCheckIcon className="h-5 w-5 text-primary" />
           <div className="flex flex-col ml-2">
-            <h1 className="text-lg font-semibold text-primary leading-tight">{getPageTitle()}</h1>
+            <h1 className="text-lg font-semibold text-primary leading-tight">
+              {getPageTitle()}
+            </h1>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-primary/80 leading-none">Digital Safety</span>
+              <span className="text-xs text-primary/80 leading-none">
+                Digital Safety
+              </span>
               {user && <SecurityScore />}
             </div>
           </div>
@@ -119,7 +112,9 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
 
         {/* Page Title (on medium+ screens) */}
         <div className="hidden md:block flex-1">
-          <h1 className="text-xl font-semibold text-gray-900">{getPageTitle()}</h1>
+          <h1 className="text-xl font-semibold text-gray-900">
+            {getPageTitle()}
+          </h1>
           <p className="text-sm text-gray-600">{getPageDescription()}</p>
         </div>
 
@@ -127,7 +122,12 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
         <div className="flex items-center space-x-3">
           {!user ? (
             <>
-              <Button asChild variant="ghost" size="sm" className="hidden sm:flex">
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className="hidden sm:flex"
+              >
                 <Link href="/login">Log In</Link>
               </Button>
               <Button asChild size="sm">
@@ -138,40 +138,47 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
             <>
               {/* Security Score */}
               <SecurityScore />
-              
+
               {/* BeAware Username Display */}
               {user?.beawareUsername ? (
                 <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-full border border-primary/20">
                   <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span className="text-sm font-medium text-primary">@{user.beawareUsername}</span>
+                  <span className="text-sm font-medium text-primary">
+                    @{user.beawareUsername}
+                  </span>
                 </div>
-              ) : user ? (
+              ) : (
                 <div className="text-xs text-gray-500">No username set</div>
-              ) : null}
-              
-              {location !== '/search' && (
-                <Button asChild variant="outline" size="sm" className="hidden sm:flex">
+              )}
+
+              {/* Search */}
+              {location !== "/search" && (
+                <Button
+                  asChild
+                  variant="outline"
+                  size="sm"
+                  className="hidden sm:flex"
+                >
                   <Link href="/search" className="flex items-center gap-1">
                     <Search className="h-4 w-4" />
                     <span>Search</span>
                   </Link>
                 </Button>
               )}
-              
-              {location !== '/report' && (
+
+              {/* ✅ Helpful CTA to checklist instead of Submit Report */}
+              {location !== "/secure-your-digital-presence" && (
                 <Button asChild size="sm">
-                  <Link href="/report" className="flex items-center gap-1">
-                    <PlusCircle className="h-4 w-4" />
-                    <span className="hidden sm:inline">Submit Report</span>
-                    <span className="sm:hidden">Report</span>
+                  <Link href="/secure-your-digital-presence">
+                    Secure Your Digital Presence
                   </Link>
                 </Button>
               )}
-              
+
               {/* Logout Button */}
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={logout}
                 className="flex items-center gap-1 text-muted-foreground hover:text-destructive"
                 title="Log out"

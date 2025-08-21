@@ -1,11 +1,11 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Switch, Route } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 import Home from "@/pages/Home";
 import Dashboard from "@/pages/Dashboard";
-import ScamReportForm from "@/pages/ScamReportForm";
+// 🚫 Removed: import ScamReportForm from "@/pages/ScamReportForm";
 import ScamReports from "@/pages/ScamReports";
 import ScamReportDetail from "@/pages/ScamReportDetail";
 import ConsolidatedScamDetail from "@/pages/ConsolidatedScamDetail";
@@ -33,46 +33,39 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import MobileNav from "@/components/layout/MobileNav";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { useState, useEffect, createContext, useContext } from "react";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
-// Import User type from the AuthContext
-interface User {
-  id: number;
-  email: string;
-  displayName: string;
-  role: 'admin' | 'user' | 'lawyer';
-  authProvider: 'local' | 'google';
-  googleId?: string;
-}
+// ✅ New: friendly page for disabled reporting
+import ReportingDisabled from "@/pages/ReportingDisabled";
 
-// Import the useAuth hook
-import { useAuth } from "@/contexts/AuthContext";
-
-// Simplified ProtectedRoute component
-function ProtectedRoute({ component: Component, adminOnly = false, ...rest }: { 
-  component: React.ComponentType; 
+// ---------------- Protected Route ----------------
+function ProtectedRoute({
+  component: Component,
+  adminOnly = false,
+  ...rest
+}: {
+  component: React.ComponentType;
   adminOnly?: boolean;
-  [x: string]: any 
+  [x: string]: any;
 }) {
   const { user, isLoading } = useAuth();
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [isValidatingAdmin, setIsValidatingAdmin] = useState<boolean>(false);
-  
+
   useEffect(() => {
     if (!isLoading && user) {
-      // Double-check that we have the correct role from localStorage
-      const userJson = localStorage.getItem('user');
+      const userJson = localStorage.getItem("user");
       if (userJson) {
         try {
           const userData = JSON.parse(userJson);
-          
-          // If this is an admin route, and we're using the admin credentials, ensure role is set properly
-          if (adminOnly && (userData.email === 'admin@beaware.com' || userData.email === 'admin@scamreport.com')) {
+          if (
+            adminOnly &&
+            (userData.email === "admin@beaware.com" ||
+              userData.email === "admin@scamreport.com")
+          ) {
             setIsAdmin(true);
             return;
           }
-          
           setIsAdmin(userData.role === "admin");
         } catch (error) {
           console.error("Error parsing user from localStorage:", error);
@@ -82,56 +75,62 @@ function ProtectedRoute({ component: Component, adminOnly = false, ...rest }: {
       }
     }
   }, [user, isLoading, adminOnly]);
-  
-  // Special check for admin emails - we know these should be admin users
+
   useEffect(() => {
-    if (adminOnly && user && (user.email === "admin@scamreport.com" || user.email === "admin@beaware.com") && !isAdmin) {
+    if (
+      adminOnly &&
+      user &&
+      (user.email === "admin@scamreport.com" ||
+        user.email === "admin@beaware.com") &&
+      !isAdmin
+    ) {
       setIsValidatingAdmin(true);
-      
-      // Force update the role in localStorage
-      const userJson = localStorage.getItem('user');
+      const userJson = localStorage.getItem("user");
       if (userJson) {
         try {
           const userData = JSON.parse(userJson);
-          if (userData.email === "admin@scamreport.com" || userData.email === "admin@beaware.com") {
+          if (
+            userData.email === "admin@scamreport.com" ||
+            userData.email === "admin@beaware.com"
+          ) {
             userData.role = "admin";
-            localStorage.setItem('user', JSON.stringify(userData));
+            localStorage.setItem("user", JSON.stringify(userData));
             setIsAdmin(true);
           }
         } catch (error) {
           console.error("Error updating admin role:", error);
         }
       }
-      
       setIsValidatingAdmin(false);
     }
   }, [user, adminOnly, isAdmin]);
-  
+
   if (isLoading || isValidatingAdmin) {
-    return <div className="p-8 flex justify-center">Loading authentication...</div>;
+    return (
+      <div className="p-8 flex justify-center">Loading authentication...</div>
+    );
   }
-  
+
   if (!user) {
-    // Check localStorage for user data before redirecting
     const storedUser = localStorage.getItem("user");
     if (!storedUser) {
-      // Redirect to login if not authenticated
       window.location.href = "/login";
       return null;
     }
-    // User data exists in localStorage, component will re-render when context updates
-    return <div className="p-8 flex justify-center">Loading user session...</div>;
+    return (
+      <div className="p-8 flex justify-center">Loading user session...</div>
+    );
   }
-  
+
   if (adminOnly && !isAdmin) {
-    // Redirect to dashboard if not admin
     window.location.href = "/dashboard";
     return null;
   }
-  
+
   return <Component {...rest} />;
 }
 
+// ---------------- Routes ----------------
 function MainRouter() {
   return (
     <Switch>
@@ -145,9 +144,10 @@ function MainRouter() {
       <Route path="/dashboard">
         {() => <ProtectedRoute component={Dashboard} />}
       </Route>
-      <Route path="/report">
-        {() => <ProtectedRoute component={ScamReportForm} />}
-      </Route>
+
+      {/* 🚫 Removed submit report form route; keep path but show disabled page */}
+      <Route path="/report" component={ReportingDisabled} />
+
       <Route path="/reports" component={ScamReports} />
       <Route path="/reports/:id">
         {(params) => <ScamReportDetail id={params.id} />}
@@ -155,7 +155,14 @@ function MainRouter() {
       <Route path="/consolidated-scams/:id">
         {(params) => <ConsolidatedScamDetail id={params.id} />}
       </Route>
-      <Route path="/search" component={() => { window.location.href = "/reports"; return null; }} />
+
+      <Route
+        path="/search"
+        component={() => {
+          window.location.href = "/reports";
+          return null;
+        }}
+      />
       <Route path="/scam-videos" component={ScamVideos} />
       <Route path="/help" component={ScamHelp} />
       <Route path="/contact" component={ContactUs} />
@@ -165,6 +172,7 @@ function MainRouter() {
       <Route path="/terms" component={Terms} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/disclaimer" component={Disclaimer} />
+
       <Route path="/admin">
         {() => <ProtectedRoute component={AdminPanel} adminOnly={true} />}
       </Route>
@@ -174,6 +182,7 @@ function MainRouter() {
       <Route path="/secure-your-digital-presence">
         {() => <ProtectedRoute component={DigitalSecurityChecklist} />}
       </Route>
+
       <Route component={NotFound} />
     </Switch>
   );
@@ -182,36 +191,33 @@ function MainRouter() {
 function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [firebaseConfigValid, setFirebaseConfigValid] = useState(true);
-  
-  // Check Firebase config and handle Google login success on mount
+
   useEffect(() => {
-    // Check for Google login success flag and redirect if needed
-    const googleLoginSuccess = localStorage.getItem('googleLoginSuccess');
-    if (googleLoginSuccess === 'true') {
-      console.log('Google login success detected at app root, redirecting to dashboard');
-      localStorage.removeItem('googleLoginSuccess');
-      window.location.href = '/dashboard';
+    const googleLoginSuccess = localStorage.getItem("googleLoginSuccess");
+    if (googleLoginSuccess === "true") {
+      console.log(
+        "Google login success detected at app root, redirecting to dashboard",
+      );
+      localStorage.removeItem("googleLoginSuccess");
+      window.location.href = "/dashboard";
       return;
     }
-    
+
     const checkFirebaseConfig = () => {
       const requiredKeys = [
-        'VITE_FIREBASE_API_KEY',
-        'VITE_FIREBASE_PROJECT_ID',
-        'VITE_FIREBASE_APP_ID'
+        "VITE_FIREBASE_API_KEY",
+        "VITE_FIREBASE_PROJECT_ID",
+        "VITE_FIREBASE_APP_ID",
       ];
-      
-      const missingKeys = requiredKeys.filter(key => !import.meta.env[key]);
-      
+      const missingKeys = requiredKeys.filter((key) => !import.meta.env[key]);
       if (missingKeys.length > 0) {
-        console.error('Missing Firebase configuration:', missingKeys);
+        console.error("Missing Firebase configuration:", missingKeys);
         setFirebaseConfigValid(false);
         return false;
       }
-      
       return true;
     };
-    
+
     checkFirebaseConfig();
   }, []);
 
@@ -220,10 +226,12 @@ function App() {
       {!firebaseConfigValid && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg max-w-md">
-            <h2 className="text-xl font-bold text-red-600 mb-4">Firebase Configuration Error</h2>
+            <h2 className="text-xl font-bold text-red-600 mb-4">
+              Firebase Configuration Error
+            </h2>
             <p className="mb-4">
-              Missing required Firebase environment variables. Please make sure the following 
-              environment variables are set properly:
+              Missing required Firebase environment variables. Please make sure
+              the following environment variables are set properly:
             </p>
             <ul className="list-disc pl-5 mb-4 text-sm">
               <li>VITE_FIREBASE_API_KEY</li>
@@ -237,22 +245,24 @@ function App() {
           </div>
         </div>
       )}
-      
+
       <AuthProvider>
         <div className="flex h-screen overflow-hidden">
-          <Sidebar mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
-          
+          <Sidebar
+            mobileMenuOpen={mobileMenuOpen}
+            setMobileMenuOpen={setMobileMenuOpen}
+          />
           <div className="flex flex-col flex-1 overflow-hidden">
-            <Header onMobileMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)} />
-            
+            <Header
+              onMobileMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
+            />
             <main className="flex-1 overflow-y-auto p-4 pb-16">
               <MainRouter />
             </main>
-            
             <Footer />
           </div>
         </div>
-        
+
         <MobileNav />
         <Toaster />
       </AuthProvider>

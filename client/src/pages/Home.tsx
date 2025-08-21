@@ -20,7 +20,10 @@ import {
   Clock,
 } from "lucide-react";
 
-export default function BeAwareFlashyLanding() {
+/**
+ * Home.tsx (BeAware landing, "Submit Report" removed)
+ */
+export default function Home() {
   return (
     <div className="relative bg-white text-slate-900">
       {/* backdrop glow */}
@@ -34,7 +37,7 @@ export default function BeAwareFlashyLanding() {
       </motion.div>
 
       {/* hero */}
-      <section className="px-4 pt-16 md:pt-24 pb-16">
+      <section className="px-4 pt-10 md:pt-16 pb-12">
         <div className="mx-auto max-w-7xl text-center">
           <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600">
             <CheckCircle className="h-3.5 w-3.5" /> Digital safety, simplified
@@ -43,9 +46,8 @@ export default function BeAwareFlashyLanding() {
             BeAware — Stop scams before they happen
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-600">
-            Check suspicious numbers and links, report scams, and follow a
-            guided security checklist — plain-English steps that protect you and
-            your family.
+            Check suspicious numbers and links, and follow a guided security
+            checklist — plain-English steps that protect you and your family.
           </p>
 
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
@@ -130,8 +132,8 @@ export default function BeAwareFlashyLanding() {
         subtitle="Simple flow that builds real protection."
       >
         <ol className="grid gap-6 md:grid-cols-3">
-          <StepCard step="1" title="Search or Report">
-            Paste a number or URL to check — or file a report to warn others.
+          <StepCard step="1" title="Search">
+            Paste a number or URL to check risk in seconds.
           </StepCard>
           <StepCard step="2" title="Follow your checklist">
             Finish essentials like credit freezes, password manager, and 2FA.
@@ -166,27 +168,16 @@ export default function BeAwareFlashyLanding() {
           <FeatureCard
             icon={<Phone className="h-5 w-5" />}
             title="Phone number lookup"
-            desc="Spot scam patterns in seconds, powered by community reports and signals."
+            desc="Spot scam patterns in seconds."
             href="/scam-checker"
           />
           <FeatureCard
             icon={<LinkIcon className="h-5 w-5" />}
             title="URL reputation"
-            desc="Check links before you click or share to avoid phishing and malware."
+            desc="Check links before you click or share."
             href="/scam-checker"
           />
-          <FeatureCard
-            icon={<Users className="h-5 w-5" />}
-            title="Community reporting"
-            desc="Share what happened to help others stay safe and reduce repeat victimization."
-            href="/report-scam"
-          />
-          <FeatureCard
-            icon={<Building2 className="h-5 w-5" />}
-            title="Business verification"
-            desc="Look up suspicious businesses and report fraudulent listings."
-            href="/report-scam"
-          />
+          {/* NOTE: Community reporting & Business verification removed */}
           <FeatureCard
             icon={<BarChart className="h-5 w-5" />}
             title="AI help when targeted"
@@ -214,7 +205,7 @@ export default function BeAwareFlashyLanding() {
       </div>
 
       {/* final cta */}
-      <section className="px-4 py-16 text-center">
+      <section className="px-4 py-12 md:py-16 text-center">
         <Badge variant="secondary" className="mb-3">
           Get started free
         </Badge>
@@ -222,8 +213,7 @@ export default function BeAwareFlashyLanding() {
           Be scam-smart today
         </h2>
         <p className="mt-3 text-lg text-slate-600 max-w-2xl mx-auto">
-          Check suspicious contacts, report fraud, and protect your digital life
-          in minutes.
+          Check suspicious contacts, and protect your digital life in minutes.
         </p>
         <div className="mt-6 flex justify-center gap-3">
           <Button size="lg" asChild>
@@ -241,7 +231,7 @@ export default function BeAwareFlashyLanding() {
 /* --- helpers --- */
 function Section({ title, subtitle, children }: any) {
   return (
-    <section className="px-4 py-14">
+    <section className="px-4 py-10 md:py-14">
       <div className="max-w-7xl mx-auto">
         <h2 className="text-3xl md:text-4xl font-extrabold text-center">
           {title}
@@ -256,6 +246,7 @@ function Section({ title, subtitle, children }: any) {
     </section>
   );
 }
+
 function ProblemCard({ icon, title, desc }: any) {
   return (
     <Card>
@@ -269,6 +260,7 @@ function ProblemCard({ icon, title, desc }: any) {
     </Card>
   );
 }
+
 function StepCard({ step, title, children }: any) {
   return (
     <div className="rounded-xl border bg-card shadow-sm p-5">
@@ -278,6 +270,7 @@ function StepCard({ step, title, children }: any) {
     </div>
   );
 }
+
 function FeatureCard({ icon, title, desc, href, badge }: any) {
   return (
     <Card className="h-full">
@@ -301,6 +294,7 @@ function FeatureCard({ icon, title, desc, href, badge }: any) {
     </Card>
   );
 }
+
 function StatCard({ value, label }: any) {
   return (
     <div className="rounded-xl border bg-card p-6 shadow-sm text-center">
