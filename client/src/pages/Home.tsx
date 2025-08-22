@@ -1,10 +1,10 @@
-import React, { useState } from "react";
-import { motion } from "framer-motion";
+import React, { useState, useRef } from "react";
+import { motion, useInView } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import Logo from "@assets/OnlyBeAware.svg"; // ensure this path resolves in Vite
+import Logo from "@assets/OnlyBeAware.svg";
 
 import {
   Shield,
@@ -26,10 +26,8 @@ import {
 } from "lucide-react";
 
 /**
- * Home.tsx — Full replacement
- * - HERO uses brand logo + tagline
- * - Copy tightened (no score mentions in partner perks / general lines)
- * - Keeps all original sections: Why it matters, Checklist, Features, Partner Perks, The BeAware Difference, Final CTA
+ * Home.tsx — Public landing page with strong focus-highlight sections
+ * + Per-card fade-in animations (whileInView)
  */
 export default function Home() {
   const [phoneQuery, setPhoneQuery] = useState("");
@@ -66,10 +64,11 @@ export default function Home() {
             <CheckCircle className="h-3.5 w-3.5" /> Your guided path to safer
             digital life
           </div>
+
           <h1 className="mt-5 text-4xl md:text-6xl font-extrabold tracking-tight flex items-center justify-center gap-3">
             <img
               src={Logo}
-              alt="BeAware"
+              alt="BeAware logo"
               className="h-12 md:h-16 w-auto block"
               loading="eager"
               decoding="async"
@@ -97,55 +96,69 @@ export default function Home() {
 
           {/* quick checks */}
           <div className="mt-10 grid gap-4 sm:grid-cols-2 max-w-3xl mx-auto">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Phone className="h-4 w-4" /> Check a phone number
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="e.g. +1 (555) 123-4567"
-                    value={phoneQuery}
-                    onChange={(e) => setPhoneQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && goPhoneLookup()}
-                  />
-                  <Button
-                    variant="secondary"
-                    onClick={goPhoneLookup}
-                    aria-label="Lookup phone"
-                  >
-                    <Search className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.25 }}
+              transition={{ duration: 0.35, ease: "easeOut" }}
+            >
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Phone className="h-4 w-4" /> Check a phone number
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="e.g. +1 (555) 123-4567"
+                      value={phoneQuery}
+                      onChange={(e) => setPhoneQuery(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && goPhoneLookup()}
+                    />
+                    <Button
+                      variant="secondary"
+                      onClick={goPhoneLookup}
+                      aria-label="Lookup phone"
+                    >
+                      <Search className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
 
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <LinkIcon className="h-4 w-4" /> Check a link
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Paste a URL"
-                    value={urlQuery}
-                    onChange={(e) => setUrlQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && goUrlLookup()}
-                  />
-                  <Button
-                    variant="secondary"
-                    onClick={goUrlLookup}
-                    aria-label="Scan URL"
-                  >
-                    <Search className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.25 }}
+              transition={{ duration: 0.35, ease: "easeOut", delay: 0.05 }}
+            >
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <LinkIcon className="h-4 w-4" /> Check a link
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Paste a URL"
+                      value={urlQuery}
+                      onChange={(e) => setUrlQuery(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && goUrlLookup()}
+                    />
+                    <Button
+                      variant="secondary"
+                      onClick={goUrlLookup}
+                      aria-label="Scan URL"
+                    >
+                      <Search className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
           </div>
         </div>
       </section>
@@ -154,6 +167,7 @@ export default function Home() {
       <Section
         title="Why the checklist matters"
         subtitle="Real threats, clear priorities. Take action that actually improves your protection."
+        focusTone="slate"
       >
         <div className="grid gap-6 md:grid-cols-3">
           <ProblemCard
@@ -174,83 +188,95 @@ export default function Home() {
         </div>
       </Section>
 
-      {/* CHECKLIST PREVIEW + SCORE (UI stays; copy neutral on score) */}
+      {/* CHECKLIST PREVIEW + SCORE */}
       <Section
         id="checklist"
         title="Your Guided Security Checklist"
         subtitle="Concrete tasks that strengthen your security"
+        focusTone="indigo"
       >
         <div className="grid gap-6 md:grid-cols-2">
           {/* Score panel */}
-          <Card className="h-full">
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-2">
-                <Gauge className="h-5 w-5 text-teal-600" />
-                <CardTitle className="text-lg">Security Score</CardTitle>
-                <Badge className="ml-auto" variant="secondary">
-                  Beta
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-slate-600">
-                Your score reflects how well your identity, accounts, devices,
-                network, and finances are protected. Each completed task adds
-                points—prioritized by impact.
-              </p>
-              <ul className="mt-4 space-y-2 text-sm">
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5" />
-                  <span>
-                    <b>High impact first:</b> 2FA, password manager, and credit
-                    freeze deliver the biggest gains.
-                  </span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5" />
-                  <span>
-                    <b>Real‑time feedback:</b> See progress as you finish steps.
-                  </span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5" />
-                  <span>
-                    <b>Plain English:</b> Clear instructions and estimated time.
-                  </span>
-                </li>
-              </ul>
-              <div className="mt-5">
-                <Button asChild>
-                  <a href="/secure-your-digital-presence">Open my checklist</a>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.25 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+          >
+            <Card className="h-full">
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <Gauge className="h-5 w-5 text-teal-600" />
+                  <CardTitle className="text-lg">Security Score</CardTitle>
+                  <Badge className="ml-auto" variant="secondary">
+                    Beta
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-slate-600">
+                  Your score reflects how well your identity, accounts, devices,
+                  network, and finances are protected. Each completed task adds
+                  points—prioritized by impact.
+                </p>
+                <ul className="mt-4 space-y-2 text-sm">
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5" />
+                    <span>
+                      <b>High impact first:</b> 2FA, password manager, and
+                      credit freeze deliver the biggest gains.
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5" />
+                    <span>
+                      <b>Real‑time feedback:</b> See progress as you finish
+                      steps.
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5" />
+                    <span>
+                      <b>Plain English:</b> Clear instructions and estimated
+                      time.
+                    </span>
+                  </li>
+                </ul>
+                <div className="mt-5">
+                  <Button asChild>
+                    <a href="/secure-your-digital-presence">
+                      Open my checklist
+                    </a>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
 
           {/* Checklist cards preview */}
           <div className="grid gap-4">
             <MiniTask
               icon={<Lock className="h-4 w-4 text-slate-700" />}
               title="Use a password manager"
-              points={"+20 pts • 15–20 min"}
+              points="+20 pts • 15–20 min"
               desc="Generate unique passwords automatically and store them securely."
             />
             <MiniTask
               icon={<Shield className="h-4 w-4 text-slate-700" />}
               title="Enable 2‑Factor Authentication"
-              points={"+18 pts • 10–15 min"}
+              points="+18 pts • 10–15 min"
               desc="Add a one‑time code from an authenticator app on key accounts."
             />
             <MiniTask
               icon={<Target className="h-4 w-4 text-slate-700" />}
               title="Freeze your credit"
-              points={"+15 pts • 10 min"}
+              points="+15 pts • 10 min"
               desc="Block new lines of credit in your name to stop identity fraud."
             />
             <MiniTask
               icon={<WifiIcon />}
               title="Secure your Wi‑Fi & devices"
-              points={"+12 pts • 10–15 min"}
+              points="+12 pts • 10–15 min"
               desc="Strong router password, auto updates, and screen locks across devices."
             />
           </div>
@@ -261,6 +287,7 @@ export default function Home() {
       <Section
         title="Tools that help you act fast"
         subtitle="Outcomes over dashboards."
+        focusTone="zinc"
       >
         <div className="grid gap-6 md:grid-cols-3">
           <FeatureCard
@@ -288,6 +315,7 @@ export default function Home() {
       <Section
         title="Vetted partners. Member pricing."
         subtitle="We work with industry security experts so you get the right tools—at lower cost."
+        focusTone="emerald"
       >
         <div className="grid gap-6 md:grid-cols-3">
           <PerkCard
@@ -320,6 +348,7 @@ export default function Home() {
         <Section
           title="The BeAware Difference"
           subtitle="Why people choose us to protect their digital life."
+          focusTone="slate"
         >
           <div className="grid gap-6 md:grid-cols-3">
             <PerkCard
@@ -366,36 +395,121 @@ export default function Home() {
   );
 }
 
-/* --- helpers --- */
-function Section({ title, subtitle, children, id }: any) {
+/* --- Strong focus-aware Section helper (tinted bg + left bar + ring + micro-scale) --- */
+function Section({
+  id,
+  title,
+  subtitle,
+  children,
+  focusTone = "indigo", // "indigo" | "emerald" | "slate" | "zinc"
+}: {
+  id?: string;
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  focusTone?: "indigo" | "emerald" | "slate" | "zinc";
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const inView = useInView(ref, { amount: 0.45, margin: "0px 0px -15% 0px" });
+
+  const tones: Record<
+    string,
+    { bg: string; ring: string; bar: string; grad: string }
+  > = {
+    indigo: {
+      bg: "bg-indigo-100",
+      ring: "ring-indigo-300",
+      bar: "from-indigo-400 to-indigo-600",
+      grad: "from-white/70 via-indigo-50 to-white/70",
+    },
+    emerald: {
+      bg: "bg-emerald-100",
+      ring: "ring-emerald-300",
+      bar: "from-emerald-400 to-emerald-600",
+      grad: "from-white/70 via-emerald-50 to-white/70",
+    },
+    slate: {
+      bg: "bg-slate-100",
+      ring: "ring-slate-300",
+      bar: "from-slate-400 to-slate-600",
+      grad: "from-white/70 via-slate-50 to-white/70",
+    },
+    zinc: {
+      bg: "bg-zinc-100",
+      ring: "ring-zinc-300",
+      bar: "from-zinc-400 to-zinc-600",
+      grad: "from-white/70 via-zinc-50 to-white/70",
+    },
+  };
+
+  const t = tones[focusTone] ?? tones.indigo;
+
   return (
-    <section id={id} className="px-4 py-10 md:py-14">
-      <div className="max-w-7xl mx-auto">
+    <section
+      id={id}
+      ref={ref}
+      className={[
+        "relative px-4 py-12 md:py-16 transition-colors duration-500",
+        inView ? t.bg : "bg-white",
+      ].join(" ")}
+    >
+      {/* Left accent bar */}
+      <div
+        className={[
+          "absolute left-0 top-0 h-full w-1 md:w-1.5 bg-gradient-to-b transition-colors duration-500",
+          inView ? t.bar : "from-transparent to-transparent",
+        ].join(" ")}
+      />
+      {/* Content container with soft gradient + ring when in view */}
+      <motion.div
+        initial={{ opacity: 0.6, scale: 0.995, y: 1 }}
+        animate={
+          inView
+            ? { opacity: 1, scale: 1, y: 0 }
+            : { opacity: 0.9, scale: 0.997, y: 1 }
+        }
+        transition={{ duration: 0.35, ease: "easeOut" }}
+        className={[
+          "max-w-7xl mx-auto rounded-2xl transition-all duration-500 p-6 md:p-8",
+          "bg-gradient-to-br",
+          inView ? t.grad : "from-white to-white",
+          inView ? `ring-2 ${t.ring} shadow-lg` : "ring-0 shadow-sm",
+          "backdrop-blur-sm",
+        ].join(" ")}
+      >
         <h2 className="text-3xl md:text-4xl font-extrabold text-center">
           {title}
         </h2>
         {subtitle && (
-          <p className="mt-3 text-center max-w-2xl mx-auto text-slate-600">
+          <p className="mt-3 text-center max-w-2xl mx-auto text-slate-700">
             {subtitle}
           </p>
         )}
         <div className="mt-8">{children}</div>
-      </div>
+      </motion.div>
     </section>
   );
 }
 
+/* --- Cards & helpers (now animated) --- */
 function ProblemCard({ icon, title, desc }: any) {
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-2 text-slate-700">
-          {icon}
-          <CardTitle className="text-lg">{title}</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent className="text-slate-600">{desc}</CardContent>
-    </Card>
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.25 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+    >
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center gap-2 text-slate-700">
+            {icon}
+            <CardTitle className="text-lg">{title}</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="text-slate-600">{desc}</CardContent>
+      </Card>
+    </motion.div>
   );
 }
 
@@ -411,16 +525,23 @@ function MiniTask({
   desc: string;
 }) {
   return (
-    <div className="rounded-xl border bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-2">
-          {icon}
-          <div className="font-medium">{title}</div>
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.2, margin: "0px 0px -5% 0px" }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+    >
+      <div className="rounded-xl border bg-white p-4 shadow-sm">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-2">
+            {icon}
+            <div className="font-medium">{title}</div>
+          </div>
+          <Badge variant="outline">{points}</Badge>
         </div>
-        <Badge variant="outline">{points}</Badge>
+        <p className="mt-2 text-sm text-slate-600">{desc}</p>
       </div>
-      <p className="mt-2 text-sm text-slate-600">{desc}</p>
-    </div>
+    </motion.div>
   );
 }
 
@@ -433,37 +554,51 @@ function WifiIcon() {
 
 function FeatureCard({ icon, title, desc, href }: any) {
   return (
-    <Card className="h-full">
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-2 text-foreground">
-          {icon}
-          <CardTitle className="text-lg">{title}</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <p className="text-muted-foreground">{desc}</p>
-        {href && (
-          <div className="mt-4">
-            <Button variant="ghost" className="px-0" asChild>
-              <a href={href} className="inline-flex items-center gap-2">
-                Learn more <ArrowRight className="h-4 w-4" />
-              </a>
-            </Button>
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.25 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+    >
+      <Card className="h-full">
+        <CardHeader className="pb-2">
+          <div className="flex items-center gap-2 text-foreground">
+            {icon}
+            <CardTitle className="text-lg">{title}</CardTitle>
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground">{desc}</p>
+          {href && (
+            <div className="mt-4">
+              <Button variant="ghost" className="px-0" asChild>
+                <a href={href} className="inline-flex items-center gap-2">
+                  Learn more <ArrowRight className="h-4 w-4" />
+                </a>
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 }
 
 function PerkCard({ icon, title, desc }: any) {
   return (
-    <div className="rounded-xl border bg-white p-5 shadow-sm">
-      <div className="flex items-center gap-2">
-        {icon}
-        <div className="font-medium">{title}</div>
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.25 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+    >
+      <div className="rounded-xl border bg-white p-5 shadow-sm">
+        <div className="flex items-center gap-2">
+          {icon}
+          <div className="font-medium">{title}</div>
+        </div>
+        <p className="mt-2 text-sm text-slate-600">{desc}</p>
       </div>
-      <p className="mt-2 text-sm text-slate-600">{desc}</p>
-    </div>
+    </motion.div>
   );
 }
