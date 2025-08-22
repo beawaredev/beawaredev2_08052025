@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { SecurityScore } from "@/components/security/SecurityScore";
 import { MenuIcon, Search, LogOut, Home as HomeIcon } from "lucide-react";
-import beawareLogo from "@assets/Logo_1.svg";
+import beawareLogo from "@assets/Logo_Main.svg";
 
 interface HeaderProps {
   onMobileMenuToggle: () => void;
