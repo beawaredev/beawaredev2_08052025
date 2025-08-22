@@ -168,14 +168,12 @@ export default function Sidebar({
     <>
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200">
-        <div className="p-4 border-b border-gray-200">
-          <div className="flex items-center justify-center">
-            <img
-              src={beawareLogo}
-              alt="BeAware.fyi Logo"
-              className="h-12 w-auto object-contain"
-            />
-          </div>
+        <div className="h-16 px-4 border-b border-gray-200 flex items-center">
+          <img
+            src={beawareLogo}
+            alt="BeAware.fyi Logo"
+            className="h-10 w-auto object-contain"
+          />
         </div>
 
         <nav className="flex-1 overflow-y-auto py-4">
