@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { Switch, Route } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 import Home from "@/pages/Home";
 import Dashboard from "@/pages/Dashboard";
-// 🚫 Removed: import ScamReportForm from "@/pages/ScamReportForm";
+import ScamReportForm from "@/pages/ScamReportForm";
 import ScamReports from "@/pages/ScamReports";
 import ScamReportDetail from "@/pages/ScamReportDetail";
 import ConsolidatedScamDetail from "@/pages/ConsolidatedScamDetail";
@@ -33,12 +33,15 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import MobileNav from "@/components/layout/MobileNav";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { useState, useEffect } from "react";
 
-// ✅ New: friendly page for disabled reporting
-import ReportingDisabled from "@/pages/ReportingDisabled";
+// Import the useAuth hook (used inside AppShell only)
+import { useAuth } from "@/contexts/AuthContext";
 
-// ---------------- Protected Route ----------------
+// ----------------------
+// ProtectedRoute (unchanged)
+// ----------------------
 function ProtectedRoute({
   component: Component,
   adminOnly = false,
@@ -130,7 +133,9 @@ function ProtectedRoute({
   return <Component {...rest} />;
 }
 
-// ---------------- Routes ----------------
+// ----------------------
+// MainRouter (unchanged)
+// ----------------------
 function MainRouter() {
   return (
     <Switch>
@@ -144,10 +149,9 @@ function MainRouter() {
       <Route path="/dashboard">
         {() => <ProtectedRoute component={Dashboard} />}
       </Route>
-
-      {/* 🚫 Removed submit report form route; keep path but show disabled page */}
-      <Route path="/report" component={ReportingDisabled} />
-
+      <Route path="/report">
+        {() => <ProtectedRoute component={ScamReportForm} />}
+      </Route>
       <Route path="/reports" component={ScamReports} />
       <Route path="/reports/:id">
         {(params) => <ScamReportDetail id={params.id} />}
@@ -155,7 +159,6 @@ function MainRouter() {
       <Route path="/consolidated-scams/:id">
         {(params) => <ConsolidatedScamDetail id={params.id} />}
       </Route>
-
       <Route
         path="/search"
         component={() => {
@@ -172,7 +175,6 @@ function MainRouter() {
       <Route path="/terms" component={Terms} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/disclaimer" component={Disclaimer} />
-
       <Route path="/admin">
         {() => <ProtectedRoute component={AdminPanel} adminOnly={true} />}
       </Route>
@@ -182,14 +184,48 @@ function MainRouter() {
       <Route path="/secure-your-digital-presence">
         {() => <ProtectedRoute component={DigitalSecurityChecklist} />}
       </Route>
-
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-function App() {
+// ----------------------
+// AppShell: uses useAuth safely under AuthProvider
+// ----------------------
+function AppShell() {
+  const { user } = useAuth(); // ✅ Now inside provider
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  return (
+    <div className="flex h-screen overflow-hidden">
+      {/* Sidebar only for logged-in users */}
+      {user && (
+        <Sidebar
+          mobileMenuOpen={mobileMenuOpen}
+          setMobileMenuOpen={setMobileMenuOpen}
+        />
+      )}
+
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <Header onMobileMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)} />
+
+        <main className="flex-1 overflow-y-auto p-4 pb-16">
+          <MainRouter />
+        </main>
+
+        <Footer />
+      </div>
+
+      <MobileNav />
+      <Toaster />
+    </div>
+  );
+}
+
+// ----------------------
+// App: providers + firebase check (no useAuth here)
+// ----------------------
+function App() {
   const [firebaseConfigValid, setFirebaseConfigValid] = useState(true);
 
   useEffect(() => {
@@ -203,22 +239,16 @@ function App() {
       return;
     }
 
-    const checkFirebaseConfig = () => {
-      const requiredKeys = [
-        "VITE_FIREBASE_API_KEY",
-        "VITE_FIREBASE_PROJECT_ID",
-        "VITE_FIREBASE_APP_ID",
-      ];
-      const missingKeys = requiredKeys.filter((key) => !import.meta.env[key]);
-      if (missingKeys.length > 0) {
-        console.error("Missing Firebase configuration:", missingKeys);
-        setFirebaseConfigValid(false);
-        return false;
-      }
-      return true;
-    };
-
-    checkFirebaseConfig();
+    const requiredKeys = [
+      "VITE_FIREBASE_API_KEY",
+      "VITE_FIREBASE_PROJECT_ID",
+      "VITE_FIREBASE_APP_ID",
+    ];
+    const missingKeys = requiredKeys.filter((key) => !import.meta.env[key]);
+    if (missingKeys.length > 0) {
+      console.error("Missing Firebase configuration:", missingKeys);
+      setFirebaseConfigValid(false);
+    }
   }, []);
 
   return (
@@ -247,24 +277,7 @@ function App() {
       )}
 
       <AuthProvider>
-        <div className="flex h-screen overflow-hidden">
-          <Sidebar
-            mobileMenuOpen={mobileMenuOpen}
-            setMobileMenuOpen={setMobileMenuOpen}
-          />
-          <div className="flex flex-col flex-1 overflow-hidden">
-            <Header
-              onMobileMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
-            />
-            <main className="flex-1 overflow-y-auto p-4 pb-16">
-              <MainRouter />
-            </main>
-            <Footer />
-          </div>
-        </div>
-
-        <MobileNav />
-        <Toaster />
+        <AppShell />
       </AuthProvider>
     </QueryClientProvider>
   );
