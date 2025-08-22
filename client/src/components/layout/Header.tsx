@@ -1,12 +1,186 @@
+// src/components/layout/Header.tsx
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { SecurityScore } from "@/components/security/SecurityScore";
-import { MenuIcon, Search, LogOut, Home as HomeIcon } from "lucide-react";
+import {
+  MenuIcon,
+  Search,
+  LogOut,
+  Home as HomeIcon,
+  GaugeIcon,
+} from "lucide-react";
 import beawareLogo from "@assets/Logo_Main.svg";
+import { apiRequest } from "@/lib/queryClient";
 
 interface HeaderProps {
   onMobileMenuToggle: () => void;
+}
+
+/** ---------- Score helpers (same as Dashboard) ---------- */
+type Priority = "high" | "medium" | "low";
+type Category =
+  | "identity_protection"
+  | "password_security"
+  | "account_security"
+  | "device_security"
+  | "network_security"
+  | "financial_security";
+
+const CHECKLIST_ROUTE = "/security-checklist";
+const SCORE_DECIMALS = 0;
+const PRIORITY_WEIGHTS: Record<Priority, number> = {
+  high: 40,
+  medium: 20,
+  low: 10,
+};
+
+const GOOD_SCORE = 80; // overall
+const CAUTION_SCORE = 50;
+const GOOD_HIGH = 70; // high-impact
+const CAUTION_HIGH = 40;
+
+const weightFor = (p: Priority) => PRIORITY_WEIGHTS[p] ?? 10;
+const clampPct = (n: number) => Math.max(0, Math.min(100, n));
+const roundPct = (n: number) => Number(clampPct(n).toFixed(SCORE_DECIMALS));
+const formatPct = (n: number) => `${roundPct(n)}%`;
+const percent = (num: number, den: number) => (den > 0 ? (num / den) * 100 : 0);
+
+type RiskTier = "good" | "caution" | "risk";
+function getTier(scorePct: number, highPct: number): RiskTier {
+  if (scorePct >= GOOD_SCORE && highPct >= GOOD_HIGH) return "good";
+  if (scorePct >= CAUTION_SCORE && highPct >= CAUTION_HIGH) return "caution";
+  return "risk";
+}
+
+const TIER_STYLE = {
+  good: {
+    text: "text-green-700",
+    icon: "text-green-700",
+    bg: "bg-green-50",
+    border: "border-green-200",
+  },
+  caution: {
+    text: "text-yellow-700",
+    icon: "text-yellow-700",
+    bg: "bg-yellow-50",
+    border: "border-yellow-200",
+  },
+  risk: {
+    text: "text-red-700",
+    icon: "text-red-700",
+    bg: "bg-red-50",
+    border: "border-red-200",
+  },
+} as const;
+
+/** ---------- Types used by queries ---------- */
+interface SecurityChecklistItem {
+  id: number;
+  title: string;
+  description: string;
+  category: Category;
+  priority: Priority;
+  recommendationText: string;
+  helpUrl?: string | null;
+  toolLaunchUrl?: string | null;
+  youtubeVideoUrl?: string | null;
+  estimatedTimeMinutes?: number | null;
+  sortOrder: number;
+}
+interface UserSecurityProgress {
+  id: number;
+  userId: number;
+  checklistItemId: number;
+  isCompleted: boolean;
+  completedAt?: string | null;
+  notes?: string | null;
+}
+
+/** Small header pill that shows a colored, explanatory Security Score */
+function HeaderSecurityScore() {
+  // Public checklist (unauthed users can still see the structure)
+  const { data: checklistItems = [], isLoading: itemsLoading } = useQuery<
+    SecurityChecklistItem[]
+  >({
+    queryKey: ["/api/security-checklist"],
+    queryFn: async () => {
+      const res = await apiRequest("/api/security-checklist");
+      if (!res.ok) throw new Error("Failed to fetch checklist items");
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // User progress (401 => [])
+  const { data: userProgress = [], isLoading: progressLoading } = useQuery<
+    UserSecurityProgress[]
+  >({
+    queryKey: ["/api/security-checklist/progress"],
+    queryFn: async () => {
+      const res = await apiRequest("/api/security-checklist/progress");
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 60 * 1000,
+  });
+
+  const loading = itemsLoading || progressLoading;
+
+  // Canonical weighted score
+  const completedIds = new Set(
+    (userProgress || [])
+      .filter((p) => p.isCompleted)
+      .map((p) => p.checklistItemId),
+  );
+  const totalWeight = checklistItems.reduce(
+    (sum, i) => sum + weightFor(i.priority),
+    0,
+  );
+  const earnedWeight = checklistItems
+    .filter((i) => completedIds.has(i.id))
+    .reduce((sum, i) => sum + weightFor(i.priority), 0);
+  const scorePctRaw = percent(earnedWeight, totalWeight);
+  const scorePctDisplay = roundPct(scorePctRaw);
+
+  // High-impact completion
+  const hi = checklistItems.filter((i) => i.priority === "high");
+  const hiDone = hi.filter((i) => completedIds.has(i.id)).length;
+  const hiPct = roundPct(percent(hiDone, hi.length));
+
+  // Tier & styling
+  const tier = getTier(scorePctDisplay, hiPct);
+  const style = TIER_STYLE[tier];
+
+  // Smart deep-link: if not "good", send to high-impact filter
+  const href =
+    tier === "good" ? CHECKLIST_ROUTE : `${CHECKLIST_ROUTE}?priority=high`;
+
+  const titleText =
+    "Security Score: percentage of weighted checklist complete. " +
+    "Color reflects overall protection and high-impact completion. Click to view details.";
+
+  return (
+    <Link href={href}>
+      <a
+        className={`hidden sm:flex items-center gap-2 rounded-md border px-3 py-1.5 transition-colors ${style.bg} ${style.border}`}
+        title={titleText}
+        aria-label={`${formatPct(scorePctDisplay)} of weighted checklist complete. High-impact ${formatPct(hiPct)}.`}
+      >
+        <GaugeIcon className={`h-4 w-4 ${style.icon}`} />
+        <span className="text-sm font-medium">Security Score</span>
+        {loading ? (
+          <span className="text-sm text-muted-foreground">…</span>
+        ) : (
+          <>
+            <span className={`text-sm font-semibold ${style.text}`}>
+              {formatPct(scorePctDisplay)}
+            </span>
+          </>
+        )}
+      </a>
+    </Link>
+  );
 }
 
 export default function Header({ onMobileMenuToggle }: HeaderProps) {
@@ -93,7 +267,9 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
             </>
           ) : (
             <>
-              <SecurityScore />
+              {/* Consistent, colored, explanatory score pill */}
+              <HeaderSecurityScore />
+
               {location !== "/search" && (
                 <Button
                   asChild
