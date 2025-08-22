@@ -3,9 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { SecurityScore } from "@/components/security/SecurityScore";
 import { MenuIcon, Search, LogOut, Home as HomeIcon } from "lucide-react";
-
-// Use your uploaded SVG logo
-import beawareLogo from "@assets/Logo_Main.svg";
+import beawareLogo from "@assets/Logo_1.svg";
 
 interface HeaderProps {
   onMobileMenuToggle: () => void;
@@ -26,7 +24,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
 
   return (
     <header className="bg-white border-b border-gray-200 shadow-sm h-16 flex items-center">
-      <div className="w-full flex items-center justify-between px-4">
+      <div className="w-full flex items-center justify-between px-4 h-full">
         {/* Left: Logo + navigation */}
         <div className="flex items-center gap-6 h-full">
           {/* Mobile Menu Button */}
@@ -38,23 +36,25 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
             <MenuIcon className="h-6 w-6" />
           </button>
 
-          {/* BeAware Logo */}
-          <Link
-            href="/"
-            className="flex items-center gap-2 shrink-0"
-            aria-label="BeAware Home"
-          >
-            <img
-              src={beawareLogo}
-              alt="BeAware Logo"
-              className="h-12 md:h-16 w-auto object-contain"
-              decoding="async"
-              loading="eager"
-              draggable={false}
-            />
-          </Link>
+          {/* Show logo ONLY if user is not logged in */}
+          {!user && (
+            <Link
+              href="/"
+              className="flex items-center gap-2 shrink-0"
+              aria-label="BeAware Home"
+            >
+              <img
+                src={beawareLogo}
+                alt="BeAware Logo"
+                className="h-12 md:h-16 w-auto object-contain"
+                decoding="async"
+                loading="eager"
+                draggable={false}
+              />
+            </Link>
+          )}
 
-          {/* Guest links */}
+          {/* Guest navigation links */}
           {!user && (
             <nav className="hidden md:flex items-center gap-6 h-full">
               {guestTopLinks.map((l) => (
