@@ -1,46 +1,46 @@
-import { useEffect, useState } from "react";
+// AdminPanel.tsx
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { 
-  Card, 
-  CardContent,
-  CardHeader,
-  CardTitle
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { 
-  Tabs, 
-  TabsContent, 
-  TabsList, 
-  TabsTrigger 
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { 
-  EyeIcon, 
-  CheckIcon, 
-  XIcon, 
+import {
+  EyeIcon,
+  CheckIcon,
+  XIcon,
   AlertCircleIcon,
   AlertTriangleIcon,
-  FileIcon,
   Video,
   ShieldCheckIcon,
   PlusIcon,
   EditIcon,
-  TrashIcon
+  TrashIcon,
 } from "lucide-react";
 import { format } from "date-fns";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient as globalQueryClient } from "@/lib/queryClient";
 import { toast } from "@/hooks/use-toast";
 import { ScamVideoManager } from "@/components/admin/ScamVideoManager";
-import { apiRequest } from '@/lib/api-interceptor';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { apiRequest } from "@/lib/api-interceptor";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import React from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-// Types
+// ===== Types =====
 interface User {
   id: number;
   displayName: string;
@@ -51,7 +51,7 @@ interface User {
 interface ScamReport {
   id: number;
   userId: number;
-  scamType: 'phone' | 'email' | 'business';
+  scamType: "phone" | "email" | "business";
   scamPhoneNumber: string | null;
   scamEmail: string | null;
   scamBusinessName: string | null;
@@ -80,235 +80,119 @@ interface ApiResponse {
 
 export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState("pending");
-  
+
   // API Configuration management state
   const [isApiCreateDialogOpen, setIsApiCreateDialogOpen] = useState(false);
   const [isApiEditDialogOpen, setIsApiEditDialogOpen] = useState(false);
   const [editingApiConfig, setEditingApiConfig] = useState<any>(null);
-  const [testPhone, setTestPhone] = useState('');
-  const [testEmail, setTestEmail] = useState('');
-  const [testUrl, setTestUrl] = useState('');
+  const [testPhone, setTestPhone] = useState("");
+  const [testEmail, setTestEmail] = useState("");
+  const [testUrl, setTestUrl] = useState("");
   const [testResult, setTestResult] = useState<any>(null);
   const [apiTestResults, setApiTestResults] = useState<Record<number, any>>({});
   const [testingApiIds, setTestingApiIds] = useState<Set<number>>(new Set());
-  const [customTestInputs, setCustomTestInputs] = useState<Record<number, string>>({});
-  const [showCustomInputs, setShowCustomInputs] = useState<Record<number, boolean>>({});
-  
-  // Fetch API configurations from database using authenticated request
-  const { data: apiConfigsResponse, isLoading: isApiConfigsLoading, error: apiConfigsError } = useQuery<any[]>({
-    queryKey: ['/api/api-configs'],
+  const [customTestInputs, setCustomTestInputs] = useState<
+    Record<number, string>
+  >({});
+  const [showCustomInputs, setShowCustomInputs] = useState<
+    Record<number, boolean>
+  >({});
+
+  // ===== API Configs =====
+  const {
+    data: apiConfigsResponse,
+    isLoading: isApiConfigsLoading,
+    error: apiConfigsError,
+  } = useQuery<any[]>({
+    queryKey: ["/api/api-configs"],
     queryFn: async () => {
-      console.log('Fetching API configs with authentication...');
-      const response = await apiRequest('/api/api-configs');
-      if (!response.ok) {
-        console.error('API configs fetch failed:', response.status, response.statusText);
-        throw new Error(`Failed to fetch API configs: ${response.status} ${response.statusText}`);
-      }
-      return response.json();
+      const res = await apiRequest("/api/api-configs");
+      if (!res.ok)
+        throw new Error(
+          `Failed to fetch API configs: ${res.status} ${res.statusText}`,
+        );
+      return res.json();
     },
     enabled: activeTab === "api-configs",
     retry: 3,
-    retryDelay: 1000
+    retryDelay: 1000,
   });
-  
+
   const apiConfigs = apiConfigsResponse || [];
-  
-  // Fetch scam reports using authenticated requests
-  const { data: pendingResponse, isLoading: isPendingLoading } = useQuery<ApiResponse>({
-    queryKey: ['/api/scam-reports', 'pending'],
-    queryFn: async () => {
-      const response = await apiRequest('/api/scam-reports?isVerified=false');
-      return response.json();
-    },
-    enabled: activeTab === "pending"
-  });
-  
-  const { data: verifiedResponse, isLoading: isVerifiedLoading } = useQuery<ApiResponse>({
-    queryKey: ['/api/scam-reports', 'verified'],
-    queryFn: async () => {
-      const response = await apiRequest('/api/scam-reports?isVerified=true');
-      return response.json();
-    },
-    enabled: activeTab === "verified"
-  });
-  
+
+  // ===== Scam reports =====
+  const { data: pendingResponse, isLoading: isPendingLoading } =
+    useQuery<ApiResponse>({
+      queryKey: ["/api/scam-reports", "pending"],
+      queryFn: async () => {
+        const res = await apiRequest("/api/scam-reports?isVerified=false");
+        return res.json();
+      },
+      enabled: activeTab === "pending",
+    });
+
+  const { data: verifiedResponse, isLoading: isVerifiedLoading } =
+    useQuery<ApiResponse>({
+      queryKey: ["/api/scam-reports", "verified"],
+      queryFn: async () => {
+        const res = await apiRequest("/api/scam-reports?isVerified=true");
+        return res.json();
+      },
+      enabled: activeTab === "verified",
+    });
+
   const pendingReports = (pendingResponse as any)?.reports || [];
   const verifiedReports = (verifiedResponse as any)?.reports || [];
-  
-  // Mutation for verifying reports
+
+  // ===== Verify report =====
   const verifyMutation = useMutation({
     mutationFn: async (reportId: number) => {
-      const response = await fetch(`/api/scam-reports/${reportId}/verify`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      const res = await apiRequest(`/api/scam-reports/${reportId}/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isVerified: true }),
       });
-      
-      if (!response.ok) {
-        throw new Error('Failed to verify report');
-      }
-      
-      return response.json();
+      if (!res.ok) throw new Error("Failed to verify report");
+      return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/scam-reports?isVerified=false'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/scam-reports?isVerified=true'] });
+      globalQueryClient.invalidateQueries({
+        queryKey: ["/api/scam-reports", "pending"],
+      });
+      globalQueryClient.invalidateQueries({
+        queryKey: ["/api/scam-reports", "verified"],
+      });
       toast({
         title: "Report Verified",
         description: "The scam report has been verified successfully.",
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
         title: "Verification Failed",
-        description: `An error occurred: ${error.toString()}`,
-        variant: "destructive",
-      });
-    },
-  });
-  
-  // Dialog state for verification confirmation
-  const [reportToVerify, setReportToVerify] = useState<number | null>(null);
-  
-  // API Configuration form
-  const apiCreateForm = useForm({
-    defaultValues: {
-      name: '',
-      type: 'phone',
-      url: '',
-      apiKey: '',
-      description: '',
-      rateLimit: 100,
-      timeout: 30,
-      parameterMapping: '{\n  "phone": "{{input}}",\n  "key": "{{apiKey}}"\n}',
-      headers: '{\n  "Content-Type": "application/json"\n}'
-    }
-  });
-  
-  // API Configuration mutations
-  const apiCreateMutation = useMutation({
-    mutationFn: async (data: any) => {
-      console.log('Sending API config data:', data);
-      const response = await apiRequest('/api/api-configs', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-      });
-      return response;
-    },
-    onSuccess: () => {
-      setIsApiCreateDialogOpen(false);
-      apiCreateForm.reset();
-      // Invalidate the API configs cache to refresh the list
-      queryClient.invalidateQueries({ queryKey: ['/api/api-configs'] });
-      toast({
-        title: "API Configuration Created",
-        description: "The API configuration has been created successfully.",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Creation Failed",
-        description: `Failed to create API configuration: ${error}`,
+        description: `An error occurred: ${error?.message || String(error)}`,
         variant: "destructive",
       });
     },
   });
 
-  // API Configuration edit form
-  const apiEditForm = useForm({
-    defaultValues: {
-      name: '',
-      type: 'phone',
-      url: '',
-      apiKey: '',
-      description: '',
-      rateLimit: 100,
-      timeout: 30,
-      enabled: true,
-      parameterMapping: '{\n  "phone": "{{input}}",\n  "key": "{{apiKey}}"\n}',
-      headers: '{\n  "Content-Type": "application/json"\n}'
-    }
-  });
-
-  const apiUpdateMutation = useMutation({
-    mutationFn: async (data: any) => {
-      console.log('Updating API config:', data);
-      const response = await apiRequest(`/api/api-configs/${data.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-      });
-      return response;
-    },
-    onSuccess: () => {
-      setIsApiEditDialogOpen(false);
-      setEditingApiConfig(null);
-      apiEditForm.reset();
-      queryClient.invalidateQueries({ queryKey: ['/api/api-configs'] });
-      toast({
-        title: "API Configuration Updated",
-        description: "The API configuration has been updated successfully.",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Update Failed",
-        description: `Failed to update API configuration: ${error}`,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const apiDeleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      console.log('Deleting API config:', id);
-      const response = await apiRequest(`/api/api-configs/${id}`, {
-        method: 'DELETE'
-      });
-      return response;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/api-configs'] });
-      toast({
-        title: "API Configuration Deleted",
-        description: "The API configuration has been deleted successfully.",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Deletion Failed",
-        description: `Failed to delete API configuration: ${error}`,
-        variant: "destructive",
-      });
-    },
-  });
-  
   const handleVerify = (reportId: number) => {
-    setReportToVerify(reportId);
-    
     toast({
       title: "Confirm Report Verification",
       description: (
         <div className="flex flex-col gap-2">
-          <p>Are you sure you want to verify this report? This will make it publicly visible.</p>
+          <p>
+            Are you sure you want to verify this report? This will make it
+            publicly visible.
+          </p>
           <div className="flex justify-end gap-2 mt-2">
-            <Button variant="outline" size="sm" onClick={() => setReportToVerify(null)}>
+            <Button variant="outline" size="sm">
               Cancel
             </Button>
-            <Button 
-              variant="default" 
-              size="sm" 
-              onClick={() => {
-                verifyMutation.mutate(reportId);
-                setReportToVerify(null);
-              }}
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => verifyMutation.mutate(reportId)}
             >
               Verify
             </Button>
@@ -318,204 +202,280 @@ export default function AdminPanel() {
       duration: 10000,
     });
   };
-  
-  // API Configuration handlers
+
+  // ===== API Config forms/mutations =====
+  const apiCreateForm = useForm({
+    defaultValues: {
+      name: "",
+      type: "phone",
+      url: "",
+      apiKey: "",
+      description: "",
+      rateLimit: 100,
+      timeout: 30,
+      parameterMapping: '{\n  "phone": "{{input}}",\n  "key": "{{apiKey}}"\n}',
+      headers: '{\n  "Content-Type": "application/json"\n}',
+    },
+  });
+
+  const apiEditForm = useForm({
+    defaultValues: {
+      name: "",
+      type: "phone",
+      url: "",
+      apiKey: "",
+      description: "",
+      rateLimit: 100,
+      timeout: 30,
+      enabled: true,
+      parameterMapping: '{\n  "phone": "{{input}}",\n  "key": "{{apiKey}}"\n}',
+      headers: '{\n  "Content-Type": "application/json"\n}',
+    },
+  });
+
+  const apiCreateMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("/api/api-configs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok)
+        throw new Error(`Create failed: ${res.status} ${res.statusText}`);
+      return res.json?.() ?? res;
+    },
+    onSuccess: () => {
+      setIsApiCreateDialogOpen(false);
+      apiCreateForm.reset();
+      globalQueryClient.invalidateQueries({ queryKey: ["/api/api-configs"] });
+      toast({
+        title: "API Configuration Created",
+        description: "The API configuration has been created successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Creation Failed",
+        description: `Failed to create API configuration: ${error?.message || error}`,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const apiUpdateMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest(`/api/api-configs/${data.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok)
+        throw new Error(`Update failed: ${res.status} ${res.statusText}`);
+      return res.json?.() ?? res;
+    },
+    onSuccess: () => {
+      setIsApiEditDialogOpen(false);
+      setEditingApiConfig(null);
+      apiEditForm.reset();
+      globalQueryClient.invalidateQueries({ queryKey: ["/api/api-configs"] });
+      toast({
+        title: "API Configuration Updated",
+        description: "The API configuration has been updated successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Update Failed",
+        description: `Failed to update API configuration: ${error?.message || error}`,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const apiDeleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest(`/api/api-configs/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok)
+        throw new Error(`Delete failed: ${res.status} ${res.statusText}`);
+      return res.json?.() ?? res;
+    },
+    onSuccess: () => {
+      globalQueryClient.invalidateQueries({ queryKey: ["/api/api-configs"] });
+      toast({
+        title: "API Configuration Deleted",
+        description: "The API configuration has been deleted successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Deletion Failed",
+        description: `Failed to delete API configuration: ${error?.message || error}`,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleTestLookup = async (type: string, input: string) => {
     if (!input.trim()) return;
-    
     try {
-      const response = await apiRequest('/api/scam/check', {
-        method: 'POST',
-        body: JSON.stringify({ type, input })
+      const res = await apiRequest("/api/scam/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, input }),
       });
-      setTestResult(response.result);
+      const data = await res.json();
+      setTestResult(data?.result ?? data);
       toast({
         title: "Test Completed",
         description: `Scam lookup test completed for ${type}: ${input}`,
       });
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Test Failed",
-        description: `Scam lookup test failed: ${error}`,
+        description: `Scam lookup test failed: ${error?.message || error}`,
         variant: "destructive",
       });
     }
   };
-  
+
   const handleTestApi = async (config: any, customInput?: string) => {
-    console.log('Testing API config:', config);
-    
-    // Add to testing state
-    setTestingApiIds(prev => new Set(prev).add(config.id));
-    
-    const testInput = customInput || customTestInputs[config.id] || getTestInputForType(config.type);
-    
+    setTestingApiIds((prev) => new Set(prev).add(config.id));
+    const getTestInputForType = (t: string) =>
+      t === "phone"
+        ? "+1234567890"
+        : t === "email"
+          ? "test@example.com"
+          : t === "url"
+            ? "https://example.com"
+            : t === "ip"
+              ? "192.168.1.1"
+              : t === "domain"
+                ? "example.com"
+                : "test-input";
+
+    const testInput =
+      customInput ||
+      customTestInputs[config.id] ||
+      getTestInputForType(config.type);
+
     try {
-      // Show loading state
       toast({
         title: "Testing API",
         description: `Testing ${config.name} with input: ${testInput}`,
       });
-      
-      const response = await apiRequest(`/api/api-configs/${config.id}/test`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          type: config.type,
-          testInput: testInput
-        })
+      const res = await apiRequest(`/api/api-configs/${config.id}/test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: config.type, testInput }),
       });
-      
-      console.log('API test response:', response);
-      
-      const result = await response.json();
-      
-      // Store the result for display with API call details
-      setApiTestResults(prev => ({
+      const result = await res.json();
+      setApiTestResults((prev) => ({
         ...prev,
         [config.id]: {
           ...result,
           timestamp: new Date().toISOString(),
-          testInput: testInput,
-          apiCallDetails: result.testResult?.apiCallDetails || null
-        }
+          testInput,
+          apiCallDetails: result?.testResult?.apiCallDetails || null,
+        },
       }));
-      
-      if (result.success) {
-        toast({
-          title: "API Test Successful",
-          description: `${config.name} is working correctly. Check results below.`,
-        });
-      } else {
-        toast({
-          title: "API Test Failed",
-          description: `${config.name} test failed: ${result.message || 'Unknown error'}`,
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error('API test error:', error);
-      
-      // Store error result
-      setApiTestResults(prev => ({
+      toast({
+        title: result?.success ? "API Test Successful" : "API Test Failed",
+        description: result?.success
+          ? `${config.name} is working correctly.`
+          : result?.message || "Unknown error",
+        variant: result?.success ? "default" : "destructive",
+      });
+    } catch (error: any) {
+      setApiTestResults((prev) => ({
         ...prev,
         [config.id]: {
           success: false,
-          error: error instanceof Error ? error.message : String(error),
+          error: error?.message || String(error),
           timestamp: new Date().toISOString(),
-          testInput: testInput
-        }
+          testInput,
+        },
       }));
-      
       toast({
         title: "API Test Error",
-        description: `Test failed for ${config.name}: ${error instanceof Error ? error.message : String(error)}`,
+        description: `Test failed for ${config.name}: ${error?.message || error}`,
         variant: "destructive",
       });
     } finally {
-      // Remove from testing state
-      setTestingApiIds(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(config.id);
-        return newSet;
+      setTestingApiIds((prev) => {
+        const s = new Set(prev);
+        s.delete(config.id);
+        return s;
       });
     }
   };
 
-  // Helper function to get test input based on API type
-  const getTestInputForType = (type: string): string => {
-    switch (type) {
-      case 'phone':
-        return '+1234567890';
-      case 'email':
-        return 'test@example.com';
-      case 'url':
-        return 'https://example.com';
-      case 'ip':
-        return '192.168.1.1';
-      case 'domain':
-        return 'example.com';
-      default:
-        return 'test-input';
-    }
-  };
-  
   const handleEditApiConfig = (config: any) => {
-    console.log('Edit API config:', config);
     setEditingApiConfig(config);
-    
-    // Populate the edit form with existing values
     apiEditForm.reset({
-      name: config.name || '',
-      type: config.type || 'phone',
-      url: config.url || '',
-      apiKey: config.apiKey || '',
-      description: config.description || '',
+      name: config.name || "",
+      type: config.type || "phone",
+      url: config.url || "",
+      apiKey: config.apiKey || "",
+      description: config.description || "",
       rateLimit: config.rateLimit || 100,
       timeout: config.timeout || 30,
       enabled: config.enabled !== false,
-      parameterMapping: config.parameterMapping || '{\n  "phone": "{{input}}",\n  "key": "{{apiKey}}"\n}',
-      headers: config.headers || '{\n  "Content-Type": "application/json"\n}'
+      parameterMapping:
+        config.parameterMapping ||
+        '{\n  "phone": "{{input}}",\n  "key": "{{apiKey}}"\n}',
+      headers: config.headers || '{\n  "Content-Type": "application/json"\n}',
     });
-    
     setIsApiEditDialogOpen(true);
   };
 
   const onSubmitApiEdit = (data: any) => {
-    console.log('Form data being submitted for edit:', data);
     if (!data.name || !data.type || !data.url || !data.apiKey) {
       toast({
         title: "Validation Error",
-        description: "Please fill in all required fields (Name, Type, URL, API Key)",
+        description:
+          "Please fill in all required fields (Name, Type, URL, API Key)",
         variant: "destructive",
       });
       return;
     }
     apiUpdateMutation.mutate({ ...data, id: editingApiConfig.id });
   };
-  
-  const handleDeleteApiConfig = (configId: number) => {
-    if (confirm('Are you sure you want to delete this API configuration?')) {
-      apiDeleteMutation.mutate(configId);
-    }
-  };
-  
+
   const onSubmitApiCreate = (data: any) => {
-    console.log('Form data being submitted:', data);
-    // Ensure all required fields are present
     if (!data.name || !data.type || !data.url || !data.apiKey) {
       toast({
         title: "Validation Error",
-        description: "Please fill in all required fields (Name, Type, URL, API Key)",
+        description:
+          "Please fill in all required fields (Name, Type, URL, API Key)",
         variant: "destructive",
       });
       return;
     }
     apiCreateMutation.mutate(data);
   };
-  
-  // Helper to get scam identifier based on type
+
+  // ===== Render =====
   const getScamIdentifier = (report: ScamReport) => {
     switch (report.scamType) {
-      case 'phone':
+      case "phone":
         return report.scamPhoneNumber;
-      case 'email':
+      case "email":
         return report.scamEmail;
-      case 'business':
+      case "business":
         return report.scamBusinessName;
       default:
-        return 'Unknown';
+        return "Unknown";
     }
   };
-  
+
   return (
     <div className="container mx-auto py-8 max-w-5xl">
       <h1 className="text-2xl font-bold mb-6">Admin Dashboard</h1>
-      
+
       <Tabs defaultValue="pending" onValueChange={setActiveTab}>
-        <TabsList className="mb-6">
+        <TabsList className="mb-6 flex flex-wrap">
           <TabsTrigger value="pending">Pending Reports</TabsTrigger>
           <TabsTrigger value="verified">Verified Reports</TabsTrigger>
           <TabsTrigger value="videos">
@@ -534,7 +494,8 @@ export default function AdminPanel() {
             </span>
           </TabsTrigger>
         </TabsList>
-        
+
+        {/* Pending Reports */}
         <TabsContent value="pending" className="mt-6">
           <h2 className="text-xl font-semibold mb-4">Pending Reports</h2>
           {isPendingLoading ? (
@@ -543,7 +504,9 @@ export default function AdminPanel() {
             <div className="text-center py-8 text-muted-foreground">
               <AlertCircleIcon className="h-12 w-12 mx-auto mb-2" />
               <p>No pending reports found</p>
-              <p className="text-sm mt-2">All scam reports have been reviewed</p>
+              <p className="text-sm mt-2">
+                All scam reports have been reviewed
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4">
@@ -553,25 +516,37 @@ export default function AdminPanel() {
                     <div className="flex justify-between items-start">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
-                          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Pending</Badge>
-                          <p className="text-sm text-muted-foreground">ID: #{report.id}</p>
+                          <Badge
+                            variant="outline"
+                            className="bg-yellow-50 text-yellow-700 border-yellow-200"
+                          >
+                            Pending
+                          </Badge>
+                          <p className="text-sm text-muted-foreground">
+                            ID: #{report.id}
+                          </p>
                         </div>
                         <CardTitle className="flex items-center gap-2">
                           <Badge variant="outline">{report.scamType}</Badge>
                           {getScamIdentifier(report)}
                         </CardTitle>
                         <p className="text-sm text-muted-foreground mt-1">
-                          Reported on {format(new Date(report.reportedAt), 'MMM d, yyyy')} by {report.user?.displayName || 'Unknown User'}
+                          Reported on{" "}
+                          {format(new Date(report.reportedAt), "MMM d, yyyy")}{" "}
+                          by {report.user?.displayName || "Unknown User"}
                         </p>
                       </div>
                       <div>
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
+                        <Button
+                          size="sm"
+                          variant="outline"
                           className="bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:text-red-800"
-                          onClick={() => window.open(`/reports/${report.id}`, '_blank')}
+                          onClick={() =>
+                            window.open(`/reports/${report.id}`, "_blank")
+                          }
                         >
-                          <AlertTriangleIcon className="h-4 w-4 mr-1" /> Unverified
+                          <AlertTriangleIcon className="h-4 w-4 mr-1" />{" "}
+                          Unverified
                         </Button>
                       </div>
                     </div>
@@ -579,31 +554,38 @@ export default function AdminPanel() {
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-2">
                       <div>
-                        <span className="font-medium">Incident Date:</span> {format(new Date(report.incidentDate), 'MMM d, yyyy')}
+                        <span className="font-medium">Incident Date:</span>{" "}
+                        {format(new Date(report.incidentDate), "MMM d, yyyy")}
                       </div>
                       <div>
-                        <span className="font-medium">Location:</span> {report.location}
+                        <span className="font-medium">Location:</span>{" "}
+                        {report.location}
                       </div>
                     </div>
                     <p className="text-sm">
-                      <span className="font-medium">Description:</span> {report.description}
+                      <span className="font-medium">Description:</span>{" "}
+                      {report.description}
                     </p>
-                    
+
                     <div className="mt-4 pt-4 border-t border-gray-200 flex gap-2 justify-end">
-                      <Button 
+                      <Button
                         variant="outline"
-                        onClick={() => window.open(`/reports/${report.id}`, '_blank')}
+                        onClick={() =>
+                          window.open(`/reports/${report.id}`, "_blank")
+                        }
                       >
                         <EyeIcon className="h-4 w-4 mr-2" /> View Details
                       </Button>
-                      <Button 
+                      <Button
                         variant="default"
                         className="bg-green-600 hover:bg-green-700"
                         onClick={() => handleVerify(report.id)}
                         disabled={verifyMutation.isPending}
                       >
-                        <CheckIcon className="h-4 w-4 mr-2" /> 
-                        {verifyMutation.isPending ? 'Verifying...' : 'Approve & Verify'}
+                        <CheckIcon className="h-4 w-4 mr-2" />
+                        {verifyMutation.isPending
+                          ? "Verifying..."
+                          : "Approve & Verify"}
                       </Button>
                     </div>
                   </CardContent>
@@ -612,12 +594,15 @@ export default function AdminPanel() {
             </div>
           )}
         </TabsContent>
-        
+
+        {/* Verified Reports */}
         <TabsContent value="verified" className="mt-6">
           <h2 className="text-xl font-semibold mb-4">Verified Reports</h2>
           {isVerifiedLoading ? (
             <div className="text-center py-8">Loading verified reports...</div>
-          ) : !verifiedReports || !Array.isArray(verifiedReports) || verifiedReports.length === 0 ? (
+          ) : !verifiedReports ||
+            !Array.isArray(verifiedReports) ||
+            verifiedReports.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <CheckIcon className="h-12 w-12 mx-auto mb-2" />
               <p>No verified reports found</p>
@@ -631,23 +616,35 @@ export default function AdminPanel() {
                     <div className="flex justify-between items-start">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Verified</Badge>
-                          <p className="text-sm text-muted-foreground">ID: #{report.id}</p>
+                          <Badge
+                            variant="outline"
+                            className="bg-green-50 text-green-700 border-green-200"
+                          >
+                            Verified
+                          </Badge>
+                          <p className="text-sm text-muted-foreground">
+                            ID: #{report.id}
+                          </p>
                         </div>
                         <CardTitle className="flex items-center gap-2">
                           <Badge variant="outline">{report.scamType}</Badge>
                           {getScamIdentifier(report)}
                         </CardTitle>
                         <p className="text-sm text-muted-foreground mt-1">
-                          Verified on {report.verifiedAt ? format(new Date(report.verifiedAt), 'MMM d, yyyy') : 'Unknown'} 
+                          Verified on{" "}
+                          {report.verifiedAt
+                            ? format(new Date(report.verifiedAt), "MMM d, yyyy")
+                            : "Unknown"}
                         </p>
                       </div>
                       <div>
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
+                        <Button
+                          size="sm"
+                          variant="outline"
                           className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:text-green-800"
-                          onClick={() => window.open(`/reports/${report.id}`, '_blank')}
+                          onClick={() =>
+                            window.open(`/reports/${report.id}`, "_blank")
+                          }
                         >
                           <CheckIcon className="h-4 w-4 mr-1" /> Verified
                         </Button>
@@ -657,14 +654,17 @@ export default function AdminPanel() {
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-2">
                       <div>
-                        <span className="font-medium">Incident Date:</span> {format(new Date(report.incidentDate), 'MMM d, yyyy')}
+                        <span className="font-medium">Incident Date:</span>{" "}
+                        {format(new Date(report.incidentDate), "MMM d, yyyy")}
                       </div>
                       <div>
-                        <span className="font-medium">Location:</span> {report.location}
+                        <span className="font-medium">Location:</span>{" "}
+                        {report.location}
                       </div>
                     </div>
                     <p className="text-sm">
-                      <span className="font-medium">Description:</span> {report.description}
+                      <span className="font-medium">Description:</span>{" "}
+                      {report.description}
                     </p>
                   </CardContent>
                 </Card>
@@ -672,26 +672,31 @@ export default function AdminPanel() {
             </div>
           )}
         </TabsContent>
-        
+
+        {/* Videos */}
         <TabsContent value="videos" className="mt-6">
           <ScamVideoManager />
         </TabsContent>
-        
+
+        {/* Security Checklist */}
         <TabsContent value="security" className="mt-6">
           <AdminSecurityChecklistPanel />
         </TabsContent>
-        
+
+        {/* Scam API Configs */}
         <TabsContent value="api-configs" className="mt-6">
           <div className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold">Scam Detection API Configuration</h2>
+              <h2 className="text-xl font-semibold">
+                Scam Detection API Configuration
+              </h2>
               <Button onClick={() => setIsApiCreateDialogOpen(true)}>
                 <PlusIcon className="h-4 w-4 mr-2" />
                 Add API Configuration
               </Button>
             </div>
 
-            {/* API Testing Section */}
+            {/* Quick Test Tools */}
             <Card>
               <CardHeader>
                 <CardTitle>Quick Test Tools</CardTitle>
@@ -707,7 +712,10 @@ export default function AdminPanel() {
                         onChange={(e) => setTestPhone(e.target.value)}
                         placeholder="+1234567890"
                       />
-                      <Button onClick={() => handleTestLookup('phone', testPhone)} size="sm">
+                      <Button
+                        onClick={() => handleTestLookup("phone", testPhone)}
+                        size="sm"
+                      >
                         Test
                       </Button>
                     </div>
@@ -721,7 +729,10 @@ export default function AdminPanel() {
                         onChange={(e) => setTestEmail(e.target.value)}
                         placeholder="test@example.com"
                       />
-                      <Button onClick={() => handleTestLookup('email', testEmail)} size="sm">
+                      <Button
+                        onClick={() => handleTestLookup("email", testEmail)}
+                        size="sm"
+                      >
                         Test
                       </Button>
                     </div>
@@ -735,13 +746,16 @@ export default function AdminPanel() {
                         onChange={(e) => setTestUrl(e.target.value)}
                         placeholder="https://example.com"
                       />
-                      <Button onClick={() => handleTestLookup('url', testUrl)} size="sm">
+                      <Button
+                        onClick={() => handleTestLookup("url", testUrl)}
+                        size="sm"
+                      >
                         Test
                       </Button>
                     </div>
                   </div>
                 </div>
-                
+
                 {testResult && (
                   <div className="mt-4 p-4 bg-gray-50 rounded-lg">
                     <h4 className="font-medium mb-2">Test Result:</h4>
@@ -749,11 +763,21 @@ export default function AdminPanel() {
                       {JSON.stringify(testResult, null, 2)}
                     </pre>
                     <div className="mt-2 flex items-center gap-2">
-                      <Badge variant={testResult.fraud_score > 75 ? "destructive" : testResult.fraud_score > 50 ? "secondary" : "default"}>
-                        Risk Score: {testResult.fraud_score || 'N/A'}
+                      <Badge
+                        variant={
+                          testResult.fraud_score > 75
+                            ? "destructive"
+                            : testResult.fraud_score > 50
+                              ? "secondary"
+                              : "default"
+                        }
+                      >
+                        Risk Score: {testResult.fraud_score ?? "N/A"}
                       </Badge>
-                      <Badge variant={testResult.valid ? "default" : "destructive"}>
-                        {testResult.valid ? 'Valid' : 'Invalid'}
+                      <Badge
+                        variant={testResult.valid ? "default" : "destructive"}
+                      >
+                        {testResult.valid ? "Valid" : "Invalid"}
                       </Badge>
                     </div>
                   </div>
@@ -770,242 +794,279 @@ export default function AdminPanel() {
                 <div className="space-y-4">
                   {isApiConfigsLoading ? (
                     <div className="flex items-center justify-center py-8">
-                      <div className="text-sm text-muted-foreground">Loading API configurations...</div>
+                      <div className="text-sm text-muted-foreground">
+                        Loading API configurations...
+                      </div>
                     </div>
                   ) : apiConfigs.length === 0 ? (
                     <div className="flex items-center justify-center py-8">
-                      <div className="text-sm text-muted-foreground">No API configurations found. Create one to get started.</div>
+                      <div className="text-sm text-muted-foreground">
+                        No API configurations found. Create one to get started.
+                      </div>
                     </div>
                   ) : (
                     apiConfigs.map((config: any) => (
-                    <div key={config.id} className="border rounded-lg">
-                      <div className="flex items-center justify-between p-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-medium">{config.name}</h4>
-                            <Badge variant="outline">{config.type}</Badge>
-                            <Badge variant={config.enabled ? "default" : "secondary"}>
-                              {config.enabled ? 'Enabled' : 'Disabled'}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground">{config.description}</p>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            Rate limit: {config.rateLimit}/min • Timeout: {config.timeout}s
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => setShowCustomInputs(prev => ({ ...prev, [config.id]: !prev[config.id] }))}
-                          >
-                            {showCustomInputs[config.id] ? 'Hide Input' : 'Custom Test'}
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => handleTestApi(config)}
-                            disabled={testingApiIds.has(config.id)}
-                          >
-                            {testingApiIds.has(config.id) ? 'Testing...' : 'Test'}
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={() => handleEditApiConfig(config)}>
-                            Edit
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => handleDeleteApiConfig(config.id)}
-                          >
-                            <XIcon className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                      
-                      {/* Custom Test Input Section */}
-                      {showCustomInputs[config.id] && (
-                        <div className="px-4 py-3 border-t bg-blue-50 dark:bg-blue-900/20">
-                          <div className="space-y-3">
-                            <div className="flex items-center gap-2">
-                              <label className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                                Test Input ({config.type}):
-                              </label>
-                            </div>
-                            <div className="flex gap-2">
-                              <input
-                                type="text"
-                                value={customTestInputs[config.id] || ''}
-                                onChange={(e) => setCustomTestInputs(prev => ({ ...prev, [config.id]: e.target.value }))}
-                                placeholder={`Enter ${config.type} to test (e.g., ${getTestInputForType(config.type)})`}
-                                className="flex-1 px-3 py-2 text-sm border border-blue-200 dark:border-blue-700 rounded bg-white dark:bg-slate-800"
-                              />
-                              <Button 
-                                size="sm" 
-                                onClick={() => handleTestApi(config, customTestInputs[config.id])}
-                                disabled={testingApiIds.has(config.id)}
+                      <div key={config.id} className="border rounded-lg">
+                        <div className="flex items-center justify-between p-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="font-medium">{config.name}</h4>
+                              <Badge variant="outline">{config.type}</Badge>
+                              <Badge
+                                variant={
+                                  config.enabled ? "default" : "secondary"
+                                }
                               >
-                                {testingApiIds.has(config.id) ? 'Testing...' : 'Test Now'}
-                              </Button>
+                                {config.enabled ? "Enabled" : "Disabled"}
+                              </Badge>
                             </div>
-                            <div className="text-xs text-blue-600 dark:text-blue-400">
-                              Leave empty to use default test value: {getTestInputForType(config.type)}
+                            <p className="text-sm text-muted-foreground">
+                              {config.description}
+                            </p>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              Rate limit: {config.rateLimit}/min • Timeout:{" "}
+                              {config.timeout}s
                             </div>
                           </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                setShowCustomInputs((prev) => ({
+                                  ...prev,
+                                  [config.id]: !prev[config.id],
+                                }))
+                              }
+                            >
+                              {showCustomInputs[config.id]
+                                ? "Hide Input"
+                                : "Custom Test"}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleTestApi(config)}
+                              disabled={testingApiIds.has(config.id)}
+                            >
+                              {testingApiIds.has(config.id)
+                                ? "Testing..."
+                                : "Test"}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditApiConfig(config)}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                apiDeleteMutation.mutate(config.id)
+                              }
+                            >
+                              <XIcon className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
-                      )}
-                      
-                      {/* API Test Results Display */}
-                      {apiTestResults[config.id] && (
-                        <div className="px-4 pb-4 border-t bg-slate-50 dark:bg-slate-900/50">
-                          <div className="mt-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <h5 className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                                Test Results
-                              </h5>
-                              <span className="text-xs text-muted-foreground">
-                                {new Date(apiTestResults[config.id].timestamp).toLocaleTimeString()}
-                              </span>
-                            </div>
-                            
-                            <div className="space-y-2">
+
+                        {/* Custom Test Input Section */}
+                        {showCustomInputs[config.id] && (
+                          <div className="px-4 py-3 border-t bg-blue-50 dark:bg-blue-900/20">
+                            <div className="space-y-3">
                               <div className="flex items-center gap-2">
-                                <span className="text-xs font-medium">Input:</span>
-                                <code className="text-xs bg-slate-200 dark:bg-slate-800 px-2 py-1 rounded">
-                                  {apiTestResults[config.id].testInput}
-                                </code>
+                                <label className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                                  Test Input ({config.type}):
+                                </label>
                               </div>
-                              
-                              {/* API Call Details Section */}
-                              {apiTestResults[config.id].apiCallDetails && (
-                                <div className="mt-3 p-3 bg-slate-100 dark:bg-slate-800 rounded">
-                                  <h6 className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                                    API Call Details
-                                  </h6>
-                                  <div className="space-y-1">
-                                    <div className="flex items-start gap-2">
-                                      <span className="text-xs font-medium text-slate-600 dark:text-slate-400 min-w-[50px]">Method:</span>
-                                      <code className="text-xs bg-slate-200 dark:bg-slate-700 px-2 py-1 rounded">
-                                        {apiTestResults[config.id].apiCallDetails.method}
-                                      </code>
-                                    </div>
-                                    <div className="flex items-start gap-2">
-                                      <span className="text-xs font-medium text-slate-600 dark:text-slate-400 min-w-[50px]">URL:</span>
-                                      <code className="text-xs bg-slate-200 dark:bg-slate-700 px-2 py-1 rounded flex-1 break-all">
-                                        {apiTestResults[config.id].apiCallDetails.url}
-                                      </code>
-                                    </div>
-                                    {Object.keys(apiTestResults[config.id].apiCallDetails.headers || {}).length > 0 && (
-                                      <details className="mt-2">
-                                        <summary className="text-xs font-medium cursor-pointer text-slate-600 dark:text-slate-400">
-                                          Headers ({Object.keys(apiTestResults[config.id].apiCallDetails.headers).length})
-                                        </summary>
-                                        <div className="mt-1 p-2 bg-slate-50 dark:bg-slate-900 rounded">
-                                          <pre className="text-xs text-slate-700 dark:text-slate-300">
-                                            {JSON.stringify(apiTestResults[config.id].apiCallDetails.headers, null, 2)}
-                                          </pre>
-                                        </div>
-                                      </details>
-                                    )}
-                                    {apiTestResults[config.id].apiCallDetails.body && (
-                                      <details className="mt-2">
-                                        <summary className="text-xs font-medium cursor-pointer text-slate-600 dark:text-slate-400">
-                                          Request Body
-                                        </summary>
-                                        <div className="mt-1 p-2 bg-slate-50 dark:bg-slate-900 rounded">
-                                          <pre className="text-xs text-slate-700 dark:text-slate-300">
-                                            {typeof apiTestResults[config.id].apiCallDetails.body === 'string' 
-                                              ? apiTestResults[config.id].apiCallDetails.body
-                                              : JSON.stringify(apiTestResults[config.id].apiCallDetails.body, null, 2)}
-                                          </pre>
-                                        </div>
-                                      </details>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-                              
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-medium">Status:</span>
-                                <Badge 
-                                  variant={apiTestResults[config.id].success ? "default" : "destructive"}
-                                  className="text-xs"
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={customTestInputs[config.id] || ""}
+                                  onChange={(e) =>
+                                    setCustomTestInputs((prev) => ({
+                                      ...prev,
+                                      [config.id]: e.target.value,
+                                    }))
+                                  }
+                                  placeholder={`Enter ${config.type} to test`}
+                                  className="flex-1 px-3 py-2 text-sm border border-blue-200 dark:border-blue-700 rounded bg-white dark:bg-slate-800"
+                                />
+                                <Button
+                                  size="sm"
+                                  onClick={() =>
+                                    handleTestApi(
+                                      config,
+                                      customTestInputs[config.id],
+                                    )
+                                  }
+                                  disabled={testingApiIds.has(config.id)}
                                 >
-                                  {apiTestResults[config.id].success ? 'Success' : 'Failed'}
-                                </Badge>
+                                  {testingApiIds.has(config.id)
+                                    ? "Testing..."
+                                    : "Test Now"}
+                                </Button>
                               </div>
-                              
-                              {apiTestResults[config.id].testResult && (
-                                <div className="space-y-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xs font-medium">Provider:</span>
-                                    <span className="text-xs">{apiTestResults[config.id].testResult.provider}</span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xs font-medium">Status:</span>
-                                    <Badge variant="outline" className="text-xs">
-                                      {apiTestResults[config.id].testResult.status}
-                                    </Badge>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xs font-medium">Risk Score:</span>
-                                    <span className="text-xs">{apiTestResults[config.id].testResult.riskScore}</span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xs font-medium">Reputation:</span>
-                                    <span className="text-xs">{apiTestResults[config.id].testResult.reputation}</span>
-                                  </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* API Test Results Display */}
+                        {apiTestResults[config.id] && (
+                          <div className="px-4 pb-4 border-t bg-slate-50 dark:bg-slate-900/50">
+                            <div className="mt-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <h5 className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                  Test Results
+                                </h5>
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(
+                                    apiTestResults[config.id].timestamp,
+                                  ).toLocaleTimeString()}
+                                </span>
+                              </div>
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-medium">
+                                    Input:
+                                  </span>
+                                  <code className="text-xs bg-slate-200 dark:bg-slate-800 px-2 py-1 rounded">
+                                    {apiTestResults[config.id].testInput}
+                                  </code>
                                 </div>
-                              )}
-                              
-                              {apiTestResults[config.id].error && (
-                                <div className="mt-2">
-                                  <span className="text-xs font-medium text-red-600 dark:text-red-400">Error:</span>
-                                  <div className="text-xs text-red-600 dark:text-red-400 mt-1 p-2 bg-red-50 dark:bg-red-900/20 rounded">
+
+                                {apiTestResults[config.id].apiCallDetails && (
+                                  <div className="mt-3 p-3 bg-slate-100 dark:bg-slate-800 rounded">
+                                    <h6 className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                                      API Call Details
+                                    </h6>
+                                    <div className="space-y-1">
+                                      <div className="flex items-start gap-2">
+                                        <span className="text-xs font-medium min-w-[50px]">
+                                          Method:
+                                        </span>
+                                        <code className="text-xs bg-slate-200 dark:bg-slate-700 px-2 py-1 rounded">
+                                          {
+                                            apiTestResults[config.id]
+                                              .apiCallDetails.method
+                                          }
+                                        </code>
+                                      </div>
+                                      <div className="flex items-start gap-2">
+                                        <span className="text-xs font-medium min-w-[50px]">
+                                          URL:
+                                        </span>
+                                        <code className="text-xs bg-slate-200 dark:bg-slate-700 px-2 py-1 rounded flex-1 break-all">
+                                          {
+                                            apiTestResults[config.id]
+                                              .apiCallDetails.url
+                                          }
+                                        </code>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-medium">
+                                    Status:
+                                  </span>
+                                  <Badge
+                                    variant={
+                                      apiTestResults[config.id].success
+                                        ? "default"
+                                        : "destructive"
+                                    }
+                                    className="text-xs"
+                                  >
+                                    {apiTestResults[config.id].success
+                                      ? "Success"
+                                      : "Failed"}
+                                  </Badge>
+                                </div>
+
+                                {apiTestResults[config.id].testResult && (
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-medium">
+                                        Provider:
+                                      </span>
+                                      <span className="text-xs">
+                                        {
+                                          apiTestResults[config.id].testResult
+                                            .provider
+                                        }
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-medium">
+                                        Status:
+                                      </span>
+                                      <Badge
+                                        variant="outline"
+                                        className="text-xs"
+                                      >
+                                        {
+                                          apiTestResults[config.id].testResult
+                                            .status
+                                        }
+                                      </Badge>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-medium">
+                                        Risk Score:
+                                      </span>
+                                      <span className="text-xs">
+                                        {
+                                          apiTestResults[config.id].testResult
+                                            .riskScore
+                                        }
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {apiTestResults[config.id].error && (
+                                  <div className="mt-2 text-xs text-red-600 dark:text-red-400 p-2 bg-red-50 dark:bg-red-900/20 rounded">
                                     {apiTestResults[config.id].error}
                                   </div>
-                                </div>
-                              )}
-                              
-                              {apiTestResults[config.id].testResult?.details && (
-                                <details className="mt-2">
-                                  <summary className="text-xs font-medium cursor-pointer text-slate-600 dark:text-slate-400">
-                                    Raw Response
-                                  </summary>
-                                  <div className="mt-2 p-2 bg-slate-100 dark:bg-slate-800 rounded">
-                                    <pre className="text-xs text-slate-700 dark:text-slate-300 overflow-x-auto">
-                                      {JSON.stringify(apiTestResults[config.id].testResult.details, null, 2)}
-                                    </pre>
-                                  </div>
-                                </details>
-                              )}
+                                )}
+
+                                {apiTestResults[config.id].testResult
+                                  ?.details && (
+                                  <details className="mt-2">
+                                    <summary className="text-xs font-medium cursor-pointer">
+                                      Raw Response
+                                    </summary>
+                                    <div className="mt-2 p-2 bg-slate-100 dark:bg-slate-800 rounded">
+                                      <pre className="text-xs overflow-x-auto">
+                                        {JSON.stringify(
+                                          apiTestResults[config.id].testResult
+                                            .details,
+                                          null,
+                                          2,
+                                        )}
+                                      </pre>
+                                    </div>
+                                  </details>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  )))}
-                  
-                  {isApiConfigsLoading && (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-2"></div>
-                      <p>Loading API configurations...</p>
-                    </div>
+                        )}
+                      </div>
+                    ))
                   )}
-                  
+
                   {apiConfigsError && (
                     <div className="text-center py-8 text-red-600">
                       <AlertCircleIcon className="h-12 w-12 mx-auto mb-2" />
                       <p>Error loading API configurations</p>
-                      <p className="text-sm mt-2">{apiConfigsError.message}</p>
-                      <p className="text-xs mt-2 text-gray-600">Check authentication and try refreshing the page</p>
-                    </div>
-                  )}
-                  
-                  {apiConfigs.length === 0 && !isApiConfigsLoading && !apiConfigsError && (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <AlertCircleIcon className="h-12 w-12 mx-auto mb-2" />
-                      <p>No API configurations found</p>
-                      <p className="text-sm">Add your first API configuration to enable scam lookup</p>
+                      <p className="text-sm mt-2">
+                        {(apiConfigsError as Error).message}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -1013,22 +1074,35 @@ export default function AdminPanel() {
             </Card>
 
             {/* API Create Dialog */}
-            <Dialog open={isApiCreateDialogOpen} onOpenChange={setIsApiCreateDialogOpen}>
+            <Dialog
+              open={isApiCreateDialogOpen}
+              onOpenChange={setIsApiCreateDialogOpen}
+            >
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
                   <DialogTitle>Add API Configuration</DialogTitle>
                 </DialogHeader>
-                <form onSubmit={apiCreateForm.handleSubmit(onSubmitApiCreate)} className="space-y-4">
+                <form
+                  onSubmit={apiCreateForm.handleSubmit(onSubmitApiCreate)}
+                  className="space-y-4"
+                >
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="api-name">API Name *</Label>
                       <Input
                         id="api-name"
-                        {...apiCreateForm.register("name", { required: "Name is required" })}
+                        {...apiCreateForm.register("name", {
+                          required: "Name is required",
+                        })}
                         placeholder="IPQualityScore Phone"
                       />
                       {apiCreateForm.formState.errors.name && (
-                        <p className="text-xs text-red-500 mt-1">{apiCreateForm.formState.errors.name.message}</p>
+                        <p className="text-xs text-red-500 mt-1">
+                          {
+                            apiCreateForm.formState.errors.name
+                              .message as string
+                          }
+                        </p>
                       )}
                     </div>
                     <div>
@@ -1037,15 +1111,20 @@ export default function AdminPanel() {
                         value={apiCreateForm.watch("type") || "phone"}
                         onValueChange={(value) => {
                           apiCreateForm.setValue("type", value);
-                          // Update parameter mapping template based on type
                           const templates: Record<string, string> = {
-                            phone: '{\n  "phone": "{{input}}",\n  "key": "{{apiKey}}"\n}',
-                            email: '{\n  "email": "{{input}}",\n  "key": "{{apiKey}}"\n}',
+                            phone:
+                              '{\n  "phone": "{{input}}",\n  "key": "{{apiKey}}"\n}',
+                            email:
+                              '{\n  "email": "{{input}}",\n  "key": "{{apiKey}}"\n}',
                             url: '{\n  "url": "{{input}}",\n  "key": "{{apiKey}}"\n}',
                             ip: '{\n  "ip": "{{input}}",\n  "key": "{{apiKey}}"\n}',
-                            domain: '{\n  "domain": "{{input}}",\n  "key": "{{apiKey}}"\n}'
+                            domain:
+                              '{\n  "domain": "{{input}}",\n  "key": "{{apiKey}}"\n}',
                           };
-                          apiCreateForm.setValue("parameterMapping", templates[value] || templates.phone);
+                          apiCreateForm.setValue(
+                            "parameterMapping",
+                            templates[value] || templates.phone,
+                          );
                         }}
                       >
                         <SelectTrigger>
@@ -1060,33 +1139,52 @@ export default function AdminPanel() {
                         </SelectContent>
                       </Select>
                       {apiCreateForm.formState.errors.type && (
-                        <p className="text-xs text-red-500 mt-1">{apiCreateForm.formState.errors.type.message}</p>
+                        <p className="text-xs text-red-500 mt-1">
+                          {
+                            apiCreateForm.formState.errors.type
+                              ?.message as string
+                          }
+                        </p>
                       )}
                     </div>
                   </div>
+
                   <div>
                     <Label htmlFor="api-url">API URL *</Label>
                     <Input
                       id="api-url"
-                      {...apiCreateForm.register("url", { required: "URL is required" })}
+                      {...apiCreateForm.register("url", {
+                        required: "URL is required",
+                      })}
                       placeholder="https://api.example.com/v1/check"
                     />
                     {apiCreateForm.formState.errors.url && (
-                      <p className="text-xs text-red-500 mt-1">{apiCreateForm.formState.errors.url.message}</p>
+                      <p className="text-xs text-red-500 mt-1">
+                        {apiCreateForm.formState.errors.url.message as string}
+                      </p>
                     )}
                   </div>
+
                   <div>
                     <Label htmlFor="api-key">API Key *</Label>
                     <Input
                       id="api-key"
                       type="password"
-                      {...apiCreateForm.register("apiKey", { required: "API Key is required" })}
+                      {...apiCreateForm.register("apiKey", {
+                        required: "API Key is required",
+                      })}
                       placeholder="your-api-key-here"
                     />
                     {apiCreateForm.formState.errors.apiKey && (
-                      <p className="text-xs text-red-500 mt-1">{apiCreateForm.formState.errors.apiKey.message}</p>
+                      <p className="text-xs text-red-500 mt-1">
+                        {
+                          apiCreateForm.formState.errors.apiKey
+                            .message as string
+                        }
+                      </p>
                     )}
                   </div>
+
                   <div>
                     <Label htmlFor="api-description">Description</Label>
                     <Textarea
@@ -1095,39 +1193,41 @@ export default function AdminPanel() {
                       placeholder="Brief description of this API service"
                     />
                   </div>
+
                   <div>
                     <Label htmlFor="api-params">Parameter Mapping (JSON)</Label>
                     <Textarea
                       id="api-params"
                       {...apiCreateForm.register("parameterMapping")}
-                      placeholder='{"phone": "{{input}}", "key": "{{apiKey}}"}'
                       rows={4}
                       className="font-mono text-sm"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Use {`{{input}}`} for user input and {`{{apiKey}}`} for the API key. These will be replaced at runtime.
+                      Use {"{{input}}"} and {"{{apiKey}}"}. Replaced at runtime.
                     </p>
                   </div>
+
                   <div>
                     <Label htmlFor="api-headers">Headers (JSON)</Label>
                     <Textarea
                       id="api-headers"
                       {...apiCreateForm.register("headers")}
-                      placeholder='{"Content-Type": "application/json", "Authorization": "Bearer {{apiKey}}"}'
                       rows={3}
                       className="font-mono text-sm"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Optional HTTP headers for the API request.
-                    </p>
                   </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="api-rate-limit">Rate Limit (per minute)</Label>
+                      <Label htmlFor="api-rate-limit">
+                        Rate Limit (per minute)
+                      </Label>
                       <Input
                         id="api-rate-limit"
                         type="number"
-                        {...apiCreateForm.register("rateLimit", { valueAsNumber: true })}
+                        {...apiCreateForm.register("rateLimit", {
+                          valueAsNumber: true,
+                        })}
                         placeholder="100"
                       />
                     </div>
@@ -1136,41 +1236,57 @@ export default function AdminPanel() {
                       <Input
                         id="api-timeout"
                         type="number"
-                        {...apiCreateForm.register("timeout", { valueAsNumber: true })}
+                        {...apiCreateForm.register("timeout", {
+                          valueAsNumber: true,
+                        })}
                         placeholder="30"
                       />
                     </div>
                   </div>
+
                   <div className="flex justify-end gap-2">
-                    <Button type="button" variant="outline" onClick={() => setIsApiCreateDialogOpen(false)}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsApiCreateDialogOpen(false)}
+                    >
                       Cancel
                     </Button>
-                    <Button type="submit" disabled={apiCreateMutation.isPending}>
-                      {apiCreateMutation.isPending ? 'Creating...' : 'Create API Config'}
+                    <Button
+                      type="submit"
+                      disabled={apiCreateMutation.isPending}
+                    >
+                      {apiCreateMutation.isPending
+                        ? "Creating..."
+                        : "Create API Config"}
                     </Button>
                   </div>
                 </form>
               </DialogContent>
             </Dialog>
 
-            {/* Edit API Configuration Dialog */}
-            <Dialog open={isApiEditDialogOpen} onOpenChange={setIsApiEditDialogOpen}>
+            {/* Edit API Config */}
+            <Dialog
+              open={isApiEditDialogOpen}
+              onOpenChange={setIsApiEditDialogOpen}
+            >
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
                   <DialogTitle>Edit API Configuration</DialogTitle>
                 </DialogHeader>
-                <form onSubmit={apiEditForm.handleSubmit(onSubmitApiEdit)} className="space-y-4">
+                <form
+                  onSubmit={apiEditForm.handleSubmit(onSubmitApiEdit)}
+                  className="space-y-4"
+                >
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="edit-api-name">API Name *</Label>
                       <Input
                         id="edit-api-name"
-                        {...apiEditForm.register("name", { required: "Name is required" })}
-                        placeholder="IPQualityScore Phone"
+                        {...apiEditForm.register("name", {
+                          required: "Name is required",
+                        })}
                       />
-                      {apiEditForm.formState.errors.name && (
-                        <p className="text-xs text-red-500 mt-1">{apiEditForm.formState.errors.name.message}</p>
-                      )}
                     </div>
                     <div>
                       <Label htmlFor="edit-api-type">Type *</Label>
@@ -1178,15 +1294,20 @@ export default function AdminPanel() {
                         value={apiEditForm.watch("type") || "phone"}
                         onValueChange={(value) => {
                           apiEditForm.setValue("type", value);
-                          // Update parameter mapping template based on type
                           const templates: Record<string, string> = {
-                            phone: '{\n  "phone": "{{input}}",\n  "key": "{{apiKey}}"\n}',
-                            email: '{\n  "email": "{{input}}",\n  "key": "{{apiKey}}"\n}',
+                            phone:
+                              '{\n  "phone": "{{input}}",\n  "key": "{{apiKey}}"\n}',
+                            email:
+                              '{\n  "email": "{{input}}",\n  "key": "{{apiKey}}"\n}',
                             url: '{\n  "url": "{{input}}",\n  "key": "{{apiKey}}"\n}',
                             ip: '{\n  "ip": "{{input}}",\n  "key": "{{apiKey}}"\n}',
-                            domain: '{\n  "domain": "{{input}}",\n  "key": "{{apiKey}}"\n}'
+                            domain:
+                              '{\n  "domain": "{{input}}",\n  "key": "{{apiKey}}"\n}',
                           };
-                          apiEditForm.setValue("parameterMapping", templates[value] || templates.phone);
+                          apiEditForm.setValue(
+                            "parameterMapping",
+                            templates[value] || templates.phone,
+                          );
                         }}
                       >
                         <SelectTrigger>
@@ -1196,89 +1317,78 @@ export default function AdminPanel() {
                           <SelectItem value="phone">Phone</SelectItem>
                           <SelectItem value="email">Email</SelectItem>
                           <SelectItem value="url">URL</SelectItem>
-                          <SelectItem value="ip">IP Address</SelectItem>
+                          <SelectItem value="ip">IP</SelectItem>
                           <SelectItem value="domain">Domain</SelectItem>
                         </SelectContent>
                       </Select>
-                      {apiEditForm.formState.errors.type && (
-                        <p className="text-xs text-red-500 mt-1">{apiEditForm.formState.errors.type.message}</p>
-                      )}
                     </div>
                   </div>
+
                   <div>
                     <Label htmlFor="edit-api-url">API URL *</Label>
                     <Input
                       id="edit-api-url"
-                      {...apiEditForm.register("url", { required: "URL is required" })}
-                      placeholder="https://api.example.com/v1/check"
+                      {...apiEditForm.register("url", {
+                        required: "URL is required",
+                      })}
                     />
-                    {apiEditForm.formState.errors.url && (
-                      <p className="text-xs text-red-500 mt-1">{apiEditForm.formState.errors.url.message}</p>
-                    )}
                   </div>
                   <div>
                     <Label htmlFor="edit-api-key">API Key *</Label>
                     <Input
                       id="edit-api-key"
                       type="password"
-                      {...apiEditForm.register("apiKey", { required: "API Key is required" })}
-                      placeholder="your-api-key-here"
+                      {...apiEditForm.register("apiKey", {
+                        required: "API Key is required",
+                      })}
                     />
-                    {apiEditForm.formState.errors.apiKey && (
-                      <p className="text-xs text-red-500 mt-1">{apiEditForm.formState.errors.apiKey.message}</p>
-                    )}
                   </div>
                   <div>
                     <Label htmlFor="edit-api-description">Description</Label>
                     <Textarea
                       id="edit-api-description"
                       {...apiEditForm.register("description")}
-                      placeholder="Brief description of this API service"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="edit-api-params">Parameter Mapping (JSON)</Label>
+                    <Label htmlFor="edit-api-params">
+                      Parameter Mapping (JSON)
+                    </Label>
                     <Textarea
                       id="edit-api-params"
                       {...apiEditForm.register("parameterMapping")}
-                      placeholder='{"phone": "{{input}}", "key": "{{apiKey}}"}'
                       rows={4}
                       className="font-mono text-sm"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Use {`{{input}}`} for user input and {`{{apiKey}}`} for the API key. These will be replaced at runtime.
-                    </p>
                   </div>
                   <div>
                     <Label htmlFor="edit-api-headers">Headers (JSON)</Label>
                     <Textarea
                       id="edit-api-headers"
                       {...apiEditForm.register("headers")}
-                      placeholder='{"Content-Type": "application/json", "Authorization": "Bearer {{apiKey}}"}'
                       rows={3}
                       className="font-mono text-sm"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Optional HTTP headers for the API request.
-                    </p>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <Label htmlFor="edit-api-rate-limit">Rate Limit (per minute)</Label>
+                      <Label htmlFor="edit-api-rate-limit">Rate Limit</Label>
                       <Input
                         id="edit-api-rate-limit"
                         type="number"
-                        {...apiEditForm.register("rateLimit", { valueAsNumber: true })}
-                        placeholder="100"
+                        {...apiEditForm.register("rateLimit", {
+                          valueAsNumber: true,
+                        })}
                       />
                     </div>
                     <div>
-                      <Label htmlFor="edit-api-timeout">Timeout (seconds)</Label>
+                      <Label htmlFor="edit-api-timeout">Timeout</Label>
                       <Input
                         id="edit-api-timeout"
                         type="number"
-                        {...apiEditForm.register("timeout", { valueAsNumber: true })}
-                        placeholder="30"
+                        {...apiEditForm.register("timeout", {
+                          valueAsNumber: true,
+                        })}
                       />
                     </div>
                     <div className="flex items-center space-x-2">
@@ -1291,12 +1401,22 @@ export default function AdminPanel() {
                       <Label htmlFor="edit-api-enabled">Enabled</Label>
                     </div>
                   </div>
+
                   <div className="flex justify-end gap-2">
-                    <Button type="button" variant="outline" onClick={() => setIsApiEditDialogOpen(false)}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsApiEditDialogOpen(false)}
+                    >
                       Cancel
                     </Button>
-                    <Button type="submit" disabled={apiUpdateMutation.isPending}>
-                      {apiUpdateMutation.isPending ? 'Updating...' : 'Update API Config'}
+                    <Button
+                      type="submit"
+                      disabled={apiUpdateMutation.isPending}
+                    >
+                      {apiUpdateMutation.isPending
+                        ? "Updating..."
+                        : "Update API Config"}
                     </Button>
                   </div>
                 </form>
@@ -1309,7 +1429,7 @@ export default function AdminPanel() {
   );
 }
 
-// Admin Security Checklist Panel Component
+// ===== Admin Security Checklist Panel =====
 function AdminSecurityChecklistPanel() {
   const queryClient = useQueryClient();
   const [editingItem, setEditingItem] = useState<any>(null);
@@ -1317,19 +1437,32 @@ function AdminSecurityChecklistPanel() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
-  // Fetch checklist items
+  // Fetch checklist items explicitly from API
   const { data: checklistItems = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/security-checklist"],
+    queryFn: async () => {
+      const res = await apiRequest("/api/security-checklist");
+      if (!res.ok)
+        throw new Error(
+          `Failed to fetch checklist: ${res.status} ${res.statusText}`,
+        );
+      return res.json();
+    },
   });
 
   // Filter items by category
-  const filteredItems = selectedCategory === "all" 
-    ? checklistItems 
-    : checklistItems.filter((item: any) => item.category === selectedCategory);
+  const filteredItems =
+    selectedCategory === "all"
+      ? checklistItems
+      : checklistItems.filter(
+          (item: any) => item.category === selectedCategory,
+        );
 
-  // Get unique categories
+  // Unique categories
   const categories = React.useMemo(() => {
-    const cats = Array.from(new Set(checklistItems.map((item: any) => item.category)));
+    const cats = Array.from(
+      new Set(checklistItems.map((item: any) => item.category)),
+    );
     return ["all", ...cats];
   }, [checklistItems]);
 
@@ -1360,7 +1493,7 @@ function AdminSecurityChecklistPanel() {
       estimatedTimeMinutes: 15,
       category: "account_security",
       priority: "medium",
-      sortOrder: checklistItems.length + 1,
+      sortOrder: (checklistItems?.length || 0) + 1,
     },
   });
 
@@ -1382,49 +1515,67 @@ function AdminSecurityChecklistPanel() {
 
   const updateItemMutation = useMutation({
     mutationFn: async (data: any) => {
-      console.log('Updating security checklist item:', {
-        itemId: editingItem.id,
-        data: data
-      });
-      
-      const response = await apiRequest(`/api/security-checklist/${editingItem.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
+      const res = await apiRequest(
+        `/api/security-checklist/${editingItem.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
         },
-        body: JSON.stringify(data),
-      });
-      
-      const result = await response.json();
-      console.log('Update response:', result);
-      return result;
+      );
+      if (!res.ok)
+        throw new Error(`Update failed: ${res.status} ${res.statusText}`);
+      return res.json();
     },
-    onSuccess: (result) => {
-      console.log('Update successful, invalidating cache and closing dialog');
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/security-checklist"] });
       setIsEditDialogOpen(false);
       setEditingItem(null);
       toast({
         title: "Component Updated",
-        description: "Security checklist component has been updated successfully.",
+        description:
+          "Security checklist component has been updated successfully.",
       });
     },
-    onError: (error) => {
-      console.error('Update error:', error);
+    onError: (error: any) => {
       toast({
         title: "Update Failed",
-        description: `Failed to update component: ${error}`,
+        description: `Failed to update component: ${error?.message || error}`,
         variant: "destructive",
       });
     },
   });
 
+  // ********** FIXED CREATE MUTATION (sends JSON properly) **********
   const createItemMutation = useMutation({
     mutationFn: async (data: any) => {
-      return apiRequest('/api/security-checklist', {
-        method: 'POST',
-        body: data,
+      const payload = {
+        title: data.title?.trim(),
+        description: data.description?.trim(),
+        recommendationText: data.recommendationText?.trim() || null,
+        helpUrl: data.helpUrl?.trim() || null,
+        toolLaunchUrl: data.toolLaunchUrl?.trim() || null,
+        youtubeVideoUrl: data.youtubeVideoUrl?.trim() || null,
+        estimatedTimeMinutes: Number(data.estimatedTimeMinutes) || 15,
+        category: data.category || "account_security",
+        priority: data.priority || "medium",
+        sortOrder: data.sortOrder != null ? Number(data.sortOrder) : undefined,
+      };
+
+      if (!payload.title || !payload.description) {
+        throw new Error("Title and Description are required.");
+      }
+
+      const res = await apiRequest("/api/security-checklist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+      return res.json?.() ?? res;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/security-checklist"] });
@@ -1432,13 +1583,14 @@ function AdminSecurityChecklistPanel() {
       createForm.reset();
       toast({
         title: "Component Created",
-        description: "New security checklist component has been created successfully.",
+        description:
+          "New security checklist component has been created successfully.",
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
         title: "Creation Failed",
-        description: `Failed to create component: ${error}`,
+        description: `Failed to create component: ${error?.message || error}`,
         variant: "destructive",
       });
     },
@@ -1446,52 +1598,69 @@ function AdminSecurityChecklistPanel() {
 
   const deleteItemMutation = useMutation({
     mutationFn: async (itemId: number) => {
-      return apiRequest(`/api/security-checklist/${itemId}`, {
-        method: 'DELETE',
+      const res = await apiRequest(`/api/security-checklist/${itemId}`, {
+        method: "DELETE",
       });
+      if (!res.ok)
+        throw new Error(`Delete failed: ${res.status} ${res.statusText}`);
+      return res.json?.() ?? res;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/security-checklist"] });
       toast({
         title: "Component Deleted",
-        description: "Security checklist component has been deleted successfully.",
+        description:
+          "Security checklist component has been deleted successfully.",
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
         title: "Deletion Failed",
-        description: `Failed to delete component: ${error}`,
+        description: `Failed to delete component: ${error?.message || error}`,
         variant: "destructive",
       });
     },
   });
 
   const onSubmitEdit = (values: any) => {
-    console.log('Edit form submitted with values:', values);
-    console.log('Current editing item:', editingItem);
     updateItemMutation.mutate(values);
   };
 
   const onSubmitCreate = (values: any) => {
+    if (!values.title?.trim() || !values.description?.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Please provide both Title and Description.",
+        variant: "destructive",
+      });
+      return;
+    }
     createItemMutation.mutate(values);
   };
 
   const handleDeleteItem = (itemId: number) => {
-    if (confirm('Are you sure you want to delete this security checklist item?')) {
+    if (
+      confirm("Are you sure you want to delete this security checklist item?")
+    ) {
       deleteItemMutation.mutate(itemId);
     }
   };
 
-  if (isLoading) {
-    return <div className="text-center py-8">Loading security checklist...</div>;
-  }
+  if (isLoading)
+    return (
+      <div className="text-center py-8">Loading security checklist...</div>
+    );
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-xl font-semibold">Security Checklist Management</h2>
-          <p className="text-sm text-muted-foreground">Manage digital security checklist items</p>
+          <h2 className="text-xl font-semibold">
+            Security Checklist Management
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Manage digital security checklist items
+          </p>
         </div>
         <Button onClick={() => setIsCreateDialogOpen(true)}>
           <PlusIcon className="h-4 w-4 mr-2" />
@@ -1503,14 +1672,18 @@ function AdminSecurityChecklistPanel() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4">
-            <div className="text-2xl font-bold text-blue-600">{checklistItems.length}</div>
-            <div className="text-xs text-muted-foreground">Total Components</div>
+            <div className="text-2xl font-bold text-blue-600">
+              {checklistItems.length}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Total Components
+            </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-green-600">
-              {checklistItems.filter((item: any) => item.priority === 'high').length}
+              {checklistItems.filter((i: any) => i.priority === "high").length}
             </div>
             <div className="text-xs text-muted-foreground">High Priority</div>
           </CardContent>
@@ -1518,7 +1691,7 @@ function AdminSecurityChecklistPanel() {
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-purple-600">
-              {checklistItems.filter((item: any) => item.toolLaunchUrl).length}
+              {checklistItems.filter((i: any) => i.toolLaunchUrl).length}
             </div>
             <div className="text-xs text-muted-foreground">With Tools</div>
           </CardContent>
@@ -1526,7 +1699,7 @@ function AdminSecurityChecklistPanel() {
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-orange-600">
-              {checklistItems.filter((item: any) => item.youtubeVideoUrl).length}
+              {checklistItems.filter((i: any) => i.youtubeVideoUrl).length}
             </div>
             <div className="text-xs text-muted-foreground">With Videos</div>
           </CardContent>
@@ -1543,7 +1716,7 @@ function AdminSecurityChecklistPanel() {
             onClick={() => setSelectedCategory(category)}
             className="capitalize"
           >
-            {category.replace('_', ' ')}
+            {category.replace("_", " ")}
           </Button>
         ))}
       </div>
@@ -1554,7 +1727,9 @@ function AdminSecurityChecklistPanel() {
           <Card key={item.id} className="relative">
             <CardHeader className="pb-2">
               <div className="flex justify-between items-start">
-                <CardTitle className="text-sm font-medium pr-8">{item.title}</CardTitle>
+                <CardTitle className="text-sm font-medium pr-8">
+                  {item.title}
+                </CardTitle>
                 <div className="flex gap-1">
                   <Button
                     variant="ghost"
@@ -1575,11 +1750,20 @@ function AdminSecurityChecklistPanel() {
                 </div>
               </div>
               <div className="flex gap-1 flex-wrap">
-                <Badge variant={item.priority === 'high' ? 'destructive' : item.priority === 'medium' ? 'default' : 'secondary'} className="text-xs">
+                <Badge
+                  variant={
+                    item.priority === "high"
+                      ? "destructive"
+                      : item.priority === "medium"
+                        ? "default"
+                        : "secondary"
+                  }
+                  className="text-xs"
+                >
                   {item.priority}
                 </Badge>
                 <Badge variant="outline" className="capitalize text-xs">
-                  {item.category?.replace('_', ' ')}
+                  {item.category?.replace("_", " ")}
                 </Badge>
                 {item.toolLaunchUrl && <span title="Has launch tool">🔗</span>}
                 {item.youtubeVideoUrl && <span title="Has video">📹</span>}
@@ -1590,7 +1774,8 @@ function AdminSecurityChecklistPanel() {
                 {item.description}
               </p>
               <div className="text-xs text-muted-foreground">
-                <span className="font-medium">Time:</span> {item.estimatedTimeMinutes} min
+                <span className="font-medium">Time:</span>{" "}
+                {item.estimatedTimeMinutes} min
               </div>
             </CardContent>
           </Card>
@@ -1603,7 +1788,10 @@ function AdminSecurityChecklistPanel() {
           <DialogHeader>
             <DialogTitle>Add New Security Component</DialogTitle>
           </DialogHeader>
-          <form onSubmit={createForm.handleSubmit(onSubmitCreate)} className="space-y-4">
+          <form
+            onSubmit={createForm.handleSubmit(onSubmitCreate)}
+            className="space-y-4"
+          >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="create-title">Title</Label>
@@ -1617,20 +1805,36 @@ function AdminSecurityChecklistPanel() {
                 <Label htmlFor="create-category">Category</Label>
                 <Select
                   value={createForm.watch("category")}
-                  onValueChange={(value) => createForm.setValue("category", value)}
+                  onValueChange={(v) => createForm.setValue("category", v)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="account_security">Account Security</SelectItem>
-                    <SelectItem value="password_security">Password Security</SelectItem>
-                    <SelectItem value="financial_security">Financial Security</SelectItem>
-                    <SelectItem value="network_security">Network Security</SelectItem>
-                    <SelectItem value="device_security">Device Security</SelectItem>
-                    <SelectItem value="communication_security">Communication Security</SelectItem>
-                    <SelectItem value="privacy_settings">Privacy Settings</SelectItem>
-                    <SelectItem value="data_protection">Data Protection</SelectItem>
+                    <SelectItem value="account_security">
+                      Account Security
+                    </SelectItem>
+                    <SelectItem value="password_security">
+                      Password Security
+                    </SelectItem>
+                    <SelectItem value="financial_security">
+                      Financial Security
+                    </SelectItem>
+                    <SelectItem value="network_security">
+                      Network Security
+                    </SelectItem>
+                    <SelectItem value="device_security">
+                      Device Security
+                    </SelectItem>
+                    <SelectItem value="communication_security">
+                      Communication Security
+                    </SelectItem>
+                    <SelectItem value="privacy_settings">
+                      Privacy Settings
+                    </SelectItem>
+                    <SelectItem value="data_protection">
+                      Data Protection
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1656,7 +1860,7 @@ function AdminSecurityChecklistPanel() {
                 <Label htmlFor="create-priority">Priority</Label>
                 <Select
                   value={createForm.watch("priority")}
-                  onValueChange={(value) => createForm.setValue("priority", value)}
+                  onValueChange={(v) => createForm.setValue("priority", v)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select priority" />
@@ -1673,7 +1877,9 @@ function AdminSecurityChecklistPanel() {
                 <Input
                   id="create-time"
                   type="number"
-                  {...createForm.register("estimatedTimeMinutes", { valueAsNumber: true })}
+                  {...createForm.register("estimatedTimeMinutes", {
+                    valueAsNumber: true,
+                  })}
                   placeholder="15"
                 />
               </div>
@@ -1687,7 +1893,9 @@ function AdminSecurityChecklistPanel() {
               />
             </div>
             <div>
-              <Label htmlFor="create-tool-url">Tool Launch URL (optional)</Label>
+              <Label htmlFor="create-tool-url">
+                Tool Launch URL (optional)
+              </Label>
               <Input
                 id="create-tool-url"
                 {...createForm.register("toolLaunchUrl")}
@@ -1695,7 +1903,9 @@ function AdminSecurityChecklistPanel() {
               />
             </div>
             <div>
-              <Label htmlFor="create-video-url">YouTube Video URL (optional)</Label>
+              <Label htmlFor="create-video-url">
+                YouTube Video URL (optional)
+              </Label>
               <Input
                 id="create-video-url"
                 {...createForm.register("youtubeVideoUrl")}
@@ -1703,11 +1913,17 @@ function AdminSecurityChecklistPanel() {
               />
             </div>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateDialogOpen(false)}
+              >
                 Cancel
               </Button>
               <Button type="submit" disabled={createItemMutation.isPending}>
-                {createItemMutation.isPending ? 'Creating...' : 'Create Component'}
+                {createItemMutation.isPending
+                  ? "Creating..."
+                  : "Create Component"}
               </Button>
             </div>
           </form>
@@ -1720,7 +1936,10 @@ function AdminSecurityChecklistPanel() {
           <DialogHeader>
             <DialogTitle>Edit Security Component</DialogTitle>
           </DialogHeader>
-          <form onSubmit={editForm.handleSubmit(onSubmitEdit)} className="space-y-4">
+          <form
+            onSubmit={editForm.handleSubmit(onSubmitEdit)}
+            className="space-y-4"
+          >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="edit-title">Title</Label>
@@ -1734,20 +1953,36 @@ function AdminSecurityChecklistPanel() {
                 <Label htmlFor="edit-category">Category</Label>
                 <Select
                   value={editForm.watch("category")}
-                  onValueChange={(value) => editForm.setValue("category", value)}
+                  onValueChange={(v) => editForm.setValue("category", v)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="account_security">Account Security</SelectItem>
-                    <SelectItem value="password_security">Password Security</SelectItem>
-                    <SelectItem value="financial_security">Financial Security</SelectItem>
-                    <SelectItem value="network_security">Network Security</SelectItem>
-                    <SelectItem value="device_security">Device Security</SelectItem>
-                    <SelectItem value="communication_security">Communication Security</SelectItem>
-                    <SelectItem value="privacy_settings">Privacy Settings</SelectItem>
-                    <SelectItem value="data_protection">Data Protection</SelectItem>
+                    <SelectItem value="account_security">
+                      Account Security
+                    </SelectItem>
+                    <SelectItem value="password_security">
+                      Password Security
+                    </SelectItem>
+                    <SelectItem value="financial_security">
+                      Financial Security
+                    </SelectItem>
+                    <SelectItem value="network_security">
+                      Network Security
+                    </SelectItem>
+                    <SelectItem value="device_security">
+                      Device Security
+                    </SelectItem>
+                    <SelectItem value="communication_security">
+                      Communication Security
+                    </SelectItem>
+                    <SelectItem value="privacy_settings">
+                      Privacy Settings
+                    </SelectItem>
+                    <SelectItem value="data_protection">
+                      Data Protection
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1773,7 +2008,7 @@ function AdminSecurityChecklistPanel() {
                 <Label htmlFor="edit-priority">Priority</Label>
                 <Select
                   value={editForm.watch("priority")}
-                  onValueChange={(value) => editForm.setValue("priority", value)}
+                  onValueChange={(v) => editForm.setValue("priority", v)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select priority" />
@@ -1790,7 +2025,9 @@ function AdminSecurityChecklistPanel() {
                 <Input
                   id="edit-time"
                   type="number"
-                  {...editForm.register("estimatedTimeMinutes", { valueAsNumber: true })}
+                  {...editForm.register("estimatedTimeMinutes", {
+                    valueAsNumber: true,
+                  })}
                   placeholder="15"
                 />
               </div>
@@ -1812,7 +2049,9 @@ function AdminSecurityChecklistPanel() {
               />
             </div>
             <div>
-              <Label htmlFor="edit-video-url">YouTube Video URL (optional)</Label>
+              <Label htmlFor="edit-video-url">
+                YouTube Video URL (optional)
+              </Label>
               <Input
                 id="edit-video-url"
                 {...editForm.register("youtubeVideoUrl")}
@@ -1820,11 +2059,17 @@ function AdminSecurityChecklistPanel() {
               />
             </div>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsEditDialogOpen(false)}
+              >
                 Cancel
               </Button>
               <Button type="submit" disabled={updateItemMutation.isPending}>
-                {updateItemMutation.isPending ? 'Updating...' : 'Update Component'}
+                {updateItemMutation.isPending
+                  ? "Updating..."
+                  : "Update Component"}
               </Button>
             </div>
           </form>
