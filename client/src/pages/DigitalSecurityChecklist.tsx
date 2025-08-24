@@ -1,9 +1,4 @@
 // src/pages/DigitalSecurityChecklist.tsx
-// Full-width dashboard layout (copy/paste ready)
-// - Security Score (full width), then What’s Next (full width), then Recent Activity (full width)
-// - Category Progress removed
-// - Matches Dashboard font & spacing, edge-to-edge width, min-h-screen
-
 import React, { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,7 +12,6 @@ import {
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -54,14 +48,12 @@ import {
   InfoIcon,
   EditIcon,
   LinkIcon,
-  GaugeIcon,
-  ShieldIcon,
   ListChecksIcon,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { Link } from "wouter";
 
-// ---------- Types & Schema ----------
+/* ======================= Types & Schema ======================= */
 const editItemSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().min(1, "Description is required"),
@@ -81,7 +73,6 @@ const editItemSchema = z.object({
 });
 
 type Priority = "high" | "medium" | "low";
-
 type CategoryKey =
   | "identity_protection"
   | "password_security"
@@ -113,6 +104,7 @@ interface UserSecurityProgress {
   notes?: string | null;
 }
 
+/* ======================= Labels & Helpers ======================= */
 const categoryIcons: Record<CategoryKey, any> = {
   identity_protection: ShieldCheckIcon,
   password_security: LockIcon,
@@ -136,6 +128,7 @@ const priorityColors = {
   medium: "default",
   low: "secondary",
 } as const;
+
 const PRIORITY_WEIGHTS: Record<Priority, number> = {
   high: 40,
   medium: 20,
@@ -143,154 +136,63 @@ const PRIORITY_WEIGHTS: Record<Priority, number> = {
 };
 const weightFor = (p: Priority) => PRIORITY_WEIGHTS[p] ?? 10;
 
-// ---------- UI Helpers ----------
+/* ======================= UI Helpers ======================= */
 function Section({
   id,
+  icon: Icon,
   title,
   subtitle,
   children,
-  actions,
 }: {
   id: string;
+  icon: React.ComponentType<any>;
   title: string;
   subtitle?: string;
   children: React.ReactNode;
-  actions?: React.ReactNode;
 }) {
   return (
-    <section id={id} className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <h2 className="text-lg font-semibold leading-tight">{title}</h2>
-          {subtitle && (
-            <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
-          )}
-        </div>
-        {actions}
+    <section id={id} className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Icon className="h-5 w-5 text-primary" />
+        <h2 className="text-xl font-semibold">{title}</h2>
       </div>
+      {subtitle && (
+        <p className="text-sm text-muted-foreground -mt-1 ml-7">{subtitle}</p>
+      )}
       {children}
     </section>
   );
 }
 
-function ScoreRing({ value }: { value: number }) {
-  const radius = 48;
-  const stroke = 10;
-  const normalizedRadius = radius - stroke / 2;
-  const circumference = normalizedRadius * 2 * Math.PI;
+/** Return classes for bar/text based on percent (match header tone) */
+function getToneClasses(pct: number) {
+  if (pct >= 80) return { bar: "bg-green-600", text: "text-green-600" };
+  if (pct >= 60) return { bar: "bg-lime-600", text: "text-lime-600" };
+  if (pct >= 40) return { bar: "bg-amber-600", text: "text-amber-600" };
+  return { bar: "bg-red-600", text: "text-red-600" };
+}
+
+/** Minimal custom colored progress (instead of the donut) */
+function ColoredProgress({ value }: { value: number }) {
   const clamped = Math.max(0, Math.min(100, value));
-  const offset = circumference - (clamped / 100) * circumference;
-  const color =
-    clamped >= 80
-      ? "#16a34a"
-      : clamped >= 60
-        ? "#65a30d"
-        : clamped >= 40
-          ? "#ca8a04"
-          : "#dc2626";
+  const tone = getToneClasses(clamped);
   return (
-    <div className="relative inline-block">
-      <svg height={radius * 2} width={radius * 2}>
-        <circle
-          stroke="#e5e7eb"
-          fill="transparent"
-          strokeWidth={stroke}
-          r={normalizedRadius}
-          cx={radius}
-          cy={radius}
-        />
-        <circle
-          stroke={color}
-          fill="transparent"
-          strokeLinecap="round"
-          strokeWidth={stroke}
-          strokeDasharray={`${circumference} ${circumference}`}
-          style={{
-            strokeDashoffset: offset,
-            transition: "stroke-dashoffset 0.5s ease",
-          }}
-          r={normalizedRadius}
-          cx={radius}
-          cy={radius}
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-xl font-bold">{clamped}</span>
-        <span className="text-[10px] text-muted-foreground">Score</span>
-      </div>
+    <div className="h-2 w-full rounded bg-muted overflow-hidden">
+      <div
+        className={`h-full ${tone.bar} transition-all`}
+        style={{ width: `${clamped}%` }}
+      />
     </div>
   );
 }
 
-function StatCard({
-  title,
-  value,
-  icon: Icon,
-  helper,
-}: {
-  title: string;
-  value: string | number;
-  icon: React.ComponentType<any>;
-  helper?: string;
-}) {
-  return (
-    <Card>
-      <CardContent className="p-4 flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-muted">
-          <Icon className="h-5 w-5 text-muted-foreground" />
-        </div>
-        <div className="flex-1">
-          <div className="text-xs text-muted-foreground">{title}</div>
-          <div className="text-lg font-semibold leading-tight">{value}</div>
-          {helper && (
-            <div className="text-[11px] text-muted-foreground mt-0.5">
-              {helper}
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function PartnerCard({
-  name,
-  tagline,
-  cta,
-  href,
-  badge,
-}: {
-  name: string;
-  tagline: string;
-  cta: string;
-  href: string;
-  badge?: string;
-}) {
-  return (
-    <Card className="h-full">
-      <CardHeader className="py-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">{name}</CardTitle>
-          {badge && <Badge variant="outline">{badge}</Badge>}
-        </div>
-        <CardDescription className="text-xs">{tagline}</CardDescription>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <Button asChild className="w-full">
-          <a href={href} target="_blank" rel="noopener noreferrer">
-            <ExternalLinkIcon className="h-4 w-4 mr-2" />
-            {cta}
-          </a>
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ---------- Component ----------
+/* ======================= Component ======================= */
 export default function DigitalSecurityChecklist() {
   const { user } = useAuth();
+  const isAuthenticated = !!user;
+  const isAdmin = (user as any)?.role === "admin";
   const queryClient = useQueryClient();
+
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [expandedNotes, setExpandedNotes] = useState<Record<number, boolean>>(
     {},
@@ -301,15 +203,13 @@ export default function DigitalSecurityChecklist() {
   );
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  const isAdmin = (user as any)?.role === "admin";
-  const isAuthenticated = !!user;
-
-  // ---- Queries ----
+  /* --------- Queries --------- */
   const fetchChecklistItems = async (): Promise<SecurityChecklistItem[]> => {
     const res = await apiRequest("/api/security-checklist");
     if (!res.ok) throw new Error(`Failed to load checklist (${res.status})`);
     return res.json();
   };
+
   const fetchProgress = async (): Promise<UserSecurityProgress[]> => {
     const res = await apiRequest("/api/security-checklist/progress");
     if (!res.ok) return [];
@@ -336,7 +236,7 @@ export default function DigitalSecurityChecklist() {
     staleTime: 60 * 1000,
   });
 
-  // ---- Mutations ----
+  /* --------- Mutations --------- */
   const updateItemMutation = useMutation({
     mutationFn: async (data: {
       itemId: number;
@@ -378,7 +278,10 @@ export default function DigitalSecurityChecklist() {
           }),
         },
       );
-      if (!res.ok) throw new Error("Failed to update progress");
+      if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(msg || "Failed to update progress");
+      }
       return res.json();
     },
     onSuccess: () => {
@@ -388,7 +291,7 @@ export default function DigitalSecurityChecklist() {
     },
   });
 
-  // ---- Fallback items ----
+  /* --------- Fallback Items (shown if API returns empty) --------- */
   const fallbackItems: SecurityChecklistItem[] = [
     {
       id: 1,
@@ -459,7 +362,7 @@ export default function DigitalSecurityChecklist() {
   const effectiveItems: SecurityChecklistItem[] =
     checklistItems?.length > 0 ? checklistItems : fallbackItems;
 
-  // ---- Derived stats ----
+  /* --------- Derived Stats --------- */
   const progressMap = useMemo(
     () =>
       (userProgress as UserSecurityProgress[]).reduce(
@@ -471,18 +374,22 @@ export default function DigitalSecurityChecklist() {
       ),
     [userProgress],
   );
+
   const completedItems = useMemo(
     () => effectiveItems.filter((i) => progressMap[i.id]?.isCompleted),
     [effectiveItems, progressMap],
   );
+
   const remainingItems = useMemo(
     () => effectiveItems.filter((i) => !progressMap[i.id]?.isCompleted),
     [effectiveItems, progressMap],
   );
+
   const totalItems = effectiveItems.length;
   const percentComplete = totalItems
     ? Math.round((completedItems.length / totalItems) * 100)
     : 0;
+
   const totalPossible = effectiveItems.reduce(
     (sum, i) => sum + weightFor(i.priority),
     0,
@@ -492,9 +399,11 @@ export default function DigitalSecurityChecklist() {
       sum + (progressMap[i.id]?.isCompleted ? weightFor(i.priority) : 0),
     0,
   );
+  // score is kept if you want to use elsewhere; not shown in header anymore
   const score = totalPossible
     ? Math.round((totalEarned / totalPossible) * 100)
     : 0;
+
   const nextActions = useMemo(
     () =>
       [...remainingItems]
@@ -524,15 +433,13 @@ export default function DigitalSecurityChecklist() {
       .slice(0, 8);
   }, [effectiveItems, progressMap]);
 
-  // ---- Handlers ----
-  const jumpToChecklist = () => {
-    const el = document.getElementById("checklist");
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
+  /* --------- Handlers --------- */
 
   const handleToggleComplete = (item: SecurityChecklistItem) => {
     if (!isAuthenticated) return;
     const current = progressMap[item.id]?.isCompleted ?? false;
+
+    // optimistic update
     const optimistic: UserSecurityProgress = {
       id: progressMap[item.id]?.id || Date.now(),
       userId: progressMap[item.id]?.userId ?? 0,
@@ -558,17 +465,14 @@ export default function DigitalSecurityChecklist() {
         notes: progressMap[item.id]?.notes,
       },
       {
-        onError: () => {
+        onError: () =>
           queryClient.invalidateQueries({
             queryKey: ["/api/security-checklist/progress"],
-          });
-        },
+          }),
       },
     );
   };
 
-  const handleNotesChange = (itemId: number, notes: string) =>
-    setNotesText((prev) => ({ ...prev, [itemId]: notes }));
   const handleSaveNotes = async (item: SecurityChecklistItem) => {
     if (!isAuthenticated) return;
     const current = progressMap[item.id];
@@ -593,6 +497,7 @@ export default function DigitalSecurityChecklist() {
       estimatedTimeMinutes: 0,
     },
   });
+
   const handleEditItem = (item: SecurityChecklistItem) => {
     setEditingItem(item);
     editForm.reset({
@@ -606,6 +511,7 @@ export default function DigitalSecurityChecklist() {
     });
     setIsEditDialogOpen(true);
   };
+
   const handleSaveEdit = async (data: z.infer<typeof editItemSchema>) => {
     if (!editingItem) return;
     const updates = {
@@ -617,12 +523,11 @@ export default function DigitalSecurityChecklist() {
     await updateItemMutation.mutateAsync({ itemId: editingItem.id, updates });
   };
 
-  // ---- Loading ----
+  /* --------- Loading --------- */
   if (itemsLoading || progressLoading) {
     return (
-      <div className="flex-1 w-full h-full min-h-screen p-4 md:p-6 lg:p-8 font-sans">
+      <div className="space-y-6">
         <div className="w-full text-center">
-          <h1 className="text-2xl font-bold mb-2">Security Dashboard</h1>
           <p className="text-sm text-muted-foreground">
             Loading your security data…
           </p>
@@ -631,408 +536,274 @@ export default function DigitalSecurityChecklist() {
     );
   }
 
+  const tone = getToneClasses(percentComplete);
+
+  /* ======================= Render ======================= */
   return (
-    <div className="flex-1 w-full h-full min-h-screen p-4 md:p-6 lg:p-8 font-sans">
-      <div className="w-full flex flex-col space-y-8">
-        {/* Demo banner */}
-        {!isAuthenticated && (
-          <Card className="border-blue-200 bg-blue-50">
-            <CardContent className="p-3">
-              <div className="flex items-start gap-2">
-                <InfoIcon className="h-4 w-4 text-blue-700 mt-0.5" />
-                <div className="flex-1">
-                  <div className="text-sm font-medium text-blue-900">
-                    Demo Mode
-                  </div>
-                  <div className="text-xs text-blue-800">
-                    Log in to save your progress and unlock your personalized
-                    score over time.
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Link to="/login">
-                    <Button size="sm">Login</Button>
-                  </Link>
-                  <Link to="/signup">
-                    <Button variant="outline" size="sm">
-                      Sign Up
-                    </Button>
-                  </Link>
+    <div className="space-y-6">
+      {/* Header: title (left), colored progress (right) */}
+      <div className="flex flex-col gap-2 md:grid md:grid-cols-[auto_1fr] md:items-center md:gap-4">
+        <h1 className="text-3xl font-bold leading-none">Digital Security</h1>
+        <div className="w-full">
+          <div className="flex items-center justify-between text-xs mb-1">
+            <span>Overall progress</span>
+            <span className={tone.text}>{percentComplete}%</span>
+          </div>
+          <ColoredProgress value={percentComplete} />
+        </div>
+      </div>
+
+      {/* Demo banner (shown when logged out) */}
+      {!isAuthenticated && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="p-3">
+            <div className="flex items-start gap-2">
+              <InfoIcon className="h-5 w-5 text-blue-700 mt-0.5" />
+              <div className="flex-1">
+                <div className="font-medium text-blue-900">Demo Mode</div>
+                <div className="text-xs text-blue-800">
+                  Log in to save your progress and unlock your personalized
+                  score.
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* HERO STACK: Full-width sections */}
-        {/* Security Score - full width */}
-        <Section
-          id="score"
-          title="Security Score"
-          subtitle="Weighted by priority (high, medium, low). Complete high-impact items first."
-          actions={
-            <Button size="sm" variant="outline" onClick={jumpToChecklist}>
-              <ListChecksIcon className="h-4 w-4 mr-2" />
-              Go to Checklist
-            </Button>
-          }
-        >
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <GaugeIcon className="h-4 w-4 text-muted-foreground" />
-                  Overall
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Your current protection score
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-1 flex items-center gap-4">
-                <ScoreRing value={score} />
-                <div className="w-full">
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span>Overall progress</span>
-                    <span>{percentComplete}%</span>
-                  </div>
-                  <Progress value={percentComplete} className="h-2" />
-                  <div className="text-[11px] text-muted-foreground mt-2">
-                    Check off items in the list to raise your score.
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="grid gap-4">
-              <StatCard
-                title="Completed"
-                value={`${completedItems.length} / ${totalItems}`}
-                icon={CheckCircleIcon}
-                helper={`${percentComplete}% done`}
-              />
-              <StatCard
-                title="High Priority Done"
-                value={
-                  completedItems.filter((i) => i.priority === "high").length
-                }
-                icon={ShieldIcon}
-                helper="Most impactful tasks"
-              />
+              <div className="flex gap-2">
+                <Link to="/login">
+                  <Button size="sm">Login</Button>
+                </Link>
+                <Link to="/signup">
+                  <Button variant="outline" size="sm">
+                    Sign Up
+                  </Button>
+                </Link>
+              </div>
             </div>
-          </div>
-        </Section>
+          </CardContent>
+        </Card>
+      )}
 
-        {/* What's Next - full width */}
-        <Section
-          id="next"
-          title="What’s Next"
-          subtitle="Do these next for the biggest impact."
-        >
-          <Card>
-            <CardContent className="p-3 space-y-2">
-              {nextActions.length === 0 ? (
-                <div className="text-sm text-muted-foreground">
-                  All caught up! 🎉
-                </div>
-              ) : (
-                nextActions.map((item) => {
-                  const Icon = categoryIcons[item.category] || InfoIcon;
-                  return (
-                    <div
-                      key={item.id}
-                      className="flex items-start gap-2 rounded-md border p-2"
-                    >
-                      <Icon className="h-4 w-4 text-muted-foreground mt-0.5" />
-                      <div className="flex-1">
-                        <div className="text-sm font-medium leading-tight">
-                          {item.title}
-                        </div>
-                        <div className="text-xs text-muted-foreground line-clamp-2">
-                          {item.description}
-                        </div>
-                        <div className="flex items-center gap-2 mt-2">
-                          {item.toolLaunchUrl && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 px-2"
-                              disabled={!isAuthenticated}
-                              onClick={() =>
-                                window.open(item.toolLaunchUrl!, "_blank")
-                              }
-                            >
-                              <LinkIcon className="h-3 w-3 mr-1" />
-                              Launch
-                            </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            className="h-7 px-2"
-                            variant="default"
-                            disabled={
-                              !isAuthenticated ||
-                              updateProgressMutation.isPending
-                            }
-                            onClick={() => handleToggleComplete(item)}
-                          >
-                            Mark Done
-                          </Button>
-                        </div>
-                      </div>
-                      <Badge
-                        variant={priorityColors[item.priority]}
-                        className="text-2xs"
-                      >
-                        {item.priority}
-                      </Badge>
-                    </div>
-                  );
-                })
-              )}
-            </CardContent>
-          </Card>
-        </Section>
-
-        {/* Recent Activity - full width */}
-        <Section
-          id="activity"
-          title="Recent Activity"
-          subtitle="Your latest completions."
-        >
-          <Card className="w-full">
-            <CardContent className="p-3">
-              {recent.length === 0 ? (
-                <div className="text-sm text-muted-foreground">
-                  No recent activity yet.
-                </div>
-              ) : (
-                <ul className="space-y-2">
-                  {recent.map(({ item, completedAt }) => (
-                    <li key={item.id} className="flex items-start gap-2">
-                      <CheckCircleIcon className="h-4 w-4 text-green-600 mt-0.5" />
-                      <div className="flex-1">
-                        <div className="text-sm leading-tight">
-                          {item.title}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Completed{" "}
-                          {completedAt
-                            ? new Date(completedAt).toLocaleString()
-                            : ""}
-                        </div>
-                      </div>
-                      <Badge
-                        variant={priorityColors[item.priority]}
-                        className="text-2xs"
-                      >
-                        {item.priority}
-                      </Badge>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        </Section>
-
-        {/* Partner Tools */}
-        <Section
-          id="partners"
-          title="Partner Tools"
-          subtitle="Try trusted services to speed up your protection."
-        >
-          <div className="grid gap-4 md:grid-cols-3">
-            <PartnerCard
-              name="Password Manager"
-              tagline="Create & store strong, unique passwords."
-              cta="Explore Bitwarden"
-              href="https://bitwarden.com/"
-              badge="Recommended"
-            />
-            <PartnerCard
-              name="Identity Protection"
-              tagline="Credit freeze & breach monitoring options."
-              cta="See Options"
-              href="https://www.annualcreditreport.com/"
-            />
-            <PartnerCard
-              name="Private Email & Alias"
-              tagline="Reduce spam and protect your identity."
-              cta="Try Proton"
-              href="https://proton.me/mail"
-            />
-          </div>
-        </Section>
-
-        {/* Full Checklist */}
-        <Section
-          id="checklist"
-          title="Your Security Checklist"
-          subtitle="Review each category, launch tools, add notes, and mark tasks done."
-        >
-          <Tabs value={selectedCategory} onValueChange={setSelectedCategory}>
-            <TabsList className="grid w-full grid-cols-7 mb-3 sm:hidden">
-              <TabsTrigger value="all" className="text-xs">
-                All
-              </TabsTrigger>
-              {(
-                [
-                  "identity_protection",
-                  "password_security",
-                  "account_security",
-                  "device_security",
-                  "network_security",
-                  "financial_security",
-                ] as CategoryKey[]
-              ).map((cat) => {
-                const Icon = categoryIcons[cat] || InfoIcon;
+      {/* What’s Next (TOP) */}
+      <Section
+        id="next"
+        icon={ShieldCheckIcon}
+        title="What’s Next"
+        subtitle="Do these next for the biggest impact."
+      >
+        <Card>
+          <CardContent className="p-3 space-y-2">
+            {nextActions.length === 0 ? (
+              <div className="text-muted-foreground">All caught up! 🎉</div>
+            ) : (
+              nextActions.map((item) => {
+                const Icon = categoryIcons[item.category] || InfoIcon;
                 return (
-                  <TabsTrigger key={cat} value={cat} className="text-xs">
-                    <Icon className="h-3 w-3 mr-1" />
-                    <span className="hidden sm:inline">
-                      {categoryLabels[cat]}
-                    </span>
-                  </TabsTrigger>
-                );
-              })}
-            </TabsList>
-
-            <TabsContent value={selectedCategory}>
-              <div className="grid gap-3 md:grid-cols-2">
-                {(selectedCategory === "all"
-                  ? effectiveItems
-                  : effectiveItems.filter(
-                      (i) => i.category === (selectedCategory as CategoryKey),
-                    )
-                ).map((item) => {
-                  const progress = progressMap[item.id];
-                  const isCompleted = Boolean(progress?.isCompleted);
-                  const Icon = categoryIcons[item.category] || InfoIcon;
-                  return (
-                    <Card
-                      key={item.id}
-                      className={`transition-all ${isCompleted ? "bg-green-50 border-green-200" : ""}`}
-                    >
-                      <CardHeader className="pb-2">
-                        <div className="flex items-start gap-2">
-                          <Checkbox
-                            checked={isCompleted}
-                            onCheckedChange={() => handleToggleComplete(item)}
-                            disabled={
-                              !isAuthenticated ||
-                              updateProgressMutation.isPending
-                            }
-                            className="mt-0.5"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <Icon className="h-4 w-4 text-muted-foreground" />
-                                <CardTitle
-                                  className={`text-sm font-medium leading-tight truncate ${isCompleted ? "line-through text-gray-600" : ""}`}
-                                >
-                                  {item.title}
-                                </CardTitle>
-                                {isAdmin && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setEditingItem(item)}
-                                    className="h-6 w-6 p-0"
-                                  >
-                                    <EditIcon className="h-3 w-3" />
-                                  </Button>
-                                )}
-                              </div>
-                              <Badge
-                                variant={priorityColors[item.priority]}
-                                className="text-2xs"
-                              >
-                                {item.priority}
-                              </Badge>
-                            </div>
-                            <CardDescription className="text-xs text-muted-foreground line-clamp-2">
-                              {item.description}
-                            </CardDescription>
-                          </div>
-                        </div>
-                      </CardHeader>
-
-                      <CardContent className="pt-0">
-                        {!isCompleted && (
-                          <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mb-3">
-                            <div className="flex items-start gap-2">
-                              <InfoIcon className="h-3 w-3 text-yellow-700 mt-0.5" />
-                              <p className="text-xs text-yellow-800">
-                                {item.recommendationText}
-                              </p>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-3 mt-2">
-                              {item.estimatedTimeMinutes && (
-                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                  <ClockIcon className="h-3 w-3" />
-                                  {item.estimatedTimeMinutes}m
-                                </div>
-                              )}
-                              {item.toolLaunchUrl && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 px-2"
-                                  disabled={!isAuthenticated}
-                                  onClick={() =>
-                                    window.open(item.toolLaunchUrl!, "_blank")
-                                  }
-                                >
-                                  <LinkIcon className="h-3 w-3 mr-1" />
-                                  Launch Tool
-                                </Button>
-                              )}
-                              {item.helpUrl && (
-                                <a
-                                  href={item.helpUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
-                                >
-                                  <ExternalLinkIcon className="h-3 w-3" />
-                                  Learn
-                                </a>
-                              )}
-                              <Button
-                                size="sm"
-                                className="h-7 px-2"
-                                disabled={
-                                  !isAuthenticated ||
-                                  updateProgressMutation.isPending
-                                }
-                                onClick={() => handleToggleComplete(item)}
-                              >
-                                Mark Done
-                              </Button>
-                            </div>
+                  <div
+                    key={item.id}
+                    className="flex items-start gap-3 rounded-md border p-3"
+                  >
+                    <Icon className="h-5 w-5 text-muted-foreground mt-0.5" />
+                    <div className="flex-1">
+                      <div className="font-medium leading-tight">
+                        {item.title}
+                      </div>
+                      <div className="text-xs text-muted-foreground line-clamp-2">
+                        {item.description}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3 mt-2">
+                        {item.estimatedTimeMinutes && (
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <ClockIcon className="h-4 w-4" />
+                            {item.estimatedTimeMinutes}m
                           </div>
                         )}
+                        {item.toolLaunchUrl && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2"
+                            disabled={!isAuthenticated}
+                            onClick={() =>
+                              window.open(item.toolLaunchUrl!, "_blank")
+                            }
+                          >
+                            <LinkIcon className="h-4 w-4 mr-1" />
+                            Launch
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          className="h-7 px-2"
+                          variant="default"
+                          disabled={
+                            !isAuthenticated || updateProgressMutation.isPending
+                          }
+                          onClick={() => handleToggleComplete(item)}
+                        >
+                          Mark Done
+                        </Button>
+                      </div>
+                    </div>
+                    <Badge
+                      variant={priorityColors[item.priority]}
+                      className="text-xs"
+                    >
+                      {item.priority}
+                    </Badge>
+                  </div>
+                );
+              })
+            )}
+          </CardContent>
+        </Card>
+      </Section>
 
-                        {/* Notes */}
-                        <div className="border-t pt-2">
-                          {expandedNotes[item.id] ? (
-                            <div className="space-y-2">
-                              <Textarea
-                                value={
-                                  notesText[item.id] || progress?.notes || ""
-                                }
-                                onChange={(e) =>
-                                  setNotesText((prev) => ({
-                                    ...prev,
-                                    [item.id]: e.target.value,
-                                  }))
-                                }
-                                placeholder="Add notes…"
-                                rows={2}
-                                className="text-xs"
-                              />
-                              <div className="flex gap-1">
+      {/* Full Checklist (TOP, after What's Next) */}
+      <Section
+        id="checklist"
+        icon={ListChecksIcon}
+        title="Your Security Checklist"
+        subtitle="Review each category, launch tools, add notes, and mark tasks done."
+      >
+        <Tabs value={selectedCategory} onValueChange={setSelectedCategory}>
+          {/* Mobile tabs */}
+          <TabsList className="grid w-full grid-cols-7 mb-3 sm:hidden">
+            <TabsTrigger value="all" className="text-xs">
+              All
+            </TabsTrigger>
+            {(
+              [
+                "identity_protection",
+                "password_security",
+                "account_security",
+                "device_security",
+                "network_security",
+                "financial_security",
+              ] as CategoryKey[]
+            ).map((cat) => {
+              const Icon = categoryIcons[cat] || InfoIcon;
+              return (
+                <TabsTrigger key={cat} value={cat} className="text-xs">
+                  <Icon className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">
+                    {categoryLabels[cat]}
+                  </span>
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+
+          <TabsContent value={selectedCategory}>
+            {/* 1 card per row, YouTube on right */}
+            <div className="space-y-3">
+              {(selectedCategory === "all"
+                ? effectiveItems
+                : effectiveItems.filter(
+                    (i) => i.category === (selectedCategory as CategoryKey),
+                  )
+              ).map((item) => {
+                const progress = progressMap[item.id];
+                const isCompleted = Boolean(progress?.isCompleted);
+                const Icon = categoryIcons[item.category] || InfoIcon;
+
+                // Build embed URL safely
+                const embedUrl = item.youtubeVideoUrl
+                  ? item.youtubeVideoUrl.includes("embed/")
+                    ? item.youtubeVideoUrl
+                    : item.youtubeVideoUrl.replace("watch?v=", "embed/")
+                  : "";
+
+                return (
+                  <Card
+                    key={item.id}
+                    className={`transition-all ${isCompleted ? "bg-green-50 border-green-200" : ""}`}
+                  >
+                    <CardHeader className="pb-2">
+                      <div className="flex items-start gap-2">
+                        <Checkbox
+                          checked={isCompleted}
+                          onCheckedChange={() => handleToggleComplete(item)}
+                          disabled={
+                            !isAuthenticated || updateProgressMutation.isPending
+                          }
+                          className="mt-0.5"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Icon className="h-4 w-4 text-muted-foreground" />
+                              <CardTitle
+                                className={`text-sm font-medium leading-tight truncate ${isCompleted ? "line-through text-gray-600" : ""}`}
+                              >
+                                {item.title}
+                              </CardTitle>
+                              {isAdmin && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditItem(item)}
+                                  className="h-6 w-6 p-0"
+                                >
+                                  <EditIcon className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                            <Badge
+                              variant={priorityColors[item.priority]}
+                              className="text-xs"
+                            >
+                              {item.priority}
+                            </Badge>
+                          </div>
+                          <CardDescription className="text-xs text-muted-foreground line-clamp-2">
+                            {item.description}
+                          </CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+
+                    <CardContent className="pt-0">
+                      {/* Two-column content: left = actions/notes, right = YouTube */}
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <div className="md:col-span-2">
+                          {!isCompleted && (
+                            <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mb-3">
+                              <div className="flex items-start gap-2">
+                                <InfoIcon className="h-4 w-4 text-yellow-700 mt-0.5" />
+                                <p className="text-xs text-yellow-800">
+                                  {item.recommendationText}
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-3 mt-2">
+                                {item.estimatedTimeMinutes && (
+                                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                    <ClockIcon className="h-4 w-4" />
+                                    {item.estimatedTimeMinutes}m
+                                  </div>
+                                )}
+                                {item.toolLaunchUrl && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 px-2"
+                                    disabled={!isAuthenticated}
+                                    onClick={() =>
+                                      window.open(item.toolLaunchUrl!, "_blank")
+                                    }
+                                  >
+                                    <LinkIcon className="h-4 w-4 mr-1" />
+                                    Launch Tool
+                                  </Button>
+                                )}
+                                {item.helpUrl && (
+                                  <a
+                                    href={item.helpUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+                                  >
+                                    <ExternalLinkIcon className="h-4 w-4" />
+                                    Learn
+                                  </a>
+                                )}
                                 <Button
                                   size="sm"
                                   className="h-7 px-2"
@@ -1040,241 +811,382 @@ export default function DigitalSecurityChecklist() {
                                     !isAuthenticated ||
                                     updateProgressMutation.isPending
                                   }
-                                  onClick={() => handleSaveNotes(item)}
+                                  onClick={() => handleToggleComplete(item)}
                                 >
-                                  Save
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 px-2"
-                                  onClick={() =>
-                                    setExpandedNotes((prev) => ({
-                                      ...prev,
-                                      [item.id]: false,
-                                    }))
-                                  }
-                                >
-                                  Cancel
+                                  Mark Done
                                 </Button>
                               </div>
                             </div>
-                          ) : (
-                            <div className="flex items-center justify-between">
-                              {progress?.notes ? (
-                                <p className="text-xs text-muted-foreground italic truncate flex-1 mr-2">
-                                  “{progress.notes}”
-                                </p>
-                              ) : (
-                                <span className="text-xs text-muted-foreground flex-1">
-                                  No notes
-                                </span>
-                              )}
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-7 px-2"
-                                onClick={() => {
-                                  setExpandedNotes((prev) => ({
-                                    ...prev,
-                                    [item.id]: true,
-                                  }));
-                                  setNotesText((prev) => ({
-                                    ...prev,
-                                    [item.id]: progress?.notes || "",
-                                  }));
-                                }}
-                              >
-                                {progress?.notes ? "Edit" : "Add"}
-                              </Button>
+                          )}
+
+                          {/* Notes */}
+                          <div className="border-t pt-2">
+                            {expandedNotes[item.id] ? (
+                              <div className="space-y-2">
+                                <Textarea
+                                  value={
+                                    notesText[item.id] || progress?.notes || ""
+                                  }
+                                  onChange={(e) =>
+                                    setNotesText((prev) => ({
+                                      ...prev,
+                                      [item.id]: e.target.value,
+                                    }))
+                                  }
+                                  placeholder="Add notes…"
+                                  rows={2}
+                                  className="text-xs"
+                                />
+                                <div className="flex gap-1">
+                                  <Button
+                                    size="sm"
+                                    className="h-7 px-2"
+                                    disabled={
+                                      !isAuthenticated ||
+                                      updateProgressMutation.isPending
+                                    }
+                                    onClick={() => handleSaveNotes(item)}
+                                  >
+                                    Save
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2"
+                                    onClick={() =>
+                                      setExpandedNotes((prev) => ({
+                                        ...prev,
+                                        [item.id]: false,
+                                      }))
+                                    }
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between">
+                                {progress?.notes ? (
+                                  <p className="text-xs text-muted-foreground italic truncate flex-1 mr-2">
+                                    “{progress.notes}”
+                                  </p>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground flex-1">
+                                    No notes
+                                  </span>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 px-2"
+                                  onClick={() => {
+                                    setExpandedNotes((prev) => ({
+                                      ...prev,
+                                      [item.id]: true,
+                                    }));
+                                    setNotesText((prev) => ({
+                                      ...prev,
+                                      [item.id]: progress?.notes || "",
+                                    }));
+                                  }}
+                                >
+                                  {progress?.notes ? "Edit" : "Add"}
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+
+                          {isCompleted && progress?.completedAt && (
+                            <div className="text-xs text-green-700 mt-2">
+                              ✓ Completed on{" "}
+                              {new Date(
+                                progress.completedAt,
+                              ).toLocaleDateString()}
                             </div>
                           )}
                         </div>
 
-                        {isCompleted && progress?.completedAt && (
-                          <div className="text-xs text-green-700 mt-2">
-                            ✓ Completed on{" "}
-                            {new Date(
-                              progress.completedAt,
-                            ).toLocaleDateString()}
-                          </div>
-                        )}
-
-                        {item.youtubeVideoUrl && (
-                          <div className="mt-3">
+                        {/* Right: YouTube (only if present) */}
+                        <div className="md:col-span-1">
+                          {embedUrl && (
                             <div className="aspect-video">
                               <iframe
-                                src={item.youtubeVideoUrl.replace(
-                                  "watch?v=",
-                                  "embed/",
-                                )}
+                                src={embedUrl}
                                 className="w-full h-full rounded"
                                 frameBorder={0}
                                 allowFullScreen
                                 title={`${item.title} Tutorial`}
                               />
                             </div>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </TabsContent>
+        </Tabs>
+      </Section>
+
+      {/* Partner Tools */}
+      <Section
+        id="partners"
+        icon={LockIcon}
+        title="Partner Tools"
+        subtitle="Try trusted services to speed up your protection."
+      >
+        <div className="grid gap-4 md:grid-cols-3">
+          <PartnerCard
+            name="Password Manager"
+            tagline="Create & store strong, unique passwords."
+            cta="Explore Bitwarden"
+            href="https://bitwarden.com/"
+            badge="Recommended"
+          />
+          <PartnerCard
+            name="Identity Protection"
+            tagline="Credit freeze & breach monitoring options."
+            cta="See Options"
+            href="https://www.annualcreditreport.com/"
+          />
+          <PartnerCard
+            name="Private Email & Alias"
+            tagline="Reduce spam and protect your identity."
+            cta="Try Proton"
+            href="https://proton.me/mail"
+          />
+        </div>
+      </Section>
+
+      {/* Recent Activity (end) */}
+      <Section
+        id="activity"
+        icon={CheckCircleIcon}
+        title="Recent Activity"
+        subtitle="Your latest completions."
+      >
+        <Card className="w-full">
+          <CardContent className="p-3">
+            {recent.length === 0 ? (
+              <div className="text-muted-foreground">
+                No recent activity yet.
               </div>
-            </TabsContent>
-          </Tabs>
-        </Section>
+            ) : (
+              <ul className="space-y-2">
+                {recent.map(({ item, completedAt }) => (
+                  <li key={item.id} className="flex items-start gap-2">
+                    <CheckCircleIcon className="h-5 w-5 text-green-600 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="leading-tight">{item.title}</div>
+                      <div className="text-xs text-muted-foreground">
+                        Completed{" "}
+                        {completedAt
+                          ? new Date(completedAt).toLocaleString()
+                          : ""}
+                      </div>
+                    </div>
+                    <Badge
+                      variant={priorityColors[item.priority]}
+                      className="text-xs"
+                    >
+                      {item.priority}
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      </Section>
 
-        {/* Admin Edit Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Edit Security Checklist Item</DialogTitle>
-              <DialogDescription>
-                Update the details for this item.
-              </DialogDescription>
-            </DialogHeader>
+      {/* Admin Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Security Checklist Item</DialogTitle>
+            <DialogDescription>
+              Update the details for this item.
+            </DialogDescription>
+          </DialogHeader>
 
-            <Form {...editForm}>
-              <form
-                onSubmit={editForm.handleSubmit(handleSaveEdit)}
-                className="space-y-4"
-              >
-                <FormField
-                  control={editForm.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Title</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={editForm.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Description</FormLabel>
-                      <FormControl>
-                        <Textarea rows={2} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={editForm.control}
-                  name="recommendationText"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Recommendation</FormLabel>
-                      <FormControl>
-                        <Textarea rows={3} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={editForm.control}
-                  name="toolLaunchUrl"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Launch Tool URL</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="https://example.com/tool"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={editForm.control}
-                  name="helpUrl"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Help URL</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="https://example.com/help"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={editForm.control}
-                  name="youtubeVideoUrl"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>YouTube URL</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="https://youtube.com/watch?v=..."
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={editForm.control}
-                  name="estimatedTimeMinutes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Estimated Time (minutes)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min={0}
-                          value={field.value ?? 0}
-                          onChange={(e) =>
-                            field.onChange(Number(e.target.value))
-                          }
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsEditDialogOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={updateItemMutation.isPending}>
-                    {updateItemMutation.isPending ? "Saving…" : "Save Changes"}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+          <Form {...editForm}>
+            <form
+              onSubmit={editForm.handleSubmit(handleSaveEdit)}
+              className="space-y-4"
+            >
+              <FormField
+                control={editForm.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Title</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea rows={2} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="recommendationText"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Recommendation</FormLabel>
+                    <FormControl>
+                      <Textarea rows={3} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="toolLaunchUrl"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Launch Tool URL</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="https://example.com/tool"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="helpUrl"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Help URL</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="https://example.com/help"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="youtubeVideoUrl"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>YouTube URL</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="https://youtube.com/watch?v=..."
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="estimatedTimeMinutes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Estimated Time (minutes)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={field.value ?? 0}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsEditDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={updateItemMutation.isPending}>
+                  {updateItemMutation.isPending ? "Saving…" : "Save Changes"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
 
-        {/* Error footer */}
-        {itemsError && (
-          <Card className="border-red-200 bg-red-50">
-            <CardContent className="p-3 text-sm text-red-800">
-              <AlertCircleIcon className="h-4 w-4 inline mr-1" />
-              {(itemsErrObj as Error)?.message ||
-                "Failed to load checklist items."}
-            </CardContent>
-          </Card>
-        )}
-      </div>
+      {/* Error footer */}
+      {itemsError && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="p-3 text-red-800">
+            <div className="flex items-center gap-2">
+              <AlertCircleIcon className="h-5 w-5" />
+              <span className="text-sm">
+                {(itemsErrObj as Error)?.message ||
+                  "Failed to load checklist items."}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
+  );
+}
+
+/* ===== PartnerCard helper ===== */
+function PartnerCard({
+  name,
+  tagline,
+  cta,
+  href,
+  badge,
+}: {
+  name: string;
+  tagline: string;
+  cta: string;
+  href: string;
+  badge?: string;
+}) {
+  return (
+    <Card className="h-full">
+      <CardHeader className="py-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">{name}</CardTitle>
+          {badge && <Badge variant="outline">{badge}</Badge>}
+        </div>
+        <CardDescription className="text-xs">{tagline}</CardDescription>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <Button asChild className="w-full">
+          <a href={href} target="_blank" rel="noopener noreferrer">
+            <ExternalLinkIcon className="h-4 w-4 mr-2" />
+            {cta}
+          </a>
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
