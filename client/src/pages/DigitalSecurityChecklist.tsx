@@ -137,6 +137,7 @@ const PRIORITY_WEIGHTS: Record<Priority, number> = {
 const weightFor = (p: Priority) => PRIORITY_WEIGHTS[p] ?? 10;
 
 /* ======================= UI Helpers ======================= */
+/** Section wrapper with hover highlighter (Home palette: sky → violet/indigo → emerald) */
 function Section({
   id,
   icon: Icon,
@@ -151,15 +152,41 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Icon className="h-5 w-5 text-primary" />
-        <h2 className="text-xl font-semibold">{title}</h2>
+    <section
+      id={id}
+      className="
+        group relative rounded-2xl transition-all
+      "
+    >
+      {/* Hover gradient layer (behind content) */}
+      <div
+        className="
+        pointer-events-none absolute inset-0 -z-10 rounded-2xl opacity-0
+        group-hover:opacity-100
+        bg-gradient-to-br from-sky-200 via-violet-200 to-emerald-200
+        dark:from-sky-500/30 dark:via-violet-500/30 dark:to-emerald-500/30
+        transition-opacity duration-300
+        "
+      />
+      {/* Content frame with subtle ring/shadow on hover */}
+      <div
+        className="
+        relative space-y-4 p-4 md:p-5 rounded-2xl border bg-background/30
+        transition-all
+        group-hover:shadow-xl group-hover:scale-[1.01]
+        group-hover:ring-2 group-hover:ring-sky-300
+        dark:group-hover:ring-sky-400
+        "
+      >
+        <div className="flex items-center gap-2">
+          <Icon className="h-5 w-5 text-primary" />
+          <h2 className="text-xl font-semibold">{title}</h2>
+        </div>
+        {subtitle && (
+          <p className="text-sm text-muted-foreground -mt-1 ml-7">{subtitle}</p>
+        )}
+        {children}
       </div>
-      {subtitle && (
-        <p className="text-sm text-muted-foreground -mt-1 ml-7">{subtitle}</p>
-      )}
-      {children}
     </section>
   );
 }
@@ -172,7 +199,7 @@ function getToneClasses(pct: number) {
   return { bar: "bg-red-600", text: "text-red-600" };
 }
 
-/** Minimal custom colored progress (instead of the donut) */
+/** Minimal custom colored progress (instead of donut) */
 function ColoredProgress({ value }: { value: number }) {
   const clamped = Math.max(0, Math.min(100, value));
   const tone = getToneClasses(clamped);
@@ -399,7 +426,7 @@ export default function DigitalSecurityChecklist() {
       sum + (progressMap[i.id]?.isCompleted ? weightFor(i.priority) : 0),
     0,
   );
-  // score is kept if you want to use elsewhere; not shown in header anymore
+  // score retained for potential future use
   const score = totalPossible
     ? Math.round((totalEarned / totalPossible) * 100)
     : 0;
@@ -434,7 +461,6 @@ export default function DigitalSecurityChecklist() {
   }, [effectiveItems, progressMap]);
 
   /* --------- Handlers --------- */
-
   const handleToggleComplete = (item: SecurityChecklistItem) => {
     if (!isAuthenticated) return;
     const current = progressMap[item.id]?.isCompleted ?? false;

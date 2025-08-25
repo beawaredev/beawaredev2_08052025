@@ -1,15 +1,12 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Switch, Route } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
+
+/* ---------- Pages ---------- */
 import Home from "@/pages/Home";
 import Dashboard from "@/pages/Dashboard";
-import ScamReportForm from "@/pages/ScamReportForm";
-import ScamReports from "@/pages/ScamReports";
-import ScamReportDetail from "@/pages/ScamReportDetail";
-import ConsolidatedScamDetail from "@/pages/ConsolidatedScamDetail";
-
 import ScamHelp from "@/pages/ScamHelp";
 import AdminPanel from "@/pages/AdminPanel";
 import Login from "@/pages/Login";
@@ -29,19 +26,19 @@ import DigitalSecurityChecklist from "@/pages/DigitalSecurityChecklist";
 import GoogleSignupConfirm from "@/pages/GoogleSignupConfirm";
 import ScamLookup from "@/pages/ScamLookup";
 import NotFound from "@/pages/not-found";
+
+/* ---------- Layout ---------- */
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import MobileNav from "@/components/layout/MobileNav";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { useState, useEffect } from "react";
 
-// Import the useAuth hook (used inside AppShell only)
-import { useAuth } from "@/contexts/AuthContext";
+/* ---------- Auth ---------- */
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
-// ----------------------
-// ProtectedRoute (unchanged)
-// ----------------------
+/* ============================================================
+   ProtectedRoute (data-driven + redirect memory)
+============================================================ */
 function ProtectedRoute({
   component: Component,
   adminOnly = false,
@@ -51,81 +48,24 @@ function ProtectedRoute({
   adminOnly?: boolean;
   [x: string]: any;
 }) {
-  const { user, isLoading } = useAuth();
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
-  const [isValidatingAdmin, setIsValidatingAdmin] = useState<boolean>(false);
+  const { user, isLoading, setIntendedPath } = useAuth();
 
-  useEffect(() => {
-    if (!isLoading && user) {
-      const userJson = localStorage.getItem("user");
-      if (userJson) {
-        try {
-          const userData = JSON.parse(userJson);
-          if (
-            adminOnly &&
-            (userData.email === "admin@beaware.com" ||
-              userData.email === "admin@scamreport.com")
-          ) {
-            setIsAdmin(true);
-            return;
-          }
-          setIsAdmin(userData.role === "admin");
-        } catch (error) {
-          console.error("Error parsing user from localStorage:", error);
-        }
-      } else {
-        setIsAdmin(user.role === "admin");
-      }
-    }
-  }, [user, isLoading, adminOnly]);
-
-  useEffect(() => {
-    if (
-      adminOnly &&
-      user &&
-      (user.email === "admin@scamreport.com" ||
-        user.email === "admin@beaware.com") &&
-      !isAdmin
-    ) {
-      setIsValidatingAdmin(true);
-      const userJson = localStorage.getItem("user");
-      if (userJson) {
-        try {
-          const userData = JSON.parse(userJson);
-          if (
-            userData.email === "admin@scamreport.com" ||
-            userData.email === "admin@beaware.com"
-          ) {
-            userData.role = "admin";
-            localStorage.setItem("user", JSON.stringify(userData));
-            setIsAdmin(true);
-          }
-        } catch (error) {
-          console.error("Error updating admin role:", error);
-        }
-      }
-      setIsValidatingAdmin(false);
-    }
-  }, [user, adminOnly, isAdmin]);
-
-  if (isLoading || isValidatingAdmin) {
+  if (isLoading) {
     return (
-      <div className="p-8 flex justify-center">Loading authentication...</div>
+      <div className="p-8 flex justify-center">Loading authentication…</div>
     );
   }
 
   if (!user) {
-    const storedUser = localStorage.getItem("user");
-    if (!storedUser) {
-      window.location.href = "/login";
-      return null;
-    }
-    return (
-      <div className="p-8 flex justify-center">Loading user session...</div>
-    );
+    const target = window.location.pathname + (window.location.search || "");
+    // Remember where the user wanted to go
+    setIntendedPath(target);
+    // Also pass it in the URL for robustness
+    window.location.href = `/login?next=${encodeURIComponent(target)}`;
+    return null;
   }
 
-  if (adminOnly && !isAdmin) {
+  if (adminOnly && user.role !== "admin") {
     window.location.href = "/dashboard";
     return null;
   }
@@ -133,12 +73,13 @@ function ProtectedRoute({
   return <Component {...rest} />;
 }
 
-// ----------------------
-// MainRouter (unchanged)
-// ----------------------
+/* ============================================================
+   MainRouter
+============================================================ */
 function MainRouter() {
   return (
     <Switch>
+      {/* Public */}
       <Route path="/" component={Home} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
@@ -146,26 +87,6 @@ function MainRouter() {
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/lawyer-register" component={LawyerRegister} />
-      <Route path="/dashboard">
-        {() => <ProtectedRoute component={Dashboard} />}
-      </Route>
-      <Route path="/report">
-        {() => <ProtectedRoute component={ScamReportForm} />}
-      </Route>
-      <Route path="/reports" component={ScamReports} />
-      <Route path="/reports/:id">
-        {(params) => <ScamReportDetail id={params.id} />}
-      </Route>
-      <Route path="/consolidated-scams/:id">
-        {(params) => <ConsolidatedScamDetail id={params.id} />}
-      </Route>
-      <Route
-        path="/search"
-        component={() => {
-          window.location.href = "/reports";
-          return null;
-        }}
-      />
       <Route path="/scam-videos" component={ScamVideos} />
       <Route path="/help" component={ScamHelp} />
       <Route path="/contact" component={ContactUs} />
@@ -175,25 +96,32 @@ function MainRouter() {
       <Route path="/terms" component={Terms} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/disclaimer" component={Disclaimer} />
+
+      {/* Private */}
       <Route path="/admin">
         {() => <ProtectedRoute component={AdminPanel} adminOnly={true} />}
       </Route>
       <Route path="/settings">
         {() => <ProtectedRoute component={Settings} />}
       </Route>
+      <Route path="/dashboard">
+        {() => <ProtectedRoute component={Dashboard} />}
+      </Route>
       <Route path="/secure-your-digital-presence">
         {() => <ProtectedRoute component={DigitalSecurityChecklist} />}
       </Route>
+
+      {/* 404 */}
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-// ----------------------
-// AppShell: uses useAuth safely under AuthProvider
-// ----------------------
+/* ============================================================
+   AppShell
+============================================================ */
 function AppShell() {
-  const { user } = useAuth(); // ✅ Now inside provider
+  const { user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
@@ -222,23 +150,13 @@ function AppShell() {
   );
 }
 
-// ----------------------
-// App: providers + firebase check (no useAuth here)
-// ----------------------
+/* ============================================================
+   App
+============================================================ */
 function App() {
   const [firebaseConfigValid, setFirebaseConfigValid] = useState(true);
 
   useEffect(() => {
-    const googleLoginSuccess = localStorage.getItem("googleLoginSuccess");
-    if (googleLoginSuccess === "true") {
-      console.log(
-        "Google login success detected at app root, redirecting to dashboard",
-      );
-      localStorage.removeItem("googleLoginSuccess");
-      window.location.href = "/dashboard";
-      return;
-    }
-
     const requiredKeys = [
       "VITE_FIREBASE_API_KEY",
       "VITE_FIREBASE_PROJECT_ID",

@@ -1,5 +1,5 @@
 // src/pages/ScamLookup.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,6 +63,9 @@ export default function ScamLookup() {
   const [website, setWebsite] = useState("");
   const [activeTab, setActiveTab] = useState<LookupType>("phone");
   const [results, setResults] = useState<Record<string, LookupResult>>({});
+
+  // Track whether we've already executed a query-initiated search
+  const bootstrappedFromQueryRef = useRef(false);
 
   // --- Queries (always top-level, never conditional) ---
   const {
@@ -448,6 +451,65 @@ export default function ScamLookup() {
     );
   };
 
+  /* ============================
+     Bootstrap from URL (?type, ?q)
+     - Runs once after configs load
+     - Prefills the right input
+     - Automatically triggers search
+  ============================ */
+  useEffect(() => {
+    if (bootstrappedFromQueryRef.current) return;
+    if (isLoadingConfigs) return;
+
+    const usp = new URLSearchParams(window.location.search);
+    const rawType = (usp.get("type") || "").toLowerCase() as LookupType;
+    const rawQ =
+      usp.get("q") ??
+      usp.get("query") ?? // tolerate alternate name
+      usp.get("value") ??
+      "";
+
+    const typeFromUrl: LookupType =
+      rawType === "phone" || rawType === "email" || rawType === "url"
+        ? rawType
+        : availableTypes[0] || "phone";
+
+    // If the requested type isn't enabled, fall back gracefully
+    const finalType = availableTypes.includes(typeFromUrl)
+      ? typeFromUrl
+      : availableTypes[0];
+
+    if (!finalType) return;
+
+    // Set active tab & input
+    setActiveTab(finalType);
+
+    if (rawQ) {
+      if (finalType === "phone") setPhoneNumber(rawQ);
+      if (finalType === "email") setEmailAddress(rawQ);
+      if (finalType === "url") setWebsite(rawQ);
+
+      // Only auto-run if the user is logged in (the UI already shows a login CTA otherwise)
+      if (isAuthed) {
+        // Defer one tick so the input states & tab update are applied
+        setTimeout(() => {
+          handleLookup(finalType, rawQ);
+        }, 0);
+      }
+    }
+
+    bootstrappedFromQueryRef.current = true;
+  }, [isLoadingConfigs, availableTypes, isAuthed]);
+
+  // If URL changes while on the page (e.g., client-side nav with new params), re-run once:
+  useEffect(() => {
+    const onPop = () => {
+      bootstrappedFromQueryRef.current = false;
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
   // --- UI ---
   return (
     <div className="container mx-auto px-4 py-4 max-w-5xl">
@@ -482,13 +544,15 @@ export default function ScamLookup() {
                 ensure quality and prevent abuse.
               </p>
               <div className="flex gap-3 justify-center">
-                <Link to="/login">
+                <Link
+                  to={`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`}
+                >
                   <Button className="flex items-center gap-2">
                     <LogIn className="w-4 h-4" />
                     Login
                   </Button>
                 </Link>
-                <Link to="/signup">
+                <Link to="/register">
                   <Button variant="outline" className="flex items-center gap-2">
                     Sign Up
                   </Button>
@@ -581,6 +645,9 @@ export default function ScamLookup() {
                       placeholder="Enter phone number (e.g., +1234567890)"
                       value={phoneNumber}
                       onChange={(e) => setPhoneNumber(e.target.value)}
+                      onKeyDown={(e) =>
+                        e.key === "Enter" && handleLookup("phone", phoneNumber)
+                      }
                       className="text-sm"
                       disabled={!isAuthed}
                     />
@@ -662,6 +729,9 @@ export default function ScamLookup() {
                       placeholder="Enter email address"
                       value={emailAddress}
                       onChange={(e) => setEmailAddress(e.target.value)}
+                      onKeyDown={(e) =>
+                        e.key === "Enter" && handleLookup("email", emailAddress)
+                      }
                       className="text-sm"
                       disabled={!isAuthed}
                     />
@@ -742,6 +812,9 @@ export default function ScamLookup() {
                       placeholder="Enter website URL (e.g., https://example.com)"
                       value={website}
                       onChange={(e) => setWebsite(e.target.value)}
+                      onKeyDown={(e) =>
+                        e.key === "Enter" && handleLookup("url", website)
+                      }
                       className="text-sm"
                       disabled={!isAuthed}
                     />
