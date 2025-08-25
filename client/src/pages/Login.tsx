@@ -26,16 +26,15 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { FcGoogle } from "react-icons/fc";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { InfoIcon, ShieldAlertIcon } from "lucide-react";
+import { ShieldAlertIcon } from "lucide-react";
 
-// Form validation schema
+/* ===== Form validation ===== */
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
   password: z
     .string()
     .min(6, { message: "Password must be at least 6 characters" }),
 });
-
 type FormValues = z.infer<typeof formSchema>;
 
 export default function Login() {
@@ -45,12 +44,26 @@ export default function Login() {
     "loading" | "available" | "error"
   >("loading");
   const [firebaseError, setFirebaseError] = useState<string | null>(null);
-  const { login, loginWithGoogle } = useAuth();
+
+  const {
+    user,
+    isLoading: authLoading,
+    login,
+    loginWithGoogle,
+    completePostLoginRedirect,
+  } = useAuth();
+
   const [_, setLocation] = useLocation();
 
-  // Check Firebase auth setup on component mount
+  /* If already authenticated, bounce to intended page or dashboard */
   useEffect(() => {
+    if (!authLoading && user) {
+      completePostLoginRedirect("/dashboard");
+    }
+  }, [authLoading, user, completePostLoginRedirect]);
 
+  /* Check Firebase auth setup on mount (for Google button availability) */
+  useEffect(() => {
     const checkFirebaseAuth = async () => {
       try {
         if (
@@ -64,13 +77,7 @@ export default function Login() {
           );
           return;
         }
-
-        // Check if we can access Firebase Auth
-        const currentHost = window.location.hostname;
-        console.log(`Checking Firebase Auth for domain: ${currentHost}`);
-
         if (auth) {
-          // Firebase auth is available
           setFirebaseAuthStatus("available");
         } else {
           setFirebaseAuthStatus("error");
@@ -86,50 +93,20 @@ export default function Login() {
         );
       }
     };
-
     checkFirebaseAuth();
   }, []);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
+    defaultValues: { email: "", password: "" },
   });
 
   async function onSubmit(values: FormValues) {
     try {
       setIsLoading(true);
-      console.log(`Attempting login with email: ${values.email}`);
-
-      // Call login function
       await login(values.email, values.password);
-
-      // After login, get user from localStorage to verify role
-      const userJson = localStorage.getItem("user");
-      if (userJson) {
-        const userData = JSON.parse(userJson);
-        console.log("Login successful, user data:", {
-          id: userData.id,
-          email: userData.email,
-          role: userData.role,
-          displayName: userData.displayName,
-        });
-
-        // If it's the admin user, navigate to admin panel directly
-        if (
-          userData.role === "admin" &&
-          values.email === "admin@scamreport.com"
-        ) {
-          console.log("Admin user detected, redirecting to admin panel");
-          setLocation("/admin");
-          return;
-        }
-      }
-
-      // Default navigation
-      setLocation("/dashboard");
+      // Redirect to intended page or dashboard
+      completePostLoginRedirect("/dashboard");
     } catch (error) {
       console.error("Login error:", error);
     } finally {
@@ -141,10 +118,8 @@ export default function Login() {
     try {
       setIsGoogleLoading(true);
       const result = await loginWithGoogle();
-      
       if (result) {
-        console.log("Google login successful, navigating to dashboard");
-        setLocation("/dashboard");
+        completePostLoginRedirect("/dashboard");
       }
     } catch (error) {
       console.error("Google login error:", error);
@@ -166,6 +141,7 @@ export default function Login() {
             Enter your email and password to access your account
           </CardDescription>
         </CardHeader>
+
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -212,7 +188,11 @@ export default function Login() {
               variant="outline"
               className="w-full mb-4 flex items-center justify-center gap-2"
               onClick={handleGoogleSignIn}
-              disabled={isGoogleLoading || isLoading}
+              disabled={
+                isGoogleLoading ||
+                isLoading ||
+                firebaseAuthStatus !== "available"
+              }
             >
               {isGoogleLoading ? (
                 "Logging in..."
@@ -245,7 +225,6 @@ export default function Login() {
             </div>
           </div>
 
-          {/* Firebase Auth Status */}
           {firebaseAuthStatus === "error" && (
             <Alert variant="destructive" className="mt-4">
               <ShieldAlertIcon className="h-4 w-4" />
@@ -270,6 +249,8 @@ export default function Login() {
             </div>
           )}
         </CardContent>
+
+        <CardFooter />
       </Card>
     </div>
   );

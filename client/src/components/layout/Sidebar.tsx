@@ -98,11 +98,7 @@ export default function Sidebar({
       path: "/scam-lookup",
       icon: <SearchIcon className="h-5 w-5" />,
     },
-    {
-      name: "Report Scam",
-      path: "/report",
-      icon: <FilePlusIcon className="h-5 w-5" />,
-    },
+
     {
       name: "Reports",
       path: "/reports",

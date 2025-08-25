@@ -1,8 +1,10 @@
 // src/components/layout/Header.tsx
+import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   MenuIcon,
   Search,
@@ -17,7 +19,7 @@ interface HeaderProps {
   onMobileMenuToggle: () => void;
 }
 
-/** ---------- Score helpers (same as Dashboard) ---------- */
+/** ---------- Score helpers (aligned to your app route) ---------- */
 type Priority = "high" | "medium" | "low";
 type Category =
   | "identity_protection"
@@ -27,7 +29,8 @@ type Category =
   | "network_security"
   | "financial_security";
 
-const CHECKLIST_ROUTE = "/security-checklist";
+/* NOTE: Your app uses /secure-your-digital-presence for the checklist */
+const CHECKLIST_ROUTE = "/secure-your-digital-presence";
 const SCORE_DECIMALS = 0;
 const PRIORITY_WEIGHTS: Record<Priority, number> = {
   high: 40,
@@ -35,9 +38,9 @@ const PRIORITY_WEIGHTS: Record<Priority, number> = {
   low: 10,
 };
 
-const GOOD_SCORE = 80; // overall
+const GOOD_SCORE = 80;
 const CAUTION_SCORE = 50;
-const GOOD_HIGH = 70; // high-impact
+const GOOD_HIGH = 70;
 const CAUTION_HIGH = 40;
 
 const weightFor = (p: Priority) => PRIORITY_WEIGHTS[p] ?? 10;
@@ -172,11 +175,9 @@ function HeaderSecurityScore() {
         {loading ? (
           <span className="text-sm text-muted-foreground">…</span>
         ) : (
-          <>
-            <span className={`text-sm font-semibold ${style.text}`}>
-              {formatPct(scorePctDisplay)}
-            </span>
-          </>
+          <span className={`text-sm font-semibold ${style.text}`}>
+            {formatPct(scorePctDisplay)}
+          </span>
         )}
       </a>
     </Link>
@@ -186,15 +187,24 @@ function HeaderSecurityScore() {
 export default function Header({ onMobileMenuToggle }: HeaderProps) {
   const [location] = useLocation();
   const { user, logout } = useAuth();
+  const [query, setQuery] = useState("");
 
   const guestTopLinks = [
     { name: "Home", path: "/" },
+    { name: "Scam Lookup", path: "/scam-lookup" },
     { name: "Educational Videos", path: "/scam-videos" },
     { name: "Scam Help", path: "/help" },
     { name: "Contact Us", path: "/contact" },
   ];
 
   const isActive = (path: string) => location === path;
+
+  const submitLookup = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = query.trim();
+    if (!q) return;
+    window.location.href = `/scam-lookup?q=${encodeURIComponent(q)}`;
+  };
 
   return (
     <header className="bg-white border-b border-gray-200 shadow-sm h-16 flex items-center">
@@ -249,8 +259,46 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
           )}
         </div>
 
-        {/* Right: Auth / user actions */}
+        {/* Right: Search + Auth / user actions */}
         <div className="flex items-center space-x-3 h-full">
+          {/* 🔍 Scam Lookup search (both guests and users) */}
+          <form
+            onSubmit={submitLookup}
+            className="hidden md:flex items-center"
+            role="search"
+            aria-label="Scam Lookup"
+          >
+            <Input
+              type="text"
+              inputMode="search"
+              placeholder="Search phone or link…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="h-9 rounded-r-none w-56"
+              aria-label="Enter phone number or URL"
+            />
+            <Button type="submit" className="h-9 rounded-l-none">
+              <Search className="h-4 w-4 mr-1" />
+              Search
+            </Button>
+          </form>
+
+          {/* Mobile quick access to Scam Lookup */}
+          {location !== "/scam-lookup" && (
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="md:hidden"
+              title="Open Scam Lookup"
+            >
+              <Link href="/scam-lookup" className="flex items-center gap-1">
+                <Search className="h-4 w-4" />
+                <span>Lookup</span>
+              </Link>
+            </Button>
+          )}
+
           {!user ? (
             <>
               <Button
@@ -270,19 +318,22 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
               {/* Consistent, colored, explanatory score pill */}
               <HeaderSecurityScore />
 
-              {location !== "/search" && (
+              {/* Quick button to open Scam Lookup */}
+              {location !== "/scam-lookup" && (
                 <Button
                   asChild
                   variant="outline"
                   size="sm"
                   className="hidden sm:flex"
+                  title="Go to Scam Lookup"
                 >
-                  <Link href="/search" className="flex items-center gap-1">
+                  <Link href="/scam-lookup" className="flex items-center gap-1">
                     <Search className="h-4 w-4" />
-                    <span>Search</span>
+                    <span>Scam Lookup</span>
                   </Link>
                 </Button>
               )}
+
               <Button
                 variant="ghost"
                 size="sm"

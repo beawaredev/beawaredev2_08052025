@@ -29,28 +29,16 @@ export default function MobileNav() {
           <span className="text-xs mt-1">Home</span>
         </Link>
 
-        {/* Lookup (auth) or Reports (guest) */}
-        {user ? (
-          <Link
-            href="/scam-lookup"
-            className={`flex flex-col items-center py-2 ${
-              isActive("/scam-lookup") ? "text-primary" : "text-gray-600"
-            }`}
-          >
-            <SearchIcon className="h-5 w-5" />
-            <span className="text-xs mt-1">Lookup</span>
-          </Link>
-        ) : (
-          <Link
-            href="/reports"
-            className={`flex flex-col items-center py-2 ${
-              isActive("/reports") ? "text-primary" : "text-gray-600"
-            }`}
-          >
-            <SearchIcon className="h-5 w-5" />
-            <span className="text-xs mt-1">Reports</span>
-          </Link>
-        )}
+        {/* Scam Lookup */}
+        <Link
+          href="/scam-lookup"
+          className={`flex flex-col items-center py-2 ${
+            isActive("/scam-lookup") ? "text-primary" : "text-gray-600"
+          }`}
+        >
+          <SearchIcon className="h-5 w-5" />
+          <span className="text-xs mt-1">Lookup</span>
+        </Link>
 
         {/* Contact */}
         <Link
@@ -65,7 +53,7 @@ export default function MobileNav() {
 
         {user ? (
           <>
-            {/* ✅ Checklist (replaces the old "Report" tab) */}
+            {/* Checklist */}
             <Link
               href="/secure-your-digital-presence"
               className={`flex flex-col items-center py-2 ${
@@ -103,7 +91,7 @@ export default function MobileNav() {
             )}
           </>
         ) : (
-          // Login (guest)
+          // Guest → Login
           <Link
             href="/login"
             className={`flex flex-col items-center py-2 ${
