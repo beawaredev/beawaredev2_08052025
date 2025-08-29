@@ -1,7 +1,8 @@
-// src/pages/DigitalSecurityChecklist.tsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { Link } from "wouter";
+import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,26 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import {
+  InfoIcon,
   ShieldCheckIcon,
   LockIcon,
   UserCheckIcon,
@@ -43,35 +25,14 @@ import {
   CreditCardIcon,
   ExternalLinkIcon,
   ClockIcon,
-  CheckCircleIcon,
-  AlertCircleIcon,
-  InfoIcon,
-  EditIcon,
   LinkIcon,
   ListChecksIcon,
+  CheckCircleIcon,
 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
-import { Link } from "wouter";
 
-/* ======================= Types & Schema ======================= */
-const editItemSchema = z.object({
-  title: z.string().min(1, "Title is required"),
-  description: z.string().min(1, "Description is required"),
-  recommendationText: z.string().min(1, "Recommendation is required"),
-  helpUrl: z.string().url("Enter a valid URL").optional().or(z.literal("")),
-  toolLaunchUrl: z
-    .string()
-    .url("Enter a valid URL")
-    .optional()
-    .or(z.literal("")),
-  youtubeVideoUrl: z
-    .string()
-    .url("Enter a valid YouTube URL")
-    .optional()
-    .or(z.literal("")),
-  estimatedTimeMinutes: z.number().min(0).optional(),
-});
-
+/* ============================================================
+   Types
+============================================================ */
 type Priority = "high" | "medium" | "low";
 type CategoryKey =
   | "identity_protection"
@@ -104,16 +65,9 @@ interface UserSecurityProgress {
   notes?: string | null;
 }
 
-/* ======================= Labels & Helpers ======================= */
-const categoryIcons: Record<CategoryKey, any> = {
-  identity_protection: ShieldCheckIcon,
-  password_security: LockIcon,
-  account_security: UserCheckIcon,
-  device_security: SmartphoneIcon,
-  network_security: WifiIcon,
-  financial_security: CreditCardIcon,
-};
-
+/* ============================================================
+   Constants / Helpers (compact but complete)
+============================================================ */
 const categoryLabels: Record<CategoryKey, string> = {
   identity_protection: "Identity Protection",
   password_security: "Password Security",
@@ -123,59 +77,214 @@ const categoryLabels: Record<CategoryKey, string> = {
   financial_security: "Financial Security",
 };
 
-const priorityColors = {
-  high: "destructive",
-  medium: "default",
-  low: "secondary",
-} as const;
+const categoryIcons: Record<CategoryKey, any> = {
+  identity_protection: ShieldCheckIcon,
+  password_security: LockIcon,
+  account_security: UserCheckIcon,
+  device_security: SmartphoneIcon,
+  network_security: WifiIcon,
+  financial_security: CreditCardIcon,
+};
 
 const PRIORITY_WEIGHTS: Record<Priority, number> = {
   high: 40,
   medium: 20,
   low: 10,
 };
+
+const priorityBadgeVariant: Record<
+  Priority,
+  "destructive" | "default" | "secondary"
+> = { high: "destructive", medium: "default", low: "secondary" };
+
+const FALLBACK_ITEMS: SecurityChecklistItem[] = [
+  {
+    id: 1,
+    title: "Enable Two-Factor Authentication",
+    description: "Secure your most important accounts with 2FA",
+    category: "account_security",
+    priority: "high",
+    recommendationText:
+      "Set up 2FA on your email, banking, and social media using an authenticator app.",
+    helpUrl: "https://authy.com/what-is-2fa/",
+    toolLaunchUrl: "https://authy.com/",
+    estimatedTimeMinutes: 15,
+    sortOrder: 1,
+  },
+  {
+    id: 2,
+    title: "Use a Password Manager",
+    description: "Generate and store strong, unique passwords",
+    category: "password_security",
+    priority: "high",
+    recommendationText:
+      "Install a reputable password manager (e.g., Bitwarden) and rotate weak or reused passwords.",
+    helpUrl: "https://bitwarden.com/help/getting-started-webvault/",
+    toolLaunchUrl: "https://bitwarden.com/",
+    estimatedTimeMinutes: 30,
+    sortOrder: 2,
+  },
+  {
+    id: 3,
+    title: "Monitor Your Credit Reports",
+    description: "Watch for signs of identity theft",
+    category: "identity_protection",
+    priority: "high",
+    recommendationText:
+      "Check your credit reports from all three bureaus at AnnualCreditReport.com.",
+    helpUrl: "https://www.annualcreditreport.com/",
+    toolLaunchUrl: "https://www.annualcreditreport.com/",
+    estimatedTimeMinutes: 30,
+    sortOrder: 3,
+  },
+  {
+    id: 12,
+    title: "Freeze Your Credit Reports",
+    description: "Block new credit lines without your approval",
+    category: "identity_protection",
+    priority: "high",
+    recommendationText:
+      "Freeze at Experian, Equifax, and TransUnion to reduce identity-theft risk.",
+    helpUrl:
+      "https://www.consumer.ftc.gov/articles/what-know-about-credit-freezes-and-fraud-alerts",
+    estimatedTimeMinutes: 30,
+    sortOrder: 12,
+  },
+  {
+    id: 5,
+    title: "Update Software & OS",
+    description: "Patch known vulnerabilities quickly",
+    category: "device_security",
+    priority: "medium",
+    recommendationText:
+      "Enable automatic updates for your OS, browsers, and critical apps.",
+    helpUrl: "https://www.cisa.gov/tips/st04-006",
+    estimatedTimeMinutes: 10,
+    sortOrder: 5,
+  },
+];
+
+const cn = (...parts: Array<string | false | null | undefined>) =>
+  parts.filter(Boolean).join(" ");
+
+const percent = (num: number, den: number) => (den > 0 ? (num / den) * 100 : 0);
+const roundPct = (n: number) => Math.round(Math.max(0, Math.min(100, n)));
 const weightFor = (p: Priority) => PRIORITY_WEIGHTS[p] ?? 10;
 
-/* ======================= UI Helpers ======================= */
-/** Section wrapper with hover highlighter (Home palette: sky → violet/indigo → emerald) */
+function getToneClasses(pct: number) {
+  if (pct >= 80) return { bar: "bg-green-600", text: "text-green-600" };
+  if (pct >= 60) return { bar: "bg-lime-600", text: "text-lime-600" };
+  if (pct >= 40) return { bar: "bg-amber-600", text: "text-amber-600" };
+  return { bar: "bg-red-600", text: "text-red-600" };
+}
+
+function ColoredProgress({ value }: { value: number }) {
+  const clamped = Math.max(0, Math.min(100, value));
+  const tone = getToneClasses(clamped);
+  return (
+    <div className="h-2 w-full rounded bg-muted overflow-hidden">
+      <div
+        className={`h-full ${tone.bar} transition-all`}
+        style={{ width: `${clamped}%` }}
+      />
+    </div>
+  );
+}
+
+/* ============================================================
+   In-file “focus from query” hook
+   - ?focus=<itemId> or next|checklist|partners|activity
+   - ?priority=high|medium|low
+============================================================ */
+function useFocusFromQuery() {
+  const [highlightItemId, setHighlightItemId] = useState<number | null>(null);
+  const [highlightSection, setHighlightSection] = useState<
+    "next" | "checklist" | "partners" | "activity" | null
+  >(null);
+  const [highlightPriority, setHighlightPriority] = useState<Priority | null>(
+    null,
+  );
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const focusParam = params.get("focus");
+    const prioParam = params.get("priority") as Priority | null;
+
+    if (prioParam && ["high", "medium", "low"].includes(prioParam)) {
+      setHighlightPriority(prioParam);
+    } else {
+      setHighlightPriority(null);
+    }
+
+    if (focusParam && /^\d+$/.test(focusParam)) {
+      const id = Number(focusParam);
+      setHighlightItemId(id);
+      const el = document.getElementById(`item-${id}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      const t = setTimeout(() => setHighlightItemId(null), 2600);
+      return () => clearTimeout(t);
+    }
+
+    if (
+      focusParam &&
+      ["next", "checklist", "partners", "activity"].includes(focusParam)
+    ) {
+      const sec = focusParam as "next" | "checklist" | "partners" | "activity";
+      setHighlightSection(sec);
+      const el = document.getElementById(sec);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      const t = setTimeout(() => setHighlightSection(null), 2200);
+      return () => clearTimeout(t);
+    }
+
+    setHighlightSection(null);
+    setHighlightItemId(null);
+  }, [window.location.search]);
+
+  return { highlightItemId, highlightSection, highlightPriority };
+}
+
+/* ============================================================
+   Small inline components (Section / PartnerCard / ChecklistItemCard)
+============================================================ */
 function Section({
   id,
   icon: Icon,
   title,
   subtitle,
+  highlight = false,
   children,
 }: {
   id: string;
   icon: React.ComponentType<any>;
   title: string;
   subtitle?: string;
+  highlight?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <section
       id={id}
-      className="
-        group relative rounded-2xl transition-all
-      "
+      className={cn(
+        "group relative rounded-2xl transition-all",
+        highlight &&
+          "ring-2 ring-sky-400 shadow-xl animate-pulse [animation-duration:1200ms]",
+      )}
     >
-      {/* Hover gradient layer (behind content) */}
       <div
         className="
-        pointer-events-none absolute inset-0 -z-10 rounded-2xl opacity-0
-        group-hover:opacity-100
-        bg-gradient-to-br from-sky-200 via-violet-200 to-emerald-200
-        dark:from-sky-500/30 dark:via-violet-500/30 dark:to-emerald-500/30
-        transition-opacity duration-300
+          pointer-events-none absolute inset-0 -z-10 rounded-2xl opacity-0
+          group-hover:opacity-100
+          bg-gradient-to-br from-sky-200 via-violet-200 to-emerald-200
+          dark:from-sky-500/30 dark:via-violet-500/30 dark:to-emerald-500/30
+          transition-opacity duration-300
         "
       />
-      {/* Content frame with subtle ring/shadow on hover */}
       <div
         className="
-        relative space-y-4 p-4 md:p-5 rounded-2xl border bg-background/30
-        transition-all
-        group-hover:shadow-xl group-hover:scale-[1.01]
-        group-hover:ring-2 group-hover:ring-sky-300
-        dark:group-hover:ring-sky-400
+          relative space-y-4 p-4 md:p-5 rounded-2xl border bg-background/30
+          transition-all group-hover:shadow-xl group-hover:scale-[1.01]
+          group-hover:ring-2 group-hover:ring-sky-300 dark:group-hover:ring-sky-400
         "
       >
         <div className="flex items-center gap-2">
@@ -191,33 +300,279 @@ function Section({
   );
 }
 
-/** Return classes for bar/text based on percent (match header tone) */
-function getToneClasses(pct: number) {
-  if (pct >= 80) return { bar: "bg-green-600", text: "text-green-600" };
-  if (pct >= 60) return { bar: "bg-lime-600", text: "text-lime-600" };
-  if (pct >= 40) return { bar: "bg-amber-600", text: "text-amber-600" };
-  return { bar: "bg-red-600", text: "text-red-600" };
-}
-
-/** Minimal custom colored progress (instead of donut) */
-function ColoredProgress({ value }: { value: number }) {
-  const clamped = Math.max(0, Math.min(100, value));
-  const tone = getToneClasses(clamped);
+function PartnerCard({
+  name,
+  tagline,
+  cta,
+  href,
+  badge,
+}: {
+  name: string;
+  tagline: string;
+  cta: string;
+  href: string;
+  badge?: string;
+}) {
   return (
-    <div className="h-2 w-full rounded bg-muted overflow-hidden">
-      <div
-        className={`h-full ${tone.bar} transition-all`}
-        style={{ width: `${clamped}%` }}
-      />
-    </div>
+    <Card className="h-full">
+      <CardHeader className="py-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">{name}</CardTitle>
+          {badge && <Badge variant="outline">{badge}</Badge>}
+        </div>
+        <CardDescription className="text-xs">{tagline}</CardDescription>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <Button asChild className="w-full">
+          <a href={href} target="_blank" rel="noopener noreferrer">
+            <ExternalLinkIcon className="h-4 w-4 mr-2" />
+            {cta}
+          </a>
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
-/* ======================= Component ======================= */
+function ChecklistItemCard({
+  item,
+  progress,
+  isAuthenticated,
+  updatePending,
+  highlight,
+  priorityHighlight,
+  onToggleComplete,
+  onSaveNotes,
+  notesValue,
+  onNotesChange,
+  notesExpanded,
+  onNotesExpand,
+  onNotesCollapse,
+}: {
+  item: SecurityChecklistItem;
+  progress?: UserSecurityProgress;
+  isAuthenticated: boolean;
+  updatePending: boolean;
+  highlight?: boolean;
+  priorityHighlight?: boolean;
+  onToggleComplete: (item: SecurityChecklistItem) => void;
+  onSaveNotes: (item: SecurityChecklistItem) => void;
+  notesValue: string;
+  onNotesChange: (next: string) => void;
+  notesExpanded: boolean;
+  onNotesExpand: () => void;
+  onNotesCollapse: () => void;
+}) {
+  const isCompleted = Boolean(progress?.isCompleted);
+  const Icon = categoryIcons[item.category] || InfoIcon;
+
+  const embedUrl = item.youtubeVideoUrl
+    ? item.youtubeVideoUrl.includes("embed/")
+      ? item.youtubeVideoUrl
+      : item.youtubeVideoUrl.replace("watch?v=", "embed/")
+    : "";
+
+  return (
+    <Card
+      id={`item-${item.id}`}
+      className={cn(
+        "transition-all",
+        isCompleted && "bg-green-50 border-green-200",
+        (highlight || priorityHighlight) &&
+          "ring-2 ring-sky-400 animate-pulse [animation-duration:1200ms]",
+      )}
+    >
+      <CardHeader className="pb-2">
+        <div className="flex items-start gap-2">
+          <Checkbox
+            checked={isCompleted}
+            onCheckedChange={() => onToggleComplete(item)}
+            disabled={!isAuthenticated || updatePending}
+            className="mt-0.5"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <Icon className="h-4 w-4 text-muted-foreground" />
+                <CardTitle
+                  className={`text-sm font-medium leading-tight truncate ${
+                    isCompleted ? "line-through text-gray-600" : ""
+                  }`}
+                >
+                  {item.title}
+                </CardTitle>
+              </div>
+              <Badge
+                variant={priorityBadgeVariant[item.priority]}
+                className="text-xs"
+              >
+                {item.priority}
+              </Badge>
+            </div>
+            <CardDescription className="text-xs text-muted-foreground line-clamp-2">
+              {item.description}
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="pt-0">
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="md:col-span-2">
+            {!isCompleted && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mb-3">
+                <div className="flex items-start gap-2">
+                  <InfoIcon className="h-4 w-4 text-yellow-700 mt-0.5" />
+                  <p className="text-xs text-yellow-800">
+                    {item.recommendationText}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 mt-2">
+                  {item.estimatedTimeMinutes && (
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <ClockIcon className="h-4 w-4" />
+                      {item.estimatedTimeMinutes}m
+                    </div>
+                  )}
+                  {item.toolLaunchUrl && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2"
+                      disabled={!isAuthenticated}
+                      onClick={() =>
+                        window.open(item.toolLaunchUrl as string, "_blank")
+                      }
+                    >
+                      <LinkIcon className="h-4 w-4 mr-1" />
+                      Launch
+                    </Button>
+                  )}
+                  {item.helpUrl && (
+                    <a
+                      href={item.helpUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+                    >
+                      <ExternalLinkIcon className="h-4 w-4" />
+                      Learn
+                    </a>
+                  )}
+                  <Button
+                    size="sm"
+                    className="h-7 px-2"
+                    disabled={!isAuthenticated || updatePending}
+                    onClick={() => onToggleComplete(item)}
+                  >
+                    Mark Done
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Notes */}
+            <div className="border-t pt-2">
+              {notesExpanded ? (
+                <div className="space-y-2">
+                  <Textarea
+                    value={notesValue}
+                    onChange={(e) => onNotesChange(e.target.value)}
+                    placeholder="Add notes…"
+                    rows={2}
+                    className="text-xs"
+                  />
+                  <div className="flex gap-1">
+                    <Button
+                      size="sm"
+                      className="h-7 px-2"
+                      disabled={!isAuthenticated || updatePending}
+                      onClick={() => onSaveNotes(item)}
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2"
+                      onClick={onNotesCollapse}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  {progress?.notes ? (
+                    <p className="text-xs text-muted-foreground italic truncate flex-1 mr-2">
+                      “{progress.notes}”
+                    </p>
+                  ) : (
+                    <span className="text-xs text-muted-foreground flex-1">
+                      No notes
+                    </span>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2"
+                    onClick={onNotesExpand}
+                  >
+                    {progress?.notes ? "Edit" : "Add"}
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {isCompleted && progress?.completedAt && (
+              <div className="text-xs text-green-700 mt-2">
+                ✓ Completed on{" "}
+                {new Date(progress.completedAt).toLocaleDateString()}
+              </div>
+            )}
+          </div>
+
+          {/* Video */}
+          <div className="md:col-span-1">
+            {embedUrl && (
+              <div className="aspect-video">
+                <iframe
+                  src={embedUrl}
+                  className="w-full h-full rounded"
+                  frameBorder={0}
+                  allowFullScreen
+                  title={`${item.title} Tutorial`}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ============================================================
+   Data fetchers
+============================================================ */
+async function fetchChecklistItems(): Promise<SecurityChecklistItem[]> {
+  const res = await apiRequest("/api/security-checklist");
+  if (!res.ok) throw new Error(`Failed to load checklist (${res.status})`);
+  return res.json();
+}
+
+async function fetchProgress(): Promise<UserSecurityProgress[]> {
+  const res = await apiRequest("/api/security-checklist/progress");
+  if (!res.ok) return [];
+  return res.json();
+}
+
+/* ============================================================
+   Main Page
+============================================================ */
 export default function DigitalSecurityChecklist() {
   const { user } = useAuth();
   const isAuthenticated = !!user;
-  const isAdmin = (user as any)?.role === "admin";
   const queryClient = useQueryClient();
 
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -225,29 +580,14 @@ export default function DigitalSecurityChecklist() {
     {},
   );
   const [notesText, setNotesText] = useState<Record<number, string>>({});
-  const [editingItem, setEditingItem] = useState<SecurityChecklistItem | null>(
-    null,
-  );
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  /* --------- Queries --------- */
-  const fetchChecklistItems = async (): Promise<SecurityChecklistItem[]> => {
-    const res = await apiRequest("/api/security-checklist");
-    if (!res.ok) throw new Error(`Failed to load checklist (${res.status})`);
-    return res.json();
-  };
-
-  const fetchProgress = async (): Promise<UserSecurityProgress[]> => {
-    const res = await apiRequest("/api/security-checklist/progress");
-    if (!res.ok) return [];
-    return res.json();
-  };
+  const { highlightItemId, highlightSection, highlightPriority } =
+    useFocusFromQuery();
 
   const {
     data: checklistItems = [],
     isLoading: itemsLoading,
     isError: itemsError,
-    error: itemsErrObj,
   } = useQuery<SecurityChecklistItem[]>({
     queryKey: ["/api/security-checklist"],
     queryFn: fetchChecklistItems,
@@ -259,29 +599,7 @@ export default function DigitalSecurityChecklist() {
   >({
     queryKey: ["/api/security-checklist/progress"],
     queryFn: fetchProgress,
-    enabled: true,
     staleTime: 60 * 1000,
-  });
-
-  /* --------- Mutations --------- */
-  const updateItemMutation = useMutation({
-    mutationFn: async (data: {
-      itemId: number;
-      updates: Partial<SecurityChecklistItem>;
-    }) => {
-      const res = await apiRequest(`/api/security-checklist/${data.itemId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data.updates),
-      });
-      if (!res.ok) throw new Error("Failed to update item");
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/security-checklist"] });
-      setIsEditDialogOpen(false);
-      setEditingItem(null);
-    },
   });
 
   const updateProgressMutation = useMutation({
@@ -311,85 +629,17 @@ export default function DigitalSecurityChecklist() {
       }
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: () =>
       queryClient.invalidateQueries({
         queryKey: ["/api/security-checklist/progress"],
-      });
-    },
+      }),
   });
 
-  /* --------- Fallback Items (shown if API returns empty) --------- */
-  const fallbackItems: SecurityChecklistItem[] = [
-    {
-      id: 1,
-      title: "Enable Two-Factor Authentication",
-      description: "Secure your most important accounts with 2FA",
-      category: "account_security",
-      priority: "high",
-      recommendationText:
-        "Set up 2FA on your email, banking, and social media using an authenticator app (e.g., Authy).",
-      helpUrl: "https://authy.com/what-is-2fa/",
-      toolLaunchUrl: "https://authy.com/",
-      estimatedTimeMinutes: 15,
-      sortOrder: 1,
-    },
-    {
-      id: 2,
-      title: "Use a Password Manager",
-      description: "Generate and store strong, unique passwords",
-      category: "password_security",
-      priority: "high",
-      recommendationText:
-        "Install a reputable password manager (e.g., Bitwarden) and rotate weak/reused passwords.",
-      helpUrl: "https://bitwarden.com/help/getting-started-webvault/",
-      toolLaunchUrl: "https://bitwarden.com/",
-      estimatedTimeMinutes: 30,
-      sortOrder: 2,
-    },
-    {
-      id: 3,
-      title: "Monitor Your Credit Reports",
-      description: "Watch for signs of identity theft",
-      category: "identity_protection",
-      priority: "high",
-      recommendationText:
-        "Check your credit reports from all three bureaus at AnnualCreditReport.com.",
-      helpUrl: "https://www.annualcreditreport.com/",
-      toolLaunchUrl: "https://www.annualcreditreport.com/",
-      estimatedTimeMinutes: 30,
-      sortOrder: 3,
-    },
-    {
-      id: 12,
-      title: "Freeze Your Credit Reports",
-      description: "Block new credit lines without your approval",
-      category: "identity_protection",
-      priority: "high",
-      recommendationText:
-        "Freeze at Experian, Equifax, and TransUnion to reduce identity-theft risk.",
-      helpUrl:
-        "https://www.consumer.ftc.gov/articles/what-know-about-credit-freezes-and-fraud-alerts",
-      estimatedTimeMinutes: 30,
-      sortOrder: 12,
-    },
-    {
-      id: 5,
-      title: "Update Software & OS",
-      description: "Patch known vulnerabilities quickly",
-      category: "device_security",
-      priority: "medium",
-      recommendationText:
-        "Enable automatic updates for OS, browsers, and critical apps.",
-      helpUrl: "https://www.cisa.gov/tips/st04-006",
-      estimatedTimeMinutes: 10,
-      sortOrder: 5,
-    },
-  ];
+  const loading = itemsLoading || progressLoading;
 
   const effectiveItems: SecurityChecklistItem[] =
-    checklistItems?.length > 0 ? checklistItems : fallbackItems;
+    checklistItems?.length > 0 ? checklistItems : FALLBACK_ITEMS;
 
-  /* --------- Derived Stats --------- */
   const progressMap = useMemo(
     () =>
       (userProgress as UserSecurityProgress[]).reduce(
@@ -426,18 +676,18 @@ export default function DigitalSecurityChecklist() {
       sum + (progressMap[i.id]?.isCompleted ? weightFor(i.priority) : 0),
     0,
   );
-  // score retained for potential future use
   const score = totalPossible
-    ? Math.round((totalEarned / totalPossible) * 100)
+    ? roundPct((totalEarned / totalPossible) * 100)
     : 0;
+  const tone = getToneClasses(percentComplete);
 
   const nextActions = useMemo(
     () =>
       [...remainingItems]
         .sort((a, b) => {
-          const prio: Priority[] = ["high", "medium", "low"];
-          const pa = prio.indexOf(a.priority);
-          const pb = prio.indexOf(b.priority);
+          const order: Priority[] = ["high", "medium", "low"];
+          const pa = order.indexOf(a.priority);
+          const pb = order.indexOf(b.priority);
           return pa === pb ? a.sortOrder - b.sortOrder : pa - pb;
         })
         .slice(0, 3),
@@ -501,56 +751,17 @@ export default function DigitalSecurityChecklist() {
 
   const handleSaveNotes = async (item: SecurityChecklistItem) => {
     if (!isAuthenticated) return;
-    const current = progressMap[item.id];
     const notes = notesText[item.id] || "";
     await updateProgressMutation.mutateAsync({
       itemId: item.id,
-      isCompleted: Boolean(current?.isCompleted),
+      isCompleted: Boolean(progressMap[item.id]?.isCompleted),
       notes,
     });
     setExpandedNotes((prev) => ({ ...prev, [item.id]: false }));
   };
 
-  const editForm = useForm<z.infer<typeof editItemSchema>>({
-    resolver: zodResolver(editItemSchema),
-    defaultValues: {
-      title: "",
-      description: "",
-      recommendationText: "",
-      helpUrl: "",
-      toolLaunchUrl: "",
-      youtubeVideoUrl: "",
-      estimatedTimeMinutes: 0,
-    },
-  });
-
-  const handleEditItem = (item: SecurityChecklistItem) => {
-    setEditingItem(item);
-    editForm.reset({
-      title: item.title,
-      description: item.description,
-      recommendationText: item.recommendationText,
-      helpUrl: item.helpUrl || "",
-      toolLaunchUrl: item.toolLaunchUrl || "",
-      youtubeVideoUrl: item.youtubeVideoUrl || "",
-      estimatedTimeMinutes: item.estimatedTimeMinutes || 0,
-    });
-    setIsEditDialogOpen(true);
-  };
-
-  const handleSaveEdit = async (data: z.infer<typeof editItemSchema>) => {
-    if (!editingItem) return;
-    const updates = {
-      ...data,
-      helpUrl: data.helpUrl || null,
-      toolLaunchUrl: data.toolLaunchUrl || null,
-      youtubeVideoUrl: data.youtubeVideoUrl || null,
-    };
-    await updateItemMutation.mutateAsync({ itemId: editingItem.id, updates });
-  };
-
-  /* --------- Loading --------- */
-  if (itemsLoading || progressLoading) {
+  /* ======================= Render ======================= */
+  if (loading) {
     return (
       <div className="space-y-6">
         <div className="w-full text-center">
@@ -562,12 +773,9 @@ export default function DigitalSecurityChecklist() {
     );
   }
 
-  const tone = getToneClasses(percentComplete);
-
-  /* ======================= Render ======================= */
   return (
     <div className="space-y-6">
-      {/* Header: title (left), colored progress (right) */}
+      {/* Header */}
       <div className="flex flex-col gap-2 md:grid md:grid-cols-[auto_1fr] md:items-center md:gap-4">
         <h1 className="text-3xl font-bold leading-none">Digital Security</h1>
         <div className="w-full">
@@ -576,10 +784,14 @@ export default function DigitalSecurityChecklist() {
             <span className={tone.text}>{percentComplete}%</span>
           </div>
           <ColoredProgress value={percentComplete} />
+          <div className="text-xs text-muted-foreground mt-1">
+            Score (weighted by impact):{" "}
+            <span className={tone.text}>{score}%</span>
+          </div>
         </div>
       </div>
 
-      {/* Demo banner (shown when logged out) */}
+      {/* Demo banner when logged out */}
       {!isAuthenticated && (
         <Card className="border-blue-200 bg-blue-50">
           <CardContent className="p-3">
@@ -607,12 +819,13 @@ export default function DigitalSecurityChecklist() {
         </Card>
       )}
 
-      {/* What’s Next (TOP) */}
+      {/* What’s Next */}
       <Section
         id="next"
         icon={ShieldCheckIcon}
         title="What’s Next"
         subtitle="Do these next for the biggest impact."
+        highlight={highlightSection === "next"}
       >
         <Card>
           <CardContent className="p-3 space-y-2">
@@ -621,10 +834,17 @@ export default function DigitalSecurityChecklist() {
             ) : (
               nextActions.map((item) => {
                 const Icon = categoryIcons[item.category] || InfoIcon;
+                const prioGlow =
+                  highlightPriority && item.priority === highlightPriority;
+
                 return (
                   <div
                     key={item.id}
-                    className="flex items-start gap-3 rounded-md border p-3"
+                    className={cn(
+                      "flex items-start gap-3 rounded-md border p-3 transition-all",
+                      prioGlow &&
+                        "ring-2 ring-violet-400 animate-pulse [animation-duration:1200ms]",
+                    )}
                   >
                     <Icon className="h-5 w-5 text-muted-foreground mt-0.5" />
                     <div className="flex-1">
@@ -648,7 +868,10 @@ export default function DigitalSecurityChecklist() {
                             className="h-7 px-2"
                             disabled={!isAuthenticated}
                             onClick={() =>
-                              window.open(item.toolLaunchUrl!, "_blank")
+                              window.open(
+                                item.toolLaunchUrl as string,
+                                "_blank",
+                              )
                             }
                           >
                             <LinkIcon className="h-4 w-4 mr-1" />
@@ -658,7 +881,6 @@ export default function DigitalSecurityChecklist() {
                         <Button
                           size="sm"
                           className="h-7 px-2"
-                          variant="default"
                           disabled={
                             !isAuthenticated || updateProgressMutation.isPending
                           }
@@ -669,7 +891,7 @@ export default function DigitalSecurityChecklist() {
                       </div>
                     </div>
                     <Badge
-                      variant={priorityColors[item.priority]}
+                      variant={priorityBadgeVariant[item.priority]}
                       className="text-xs"
                     >
                       {item.priority}
@@ -682,12 +904,13 @@ export default function DigitalSecurityChecklist() {
         </Card>
       </Section>
 
-      {/* Full Checklist (TOP, after What's Next) */}
+      {/* Full Checklist */}
       <Section
         id="checklist"
         icon={ListChecksIcon}
         title="Your Security Checklist"
         subtitle="Review each category, launch tools, add notes, and mark tasks done."
+        highlight={highlightSection === "checklist"}
       >
         <Tabs value={selectedCategory} onValueChange={setSelectedCategory}>
           {/* Mobile tabs */}
@@ -718,7 +941,6 @@ export default function DigitalSecurityChecklist() {
           </TabsList>
 
           <TabsContent value={selectedCategory}>
-            {/* 1 card per row, YouTube on right */}
             <div className="space-y-3">
               {(selectedCategory === "all"
                 ? effectiveItems
@@ -727,228 +949,36 @@ export default function DigitalSecurityChecklist() {
                   )
               ).map((item) => {
                 const progress = progressMap[item.id];
-                const isCompleted = Boolean(progress?.isCompleted);
-                const Icon = categoryIcons[item.category] || InfoIcon;
-
-                // Build embed URL safely
-                const embedUrl = item.youtubeVideoUrl
-                  ? item.youtubeVideoUrl.includes("embed/")
-                    ? item.youtubeVideoUrl
-                    : item.youtubeVideoUrl.replace("watch?v=", "embed/")
-                  : "";
+                const isGlow = highlightItemId === item.id;
+                const prioGlow =
+                  highlightPriority && item.priority === highlightPriority;
 
                 return (
-                  <Card
+                  <ChecklistItemCard
                     key={item.id}
-                    className={`transition-all ${isCompleted ? "bg-green-50 border-green-200" : ""}`}
-                  >
-                    <CardHeader className="pb-2">
-                      <div className="flex items-start gap-2">
-                        <Checkbox
-                          checked={isCompleted}
-                          onCheckedChange={() => handleToggleComplete(item)}
-                          disabled={
-                            !isAuthenticated || updateProgressMutation.isPending
-                          }
-                          className="mt-0.5"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <Icon className="h-4 w-4 text-muted-foreground" />
-                              <CardTitle
-                                className={`text-sm font-medium leading-tight truncate ${isCompleted ? "line-through text-gray-600" : ""}`}
-                              >
-                                {item.title}
-                              </CardTitle>
-                              {isAdmin && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleEditItem(item)}
-                                  className="h-6 w-6 p-0"
-                                >
-                                  <EditIcon className="h-3 w-3" />
-                                </Button>
-                              )}
-                            </div>
-                            <Badge
-                              variant={priorityColors[item.priority]}
-                              className="text-xs"
-                            >
-                              {item.priority}
-                            </Badge>
-                          </div>
-                          <CardDescription className="text-xs text-muted-foreground line-clamp-2">
-                            {item.description}
-                          </CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-
-                    <CardContent className="pt-0">
-                      {/* Two-column content: left = actions/notes, right = YouTube */}
-                      <div className="grid gap-3 md:grid-cols-3">
-                        <div className="md:col-span-2">
-                          {!isCompleted && (
-                            <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mb-3">
-                              <div className="flex items-start gap-2">
-                                <InfoIcon className="h-4 w-4 text-yellow-700 mt-0.5" />
-                                <p className="text-xs text-yellow-800">
-                                  {item.recommendationText}
-                                </p>
-                              </div>
-                              <div className="flex flex-wrap items-center gap-3 mt-2">
-                                {item.estimatedTimeMinutes && (
-                                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                    <ClockIcon className="h-4 w-4" />
-                                    {item.estimatedTimeMinutes}m
-                                  </div>
-                                )}
-                                {item.toolLaunchUrl && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 px-2"
-                                    disabled={!isAuthenticated}
-                                    onClick={() =>
-                                      window.open(item.toolLaunchUrl!, "_blank")
-                                    }
-                                  >
-                                    <LinkIcon className="h-4 w-4 mr-1" />
-                                    Launch Tool
-                                  </Button>
-                                )}
-                                {item.helpUrl && (
-                                  <a
-                                    href={item.helpUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
-                                  >
-                                    <ExternalLinkIcon className="h-4 w-4" />
-                                    Learn
-                                  </a>
-                                )}
-                                <Button
-                                  size="sm"
-                                  className="h-7 px-2"
-                                  disabled={
-                                    !isAuthenticated ||
-                                    updateProgressMutation.isPending
-                                  }
-                                  onClick={() => handleToggleComplete(item)}
-                                >
-                                  Mark Done
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Notes */}
-                          <div className="border-t pt-2">
-                            {expandedNotes[item.id] ? (
-                              <div className="space-y-2">
-                                <Textarea
-                                  value={
-                                    notesText[item.id] || progress?.notes || ""
-                                  }
-                                  onChange={(e) =>
-                                    setNotesText((prev) => ({
-                                      ...prev,
-                                      [item.id]: e.target.value,
-                                    }))
-                                  }
-                                  placeholder="Add notes…"
-                                  rows={2}
-                                  className="text-xs"
-                                />
-                                <div className="flex gap-1">
-                                  <Button
-                                    size="sm"
-                                    className="h-7 px-2"
-                                    disabled={
-                                      !isAuthenticated ||
-                                      updateProgressMutation.isPending
-                                    }
-                                    onClick={() => handleSaveNotes(item)}
-                                  >
-                                    Save
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 px-2"
-                                    onClick={() =>
-                                      setExpandedNotes((prev) => ({
-                                        ...prev,
-                                        [item.id]: false,
-                                      }))
-                                    }
-                                  >
-                                    Cancel
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-between">
-                                {progress?.notes ? (
-                                  <p className="text-xs text-muted-foreground italic truncate flex-1 mr-2">
-                                    “{progress.notes}”
-                                  </p>
-                                ) : (
-                                  <span className="text-xs text-muted-foreground flex-1">
-                                    No notes
-                                  </span>
-                                )}
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 px-2"
-                                  onClick={() => {
-                                    setExpandedNotes((prev) => ({
-                                      ...prev,
-                                      [item.id]: true,
-                                    }));
-                                    setNotesText((prev) => ({
-                                      ...prev,
-                                      [item.id]: progress?.notes || "",
-                                    }));
-                                  }}
-                                >
-                                  {progress?.notes ? "Edit" : "Add"}
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-
-                          {isCompleted && progress?.completedAt && (
-                            <div className="text-xs text-green-700 mt-2">
-                              ✓ Completed on{" "}
-                              {new Date(
-                                progress.completedAt,
-                              ).toLocaleDateString()}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Right: YouTube (only if present) */}
-                        <div className="md:col-span-1">
-                          {embedUrl && (
-                            <div className="aspect-video">
-                              <iframe
-                                src={embedUrl}
-                                className="w-full h-full rounded"
-                                frameBorder={0}
-                                allowFullScreen
-                                title={`${item.title} Tutorial`}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                    item={item}
+                    progress={progress}
+                    isAuthenticated={isAuthenticated}
+                    updatePending={updateProgressMutation.isPending}
+                    highlight={isGlow}
+                    priorityHighlight={Boolean(prioGlow)}
+                    onToggleComplete={handleToggleComplete}
+                    onSaveNotes={handleSaveNotes}
+                    notesValue={notesText[item.id] || progress?.notes || ""}
+                    onNotesChange={(val) =>
+                      setNotesText((prev) => ({ ...prev, [item.id]: val }))
+                    }
+                    notesExpanded={Boolean(expandedNotes[item.id])}
+                    onNotesExpand={() =>
+                      setExpandedNotes((prev) => ({ ...prev, [item.id]: true }))
+                    }
+                    onNotesCollapse={() =>
+                      setExpandedNotes((prev) => ({
+                        ...prev,
+                        [item.id]: false,
+                      }))
+                    }
+                  />
                 );
               })}
             </div>
@@ -962,6 +992,7 @@ export default function DigitalSecurityChecklist() {
         icon={LockIcon}
         title="Partner Tools"
         subtitle="Try trusted services to speed up your protection."
+        highlight={highlightSection === "partners"}
       >
         <div className="grid gap-4 md:grid-cols-3">
           <PartnerCard
@@ -986,12 +1017,13 @@ export default function DigitalSecurityChecklist() {
         </div>
       </Section>
 
-      {/* Recent Activity (end) */}
+      {/* Recent Activity */}
       <Section
         id="activity"
         icon={CheckCircleIcon}
         title="Recent Activity"
         subtitle="Your latest completions."
+        highlight={highlightSection === "activity"}
       >
         <Card className="w-full">
           <CardContent className="p-3">
@@ -1014,7 +1046,7 @@ export default function DigitalSecurityChecklist() {
                       </div>
                     </div>
                     <Badge
-                      variant={priorityColors[item.priority]}
+                      variant={priorityBadgeVariant[item.priority]}
                       className="text-xs"
                     >
                       {item.priority}
@@ -1026,193 +1058,6 @@ export default function DigitalSecurityChecklist() {
           </CardContent>
         </Card>
       </Section>
-
-      {/* Admin Edit Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Edit Security Checklist Item</DialogTitle>
-            <DialogDescription>
-              Update the details for this item.
-            </DialogDescription>
-          </DialogHeader>
-
-          <Form {...editForm}>
-            <form
-              onSubmit={editForm.handleSubmit(handleSaveEdit)}
-              className="space-y-4"
-            >
-              <FormField
-                control={editForm.control}
-                name="title"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Title</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl>
-                      <Textarea rows={2} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="recommendationText"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Recommendation</FormLabel>
-                    <FormControl>
-                      <Textarea rows={3} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="toolLaunchUrl"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Launch Tool URL</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="https://example.com/tool"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="helpUrl"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Help URL</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="https://example.com/help"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="youtubeVideoUrl"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>YouTube URL</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="https://youtube.com/watch?v=..."
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="estimatedTimeMinutes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Estimated Time (minutes)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={field.value ?? 0}
-                        onChange={(e) => field.onChange(Number(e.target.value))}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsEditDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={updateItemMutation.isPending}>
-                  {updateItemMutation.isPending ? "Saving…" : "Save Changes"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Error footer */}
-      {itemsError && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="p-3 text-red-800">
-            <div className="flex items-center gap-2">
-              <AlertCircleIcon className="h-5 w-5" />
-              <span className="text-sm">
-                {(itemsErrObj as Error)?.message ||
-                  "Failed to load checklist items."}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
-  );
-}
-
-/* ===== PartnerCard helper ===== */
-function PartnerCard({
-  name,
-  tagline,
-  cta,
-  href,
-  badge,
-}: {
-  name: string;
-  tagline: string;
-  cta: string;
-  href: string;
-  badge?: string;
-}) {
-  return (
-    <Card className="h-full">
-      <CardHeader className="py-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">{name}</CardTitle>
-          {badge && <Badge variant="outline">{badge}</Badge>}
-        </div>
-        <CardDescription className="text-xs">{tagline}</CardDescription>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <Button asChild className="w-full">
-          <a href={href} target="_blank" rel="noopener noreferrer">
-            <ExternalLinkIcon className="h-4 w-4 mr-2" />
-            {cta}
-          </a>
-        </Button>
-      </CardContent>
-    </Card>
   );
 }

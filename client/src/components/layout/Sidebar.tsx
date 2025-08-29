@@ -98,12 +98,6 @@ export default function Sidebar({
       path: "/scam-lookup",
       icon: <SearchIcon className="h-5 w-5" />,
     },
-
-    {
-      name: "Reports",
-      path: "/reports",
-      icon: <ListIcon className="h-5 w-5" />,
-    },
   ];
 
   // Admin-only navigation items
