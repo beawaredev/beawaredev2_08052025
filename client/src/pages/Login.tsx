@@ -1,5 +1,4 @@
-import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
+import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -52,8 +51,6 @@ export default function Login() {
     loginWithGoogle,
     completePostLoginRedirect,
   } = useAuth();
-
-  const [_, setLocation] = useLocation();
 
   /* If already authenticated, bounce to intended page or dashboard */
   useEffect(() => {
@@ -126,6 +123,22 @@ export default function Login() {
     } finally {
       setIsGoogleLoading(false);
     }
+  }
+
+  // Minimal UI while auth state is resolving or redirecting
+  if (authLoading || user) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-8rem)]">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="text-2xl font-bold">Login</CardTitle>
+            <CardDescription>
+              {user ? "Redirecting to your Dashboard…" : "Checking session…"}
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
   }
 
   return (

@@ -9,41 +9,26 @@ const HomeIcon = ({ className }: { className?: string }) => (
 const LayoutDashboardIcon = ({ className }: { className?: string }) => (
   <span className={className}>📊</span>
 );
-const FilePlusIcon = ({ className }: { className?: string }) => (
-  <span className={className}>📄</span>
-);
 const SearchIcon = ({ className }: { className?: string }) => (
   <span className={className}>🔍</span>
-);
-const ListIcon = ({ className }: { className?: string }) => (
-  <span className={className}>📋</span>
 );
 const ShieldCheckIcon = ({ className }: { className?: string }) => (
   <span className={className}>🛡️</span>
 );
-const SettingsIcon = ({ className }: { className?: string }) => (
-  <span className={className}>⚙️</span>
-);
-const LogOutIcon = ({ className }: { className?: string }) => (
-  <span className={className}>🚪</span>
-);
-const LifeBuoyIcon = ({ className }: { className?: string }) => (
-  <span className={className}>🆘</span>
-);
 const VideoIcon = ({ className }: { className?: string }) => (
   <span className={className}>🎥</span>
 );
-const UserCheckIcon = ({ className }: { className?: string }) => (
-  <span className={className}>👤</span>
-);
-const GavelIcon = ({ className }: { className?: string }) => (
-  <span className={className}>⚖️</span>
+const LifeBuoyIcon = ({ className }: { className?: string }) => (
+  <span className={className}>🆘</span>
 );
 const MailIcon = ({ className }: { className?: string }) => (
   <span className={className}>📧</span>
 );
 const SecurityIcon = ({ className }: { className?: string }) => (
   <span className={className}>🔒</span>
+);
+const SettingsIcon = ({ className }: { className?: string }) => (
+  <span className={className}>⚙️</span>
 );
 
 interface SidebarProps {
@@ -56,19 +41,13 @@ export default function Sidebar({
   setMobileMenuOpen,
 }: SidebarProps) {
   const [location] = useLocation();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
-  const isActive = (path: string) => {
-    return location === path;
-  };
+  const isActive = (path: string) => location === path;
 
-  // Common navigation items for all users
-  const commonNavItems = [
+  // Public-only nav (includes Home for non-auth users)
+  const publicNavItems = [
     { name: "Home", path: "/", icon: <HomeIcon className="h-5 w-5" /> },
-  ];
-
-  // Content navigation items accessible by all users
-  const contentNavItems = [
     {
       name: "Educational Videos",
       path: "/scam-videos",
@@ -86,7 +65,7 @@ export default function Sidebar({
     },
   ];
 
-  // Navigation items that require authentication
+  // Logged-in user nav (NO Home here)
   const authNavItems = [
     {
       name: "Dashboard",
@@ -98,9 +77,28 @@ export default function Sidebar({
       path: "/scam-lookup",
       icon: <SearchIcon className="h-5 w-5" />,
     },
+    {
+      name: "Educational Videos",
+      path: "/scam-videos",
+      icon: <VideoIcon className="h-5 w-5" />,
+    },
+    {
+      name: "Scam Help",
+      path: "/help",
+      icon: <LifeBuoyIcon className="h-5 w-5" />,
+    },
+    {
+      name: "Digital Security",
+      path: "/secure-your-digital-presence",
+      icon: <SecurityIcon className="h-5 w-5" />,
+    },
+    {
+      name: "Settings",
+      path: "/settings",
+      icon: <SettingsIcon className="h-5 w-5" />,
+    },
   ];
 
-  // Admin-only navigation items
   const adminNavItems = [
     {
       name: "Admin Panel",
@@ -109,47 +107,21 @@ export default function Sidebar({
     },
   ];
 
-  // Security and utility navigation items
-  const securityNavItems = [
-    {
-      name: "Digital Security",
-      path: "/secure-your-digital-presence",
-      icon: <SecurityIcon className="h-5 w-5" />,
-    },
-  ];
+  // Decide which list to render
+  let navigationItems = user ? [...authNavItems] : [...publicNavItems];
 
-  // Settings and utility navigation items
-  const utilityNavItems = [
-    {
-      name: "Settings",
-      path: "/settings",
-      icon: <SettingsIcon className="h-5 w-5" />,
-    },
-  ];
-
-  // Determine which items to show based on user's authentication state and role
-  let navigationItems = [...commonNavItems];
-
-  if (user) {
-    // For authenticated users: Home -> Dashboard -> Report Scam -> Search -> Reports -> Educational Videos -> Scam Help -> Digital Security -> Settings
-    navigationItems = [
-      ...navigationItems,
-      ...authNavItems,
-      ...contentNavItems,
-      ...securityNavItems,
-      ...utilityNavItems,
-    ];
-
-    if (user.role === "admin") {
-      // Insert admin items before settings
-      navigationItems.splice(navigationItems.length - 1, 0, ...adminNavItems);
+  // Insert admin items for admins (before Settings)
+  if (user && (user as any).role === "admin") {
+    const settingsIndex = navigationItems.findIndex(
+      (i) => i.path === "/settings",
+    );
+    if (settingsIndex >= 0) {
+      navigationItems.splice(settingsIndex, 0, ...adminNavItems);
+    } else {
+      navigationItems.push(...adminNavItems);
     }
-  } else {
-    // For non-authenticated users: Home -> Educational Videos -> Scam Help
-    navigationItems = [...navigationItems, ...contentNavItems];
   }
 
-  // Classes for mobile menu
   const mobileMenuClasses = mobileMenuOpen
     ? "flex absolute inset-0 z-40 flex-col w-64 h-screen pt-0 bg-white shadow-lg"
     : "hidden";
@@ -162,7 +134,7 @@ export default function Sidebar({
           <img
             src={beawareLogo}
             alt="BeAware.fyi Logo"
-            className="h-10 w-auto object-contain"
+            className="h-12 md:h-16 w-auto object-contain"
           />
         </div>
 
@@ -181,9 +153,9 @@ export default function Sidebar({
                   {item.icon}
                   <div className="flex items-center">
                     <span>{item.name}</span>
-                    {item.label && (
+                    {(item as any).label && (
                       <span className="text-xs bg-amber-100 text-amber-800 py-0.5 px-2 ml-2 rounded-full">
-                        {item.label}
+                        {(item as any).label}
                       </span>
                     )}
                   </div>
@@ -228,9 +200,9 @@ export default function Sidebar({
                   {item.icon}
                   <div className="flex items-center">
                     <span>{item.name}</span>
-                    {item.label && (
+                    {(item as any).label && (
                       <span className="text-xs bg-amber-100 text-amber-800 py-0.5 px-2 ml-2 rounded-full">
-                        {item.label}
+                        {(item as any).label}
                       </span>
                     )}
                   </div>
