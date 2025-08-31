@@ -1,4 +1,4 @@
-// AdminPanel.tsx
+// /src/pages/AdminPanel.tsx (aligned to Dashboard, full width)
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -7,18 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
-  EyeIcon,
-  CheckIcon,
-  XIcon,
   AlertCircleIcon,
-  AlertTriangleIcon,
   Video,
   ShieldCheckIcon,
   PlusIcon,
   EditIcon,
   TrashIcon,
+  XIcon,
 } from "lucide-react";
-import { format } from "date-fns";
 import { queryClient as globalQueryClient } from "@/lib/queryClient";
 import { toast } from "@/hooks/use-toast";
 import { ScamVideoManager } from "@/components/admin/ScamVideoManager";
@@ -40,48 +36,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-// ===== Types =====
-interface User {
-  id: number;
-  displayName: string;
-  email: string;
-  beawareUsername: string;
-}
-
-interface ScamReport {
-  id: number;
-  userId: number;
-  scamType: "phone" | "email" | "business";
-  scamPhoneNumber: string | null;
-  scamEmail: string | null;
-  scamBusinessName: string | null;
-  incidentDate: string;
-  location: string;
-  description: string;
-  hasProofDocument: boolean;
-  proofDocumentPath: string | null;
-  proofDocumentType: string | null;
-  reportedAt: string;
-  isVerified: boolean;
-  verifiedBy: number | null;
-  verifiedAt: string | null;
-  user?: User;
-}
-
-interface ApiResponse {
-  reports: ScamReport[];
-  pagination: {
-    page: number;
-    limit: number;
-    totalCount: number;
-    totalPages: number;
-  };
-}
-
+/**
+ * Admin Panel (reports removed)
+ * Tabs: Videos, Security Checklist, Scam APIs
+ */
 export default function AdminPanel() {
-  const [activeTab, setActiveTab] = useState("pending");
+  const [activeTab, setActiveTab] = useState("security");
 
-  // API Configuration management state
+  // ===== API Configs state =====
   const [isApiCreateDialogOpen, setIsApiCreateDialogOpen] = useState(false);
   const [isApiEditDialogOpen, setIsApiEditDialogOpen] = useState(false);
   const [editingApiConfig, setEditingApiConfig] = useState<any>(null);
@@ -119,89 +81,6 @@ export default function AdminPanel() {
   });
 
   const apiConfigs = apiConfigsResponse || [];
-
-  // ===== Scam reports =====
-  const { data: pendingResponse, isLoading: isPendingLoading } =
-    useQuery<ApiResponse>({
-      queryKey: ["/api/scam-reports", "pending"],
-      queryFn: async () => {
-        const res = await apiRequest("/api/scam-reports?isVerified=false");
-        return res.json();
-      },
-      enabled: activeTab === "pending",
-    });
-
-  const { data: verifiedResponse, isLoading: isVerifiedLoading } =
-    useQuery<ApiResponse>({
-      queryKey: ["/api/scam-reports", "verified"],
-      queryFn: async () => {
-        const res = await apiRequest("/api/scam-reports?isVerified=true");
-        return res.json();
-      },
-      enabled: activeTab === "verified",
-    });
-
-  const pendingReports = (pendingResponse as any)?.reports || [];
-  const verifiedReports = (verifiedResponse as any)?.reports || [];
-
-  // ===== Verify report =====
-  const verifyMutation = useMutation({
-    mutationFn: async (reportId: number) => {
-      const res = await apiRequest(`/api/scam-reports/${reportId}/verify`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isVerified: true }),
-      });
-      if (!res.ok) throw new Error("Failed to verify report");
-      return res.json();
-    },
-    onSuccess: () => {
-      globalQueryClient.invalidateQueries({
-        queryKey: ["/api/scam-reports", "pending"],
-      });
-      globalQueryClient.invalidateQueries({
-        queryKey: ["/api/scam-reports", "verified"],
-      });
-      toast({
-        title: "Report Verified",
-        description: "The scam report has been verified successfully.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Verification Failed",
-        description: `An error occurred: ${error?.message || String(error)}`,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleVerify = (reportId: number) => {
-    toast({
-      title: "Confirm Report Verification",
-      description: (
-        <div className="flex flex-col gap-2">
-          <p>
-            Are you sure you want to verify this report? This will make it
-            publicly visible.
-          </p>
-          <div className="flex justify-end gap-2 mt-2">
-            <Button variant="outline" size="sm">
-              Cancel
-            </Button>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => verifyMutation.mutate(reportId)}
-            >
-              Verify
-            </Button>
-          </div>
-        </div>
-      ),
-      duration: 10000,
-    });
-  };
 
   // ===== API Config forms/mutations =====
   const apiCreateForm = useForm({
@@ -457,27 +336,20 @@ export default function AdminPanel() {
   };
 
   // ===== Render =====
-  const getScamIdentifier = (report: ScamReport) => {
-    switch (report.scamType) {
-      case "phone":
-        return report.scamPhoneNumber;
-      case "email":
-        return report.scamEmail;
-      case "business":
-        return report.scamBusinessName;
-      default:
-        return "Unknown";
-    }
-  };
-
   return (
-    <div className="container mx-auto py-8 max-w-5xl">
-      <h1 className="text-2xl font-bold mb-6">Admin Dashboard</h1>
+    <div className="space-y-6">
+      {/* Top heading aligned with Dashboard */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+          <p className="text-muted-foreground mt-1">
+            Manage videos, security checklist items, and scam API integrations.
+          </p>
+        </div>
+      </div>
 
-      <Tabs defaultValue="pending" onValueChange={setActiveTab}>
+      <Tabs defaultValue="security" onValueChange={setActiveTab}>
         <TabsList className="mb-6 flex flex-wrap">
-          <TabsTrigger value="pending">Pending Reports</TabsTrigger>
-          <TabsTrigger value="verified">Verified Reports</TabsTrigger>
           <TabsTrigger value="videos">
             <span className="flex items-center">
               <Video className="h-4 w-4 mr-1" /> Videos
@@ -495,184 +367,6 @@ export default function AdminPanel() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Pending Reports */}
-        <TabsContent value="pending" className="mt-6">
-          <h2 className="text-xl font-semibold mb-4">Pending Reports</h2>
-          {isPendingLoading ? (
-            <div className="text-center py-8">Loading pending reports...</div>
-          ) : pendingReports.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <AlertCircleIcon className="h-12 w-12 mx-auto mb-2" />
-              <p>No pending reports found</p>
-              <p className="text-sm mt-2">
-                All scam reports have been reviewed
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {pendingReports.map((report: ScamReport) => (
-                <Card key={report.id} className="border-yellow-200">
-                  <CardHeader className="pb-2">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <Badge
-                            variant="outline"
-                            className="bg-yellow-50 text-yellow-700 border-yellow-200"
-                          >
-                            Pending
-                          </Badge>
-                          <p className="text-sm text-muted-foreground">
-                            ID: #{report.id}
-                          </p>
-                        </div>
-                        <CardTitle className="flex items-center gap-2">
-                          <Badge variant="outline">{report.scamType}</Badge>
-                          {getScamIdentifier(report)}
-                        </CardTitle>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Reported on{" "}
-                          {format(new Date(report.reportedAt), "MMM d, yyyy")}{" "}
-                          by {report.user?.displayName || "Unknown User"}
-                        </p>
-                      </div>
-                      <div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:text-red-800"
-                          onClick={() =>
-                            window.open(`/reports/${report.id}`, "_blank")
-                          }
-                        >
-                          <AlertTriangleIcon className="h-4 w-4 mr-1" />{" "}
-                          Unverified
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-2">
-                      <div>
-                        <span className="font-medium">Incident Date:</span>{" "}
-                        {format(new Date(report.incidentDate), "MMM d, yyyy")}
-                      </div>
-                      <div>
-                        <span className="font-medium">Location:</span>{" "}
-                        {report.location}
-                      </div>
-                    </div>
-                    <p className="text-sm">
-                      <span className="font-medium">Description:</span>{" "}
-                      {report.description}
-                    </p>
-
-                    <div className="mt-4 pt-4 border-t border-gray-200 flex gap-2 justify-end">
-                      <Button
-                        variant="outline"
-                        onClick={() =>
-                          window.open(`/reports/${report.id}`, "_blank")
-                        }
-                      >
-                        <EyeIcon className="h-4 w-4 mr-2" /> View Details
-                      </Button>
-                      <Button
-                        variant="default"
-                        className="bg-green-600 hover:bg-green-700"
-                        onClick={() => handleVerify(report.id)}
-                        disabled={verifyMutation.isPending}
-                      >
-                        <CheckIcon className="h-4 w-4 mr-2" />
-                        {verifyMutation.isPending
-                          ? "Verifying..."
-                          : "Approve & Verify"}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        {/* Verified Reports */}
-        <TabsContent value="verified" className="mt-6">
-          <h2 className="text-xl font-semibold mb-4">Verified Reports</h2>
-          {isVerifiedLoading ? (
-            <div className="text-center py-8">Loading verified reports...</div>
-          ) : !verifiedReports ||
-            !Array.isArray(verifiedReports) ||
-            verifiedReports.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <CheckIcon className="h-12 w-12 mx-auto mb-2" />
-              <p>No verified reports found</p>
-              <p className="text-sm mt-2">Verified reports will appear here</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {verifiedReports.map((report: ScamReport) => (
-                <Card key={report.id} className="border-green-200">
-                  <CardHeader className="pb-2">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <Badge
-                            variant="outline"
-                            className="bg-green-50 text-green-700 border-green-200"
-                          >
-                            Verified
-                          </Badge>
-                          <p className="text-sm text-muted-foreground">
-                            ID: #{report.id}
-                          </p>
-                        </div>
-                        <CardTitle className="flex items-center gap-2">
-                          <Badge variant="outline">{report.scamType}</Badge>
-                          {getScamIdentifier(report)}
-                        </CardTitle>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Verified on{" "}
-                          {report.verifiedAt
-                            ? format(new Date(report.verifiedAt), "MMM d, yyyy")
-                            : "Unknown"}
-                        </p>
-                      </div>
-                      <div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:text-green-800"
-                          onClick={() =>
-                            window.open(`/reports/${report.id}`, "_blank")
-                          }
-                        >
-                          <CheckIcon className="h-4 w-4 mr-1" /> Verified
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-2">
-                      <div>
-                        <span className="font-medium">Incident Date:</span>{" "}
-                        {format(new Date(report.incidentDate), "MMM d, yyyy")}
-                      </div>
-                      <div>
-                        <span className="font-medium">Location:</span>{" "}
-                        {report.location}
-                      </div>
-                    </div>
-                    <p className="text-sm">
-                      <span className="font-medium">Description:</span>{" "}
-                      {report.description}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
         {/* Videos */}
         <TabsContent value="videos" className="mt-6">
           <ScamVideoManager />
@@ -686,8 +380,9 @@ export default function AdminPanel() {
         {/* Scam API Configs */}
         <TabsContent value="api-configs" className="mt-6">
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold">
+            {/* Subsection header */}
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-xl font-semibold tracking-tight">
                 Scam Detection API Configuration
               </h2>
               <Button onClick={() => setIsApiCreateDialogOpen(true)}>
@@ -1437,7 +1132,7 @@ function AdminSecurityChecklistPanel() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
-  // Fetch checklist items explicitly from API
+  // Fetch checklist items
   const { data: checklistItems = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/security-checklist"],
     queryFn: async () => {
@@ -1466,7 +1161,7 @@ function AdminSecurityChecklistPanel() {
     return ["all", ...cats];
   }, [checklistItems]);
 
-  // Edit form
+  // Forms
   const editForm = useForm<any>({
     defaultValues: {
       title: "",
@@ -1481,7 +1176,6 @@ function AdminSecurityChecklistPanel() {
     },
   });
 
-  // Create form
   const createForm = useForm<any>({
     defaultValues: {
       title: "",
@@ -1546,7 +1240,6 @@ function AdminSecurityChecklistPanel() {
     },
   });
 
-  // ********** FIXED CREATE MUTATION (sends JSON properly) **********
   const createItemMutation = useMutation({
     mutationFn: async (data: any) => {
       const payload = {
@@ -1653,9 +1346,10 @@ function AdminSecurityChecklistPanel() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      {/* Subsection header */}
+      <div className="mb-6 flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold">
+          <h2 className="text-xl font-semibold tracking-tight">
             Security Checklist Management
           </h2>
           <p className="text-sm text-muted-foreground">
@@ -1708,7 +1402,9 @@ function AdminSecurityChecklistPanel() {
 
       {/* Category Filter */}
       <div className="flex gap-2 flex-wrap">
-        {categories.map((category) => (
+        {Array.from(
+          new Set(["all", ...checklistItems.map((i: any) => i.category)]),
+        ).map((category) => (
           <Button
             key={category}
             variant={selectedCategory === category ? "default" : "outline"}
@@ -1716,7 +1412,7 @@ function AdminSecurityChecklistPanel() {
             onClick={() => setSelectedCategory(category)}
             className="capitalize"
           >
-            {category.replace("_", " ")}
+            {String(category).replace("_", " ")}
           </Button>
         ))}
       </div>
