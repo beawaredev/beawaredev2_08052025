@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import Logo from "@assets/OnlyBeAware.svg";
+import { useAuth } from "@/contexts/AuthContext"; // if your path is singular, change to "@/context/AuthContext"
 
 import {
   Shield,
@@ -32,6 +33,14 @@ import {
 export default function Home() {
   const [phoneQuery, setPhoneQuery] = useState("");
   const [urlQuery, setUrlQuery] = useState("");
+
+  // --- Robust auth detection across different context shapes ---
+  const auth = (useAuth?.() as any) ?? {};
+  const isAuthed: boolean = !!(
+    auth?.isAuthenticated ??
+    auth?.user ??
+    auth?.currentUser
+  );
 
   const goPhoneLookup = () => {
     const q = phoneQuery.trim();
@@ -83,16 +92,30 @@ export default function Home() {
             and expert tools.
           </p>
 
-          <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
-            <Button size="lg" asChild>
-              <a href="/register" className="flex items-center gap-2">
-                Get started free <ArrowRight className="h-4 w-4" />
-              </a>
-            </Button>
-            <Button size="lg" variant="outline" asChild>
-              <a href="#checklist">See the checklist</a>
-            </Button>
-          </div>
+          {/* HERO CTAs — show ONLY checklist when logged in */}
+          {isAuthed ? (
+            <div className="mt-7 flex items-center justify-center">
+              <Button size="lg" asChild>
+                <a
+                  href="/secure-your-digital-presence"
+                  className="flex items-center gap-2"
+                >
+                  Open Security Checklist <ArrowRight className="h-4 w-4" />
+                </a>
+              </Button>
+            </div>
+          ) : (
+            <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+              <Button size="lg" asChild>
+                <a href="/register" className="flex items-center gap-2">
+                  Get started free <ArrowRight className="h-4 w-4" />
+                </a>
+              </Button>
+              <Button size="lg" variant="outline" asChild>
+                <a href="#checklist">See the checklist</a>
+              </Button>
+            </div>
+          )}
 
           {/* quick checks */}
           <div className="mt-10 grid gap-4 sm:grid-cols-2 max-w-3xl mx-auto">
@@ -179,13 +202,13 @@ export default function Home() {
           <ProblemCard
             icon={<ListChecks className="h-5 w-5 text-emerald-600" />}
             title="Steps are scattered"
-            desc="Credit freeze, 2FA, passwords, device & Wi‑Fi—your checklist brings it together, step by step."
+            desc="Credit freeze, 2FA, passwords, device & Wi-Fi—your checklist brings it together, step by step."
             delay={0.05}
           />
           <ProblemCard
             icon={<Gauge className="h-5 w-5 text-indigo-600" />}
             title="No sense of progress"
-            desc="See the payoff as you complete high‑impact actions and lock down your identity."
+            desc="See the payoff as you complete high-impact actions and lock down your identity."
             delay={0.1}
           />
         </div>
@@ -233,7 +256,7 @@ export default function Home() {
                   <li className="flex items-start gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5" />
                     <span>
-                      <b>Real‑time feedback:</b> See progress as you finish
+                      <b>Real-time feedback:</b> See progress as you finish
                       steps.
                     </span>
                   </li>
@@ -267,9 +290,9 @@ export default function Home() {
             />
             <MiniTask
               icon={<Shield className="h-4 w-4 text-slate-700" />}
-              title="Enable 2‑Factor Authentication"
+              title="Enable 2-Factor Authentication"
               points="+18 pts • 10–15 min"
-              desc="Add a one‑time code from an authenticator app on key accounts."
+              desc="Add a one-time code from an authenticator app on key accounts."
               delay={0.05}
             />
             <MiniTask
@@ -281,7 +304,7 @@ export default function Home() {
             />
             <MiniTask
               icon={<WifiIcon />}
-              title="Secure your Wi‑Fi & devices"
+              title="Secure your Wi-Fi & devices"
               points="+12 pts • 10–15 min"
               desc="Strong router password, auto updates, and screen locks across devices."
               delay={0.15}
@@ -314,7 +337,7 @@ export default function Home() {
           <FeatureCard
             icon={<BarChart className="h-5 w-5" />}
             title="AI help when targeted"
-            desc="Plain‑English guidance on what to do next if you think you’ve been hit."
+            desc="Plain-English guidance on what to do next if you think you’ve been hit."
             href="/scam-videos"
             delay={0.1}
           />
@@ -336,8 +359,8 @@ export default function Home() {
           />
           <PerkCard
             icon={<Shield className="h-5 w-5 text-slate-700" />}
-            title="Expert‑approved"
-            desc="We vet tools for security, privacy, and value—no pay‑to‑play listings."
+            title="Expert-approved"
+            desc="We vet tools for security, privacy, and value—no pay-to-play listings."
             delay={0.05}
           />
           <PerkCard
@@ -347,12 +370,25 @@ export default function Home() {
             delay={0.1}
           />
         </div>
+
+        {/* Partner CTA — no register shown when logged in */}
         <div className="mt-6 text-center">
-          <Button asChild>
-            <a href="/register" className="inline-flex items-center gap-2">
-              See partner deals <ArrowRight className="h-4 w-4" />
-            </a>
-          </Button>
+          {isAuthed ? (
+            <Button asChild>
+              <a
+                href="/secure-your-digital-presence"
+                className="inline-flex items-center gap-2"
+              >
+                Open Security Checklist <ArrowRight className="h-4 w-4" />
+              </a>
+            </Button>
+          ) : (
+            <Button asChild>
+              <a href="/register" className="inline-flex items-center gap-2">
+                See partner deals <ArrowRight className="h-4 w-4" />
+              </a>
+            </Button>
+          )}
         </div>
       </Section>
 
@@ -373,13 +409,13 @@ export default function Home() {
             <PerkCard
               icon={<Users className="h-5 w-5 text-slate-700" />}
               title="Built for everyone"
-              desc="Clear, step‑by‑step guidance in plain English—so anyone can protect themselves."
+              desc="Clear, step-by-step guidance in plain English—so anyone can protect themselves."
               delay={0.05}
             />
             <PerkCard
               icon={<Lock className="h-5 w-5 text-slate-700" />}
               title="Privacy first"
-              desc="Your safety comes first. We never sell your data or allow pay‑to‑play placements."
+              desc="Your safety comes first. We never sell your data or allow pay-to-play placements."
               delay={0.1}
             />
           </div>
@@ -395,16 +431,31 @@ export default function Home() {
           Start your guided protection today
         </h2>
         <p className="mt-3 text-lg text-slate-600 max-w-2xl mx-auto">
-          Open your checklist, complete high‑impact steps, and unlock trusted
+          Open your checklist, complete high-impact steps, and unlock trusted
           tools at better prices.
         </p>
         <div className="mt-6 flex justify-center gap-3">
-          <Button size="lg" asChild>
-            <a href="/register">Create Account</a>
-          </Button>
-          <Button size="lg" variant="outline" asChild>
-            <a href="/login">Log In</a>
-          </Button>
+          {isAuthed ? (
+            <>
+              <Button size="lg" asChild>
+                <a href="/secure-your-digital-presence">
+                  Open Security Checklist
+                </a>
+              </Button>
+              <Button size="lg" variant="outline" asChild>
+                <a href="/dashboard">Go to Dashboard</a>
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button size="lg" asChild>
+                <a href="/register">Create Account</a>
+              </Button>
+              <Button size="lg" variant="outline" asChild>
+                <a href="/login">Log In</a>
+              </Button>
+            </>
+          )}
         </div>
       </section>
     </div>
