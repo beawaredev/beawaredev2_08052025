@@ -1661,7 +1661,7 @@ export class AzureStorage implements IStorage {
       .input("addedById", sql.Int, video.createdBy);
 
     const result = await request.query(`
-      INSERT INTO ScamVideos
+      INSERT INTO scam_videos
         (title, description, youtubeUrl, youtubeVideoId, scamType, featured, consolidatedScamId, addedById, addedAt, updatedAt)
       OUTPUT INSERTED.*
       VALUES
