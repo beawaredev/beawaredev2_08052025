@@ -1,4 +1,4 @@
-// /src/pages/AdminPanel.tsx (aligned to Dashboard, full width)
+// /src/pages/AdminPanel.tsx
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -7,13 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
-  AlertCircleIcon,
+  AlertCircle,
   Video,
-  ShieldCheckIcon,
-  PlusIcon,
-  EditIcon,
-  TrashIcon,
-  XIcon,
+  ShieldCheck,
+  Plus,
+  Edit,
+  Trash2,
+  X,
 } from "lucide-react";
 import { queryClient as globalQueryClient } from "@/lib/queryClient";
 import { toast } from "@/hooks/use-toast";
@@ -357,12 +357,12 @@ export default function AdminPanel() {
           </TabsTrigger>
           <TabsTrigger value="security">
             <span className="flex items-center">
-              <ShieldCheckIcon className="h-4 w-4 mr-1" /> Security Checklist
+              <ShieldCheck className="h-4 w-4 mr-1" /> Security Checklist
             </span>
           </TabsTrigger>
           <TabsTrigger value="api-configs">
             <span className="flex items-center">
-              <AlertCircleIcon className="h-4 w-4 mr-1" /> Scam APIs
+              <AlertCircle className="h-4 w-4 mr-1" /> Scam APIs
             </span>
           </TabsTrigger>
         </TabsList>
@@ -386,7 +386,7 @@ export default function AdminPanel() {
                 Scam Detection API Configuration
               </h2>
               <Button onClick={() => setIsApiCreateDialogOpen(true)}>
-                <PlusIcon className="h-4 w-4 mr-2" />
+                <Plus className="h-4 w-4 mr-2" />
                 Add API Configuration
               </Button>
             </div>
@@ -562,7 +562,7 @@ export default function AdminPanel() {
                                 apiDeleteMutation.mutate(config.id)
                               }
                             >
-                              <XIcon className="h-4 w-4" />
+                              <X className="h-4 w-4" />
                             </Button>
                           </div>
                         </div>
@@ -757,7 +757,7 @@ export default function AdminPanel() {
 
                   {apiConfigsError && (
                     <div className="text-center py-8 text-red-600">
-                      <AlertCircleIcon className="h-12 w-12 mx-auto mb-2" />
+                      <AlertCircle className="h-12 w-12 mx-auto mb-2" />
                       <p>Error loading API configurations</p>
                       <p className="text-sm mt-2">
                         {(apiConfigsError as Error).message}
@@ -1357,7 +1357,7 @@ function AdminSecurityChecklistPanel() {
           </p>
         </div>
         <Button onClick={() => setIsCreateDialogOpen(true)}>
-          <PlusIcon className="h-4 w-4 mr-2" />
+          <Plus className="h-4 w-4 mr-2" />
           Add Security Component
         </Button>
       </div>
@@ -1433,7 +1433,7 @@ function AdminSecurityChecklistPanel() {
                     onClick={() => handleEditItem(item)}
                     className="h-6 w-6 p-0"
                   >
-                    <EditIcon className="h-3 w-3" />
+                    <Edit className="h-3 w-3" />
                   </Button>
                   <Button
                     variant="ghost"
@@ -1441,7 +1441,7 @@ function AdminSecurityChecklistPanel() {
                     onClick={() => handleDeleteItem(item.id)}
                     className="h-6 w-6 p-0 text-red-600 hover:text-red-800"
                   >
-                    <TrashIcon className="h-3 w-3" />
+                    <Trash2 className="h-3 w-3" />
                   </Button>
                 </div>
               </div>
