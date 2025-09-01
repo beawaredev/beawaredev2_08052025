@@ -62,11 +62,11 @@ export interface PasswordReset {
 import { IStorage } from "./storage.js";
 import {
   InsertUser,
-  User,
+  User as SharedUser,
   InsertScamReport,
-  ScamReport,
+  ScamReport as SharedScamReport,
   InsertScamComment,
-  ScamComment,
+  ScamComment as SharedScamComment,
   ConsolidatedScam,
   InsertConsolidatedScam,
   ScamReportConsolidation,
@@ -84,6 +84,8 @@ import {
   InsertSecurityChecklistItem,
   UserSecurityProgress,
   InsertUserSecurityProgress,
+  ApiConfig,
+  InsertApiConfig,
 } from "../shared/schema.js";
 
 // Azure SQL Database Storage Implementation
@@ -1642,31 +1644,21 @@ export class AzureStorage implements IStorage {
     return undefined;
   }
 
-  async addScamVideo(data: {
-    title: string;
-    description: string;
-    youtubeUrl: string;
-    youtubeVideoId: string;
-    scamType: "phone" | "email" | "business";
-    featured?: boolean;
-    consolidatedScamId?: number | null;
-    addedById: number;
-  }) {
-    const sql = this.sql; // <— how other methods in AzureStorage access mssql (usually `this.sql` or imported `sql`)
-    const pool = this.pool; // <— same pattern other AzureStorage methods use to get a Request
-
-    const featured = data.featured ? 1 : 0;
+  async addScamVideo(video: { title: string; videoUrl: string; createdBy: number; }) {
+    const featured = 0;
+    const scamType = "business"; // Default scam type
+    const description = ""; // Default empty description
 
     const request = pool
       .request()
-      .input("title", sql.NVarChar(255), data.title)
-      .input("description", sql.NVarChar(sql.MAX), data.description)
-      .input("youtubeUrl", sql.NVarChar(2048), data.youtubeUrl)
-      .input("youtubeVideoId", sql.NVarChar(64), data.youtubeVideoId)
-      .input("scamType", sql.NVarChar(32), data.scamType)
+      .input("title", sql.NVarChar(255), video.title)
+      .input("description", sql.NVarChar(sql.MAX), description)
+      .input("youtubeUrl", sql.NVarChar(2048), video.videoUrl)
+      .input("youtubeVideoId", sql.NVarChar(64), "")
+      .input("scamType", sql.NVarChar(32), scamType)
       .input("featured", sql.Bit, featured)
-      .input("consolidatedScamId", sql.Int, data.consolidatedScamId ?? null)
-      .input("addedById", sql.Int, data.addedById);
+      .input("consolidatedScamId", sql.Int, null)
+      .input("addedById", sql.Int, video.createdBy);
 
     const result = await request.query(`
       INSERT INTO ScamVideos
@@ -1676,7 +1668,20 @@ export class AzureStorage implements IStorage {
         (@title, @description, @youtubeUrl, @youtubeVideoId, @scamType, @featured, @consolidatedScamId, @addedById, SYSUTCDATETIME(), SYSUTCDATETIME())
     `);
 
-    return result.recordset[0];
+    const insertedRow = result.recordset[0];
+    return {
+      id: insertedRow.id,
+      title: insertedRow.title,
+      videoUrl: insertedRow.youtubeUrl,
+      thumbnailUrl: "",
+      scamType: insertedRow.scamType,
+      description: insertedRow.description,
+      featured: !!insertedRow.featured,
+      consolidatedScamId: insertedRow.consolidatedScamId,
+      createdBy: insertedRow.addedById,
+      createdAt: insertedRow.addedAt,
+      updatedAt: insertedRow.updatedAt
+    };
   }
 
   async getScamVideo(id: number): Promise<ScamVideo | undefined> {

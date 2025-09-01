@@ -27,38 +27,40 @@ export class ScamLookupService {
     async lookupWithIPQS(type, input, apiConfig) {
         try {
             let endpoint = '';
-            let params = new URLSearchParams({
+            let requestBody = {
                 key: apiConfig.apiKey,
                 strictness: '1',
-            });
+            };
             switch (type) {
                 case 'phone':
                     endpoint = 'phone';
-                    params.append('phone', input);
+                    requestBody.phone = input;
                     break;
                 case 'email':
                     endpoint = 'email';
-                    params.append('email', input);
+                    requestBody.email = input;
                     break;
                 case 'url':
                     endpoint = 'url';
-                    params.append('url', input);
+                    requestBody.url = input;
                     break;
                 case 'ip':
                     endpoint = 'ip';
-                    params.append('ip', input);
+                    requestBody.ip = input;
                     break;
                 default:
                     throw new Error(`Unsupported type: ${type}`);
             }
-            const fullUrl = `${apiConfig.url}/${endpoint}?${params.toString()}`;
-            console.log(`Making IPQS request to: ${fullUrl.replace(apiConfig.apiKey, '[HIDDEN]')}`);
+            const fullUrl = `${apiConfig.url}/${endpoint}`;
+            console.log(`Making IPQS POST request to: ${fullUrl}`);
             const headers = {
                 'User-Agent': 'BeAware-ScamChecker/1.0',
+                'Content-Type': 'application/json',
             };
             const response = await fetch(fullUrl, {
-                method: 'GET',
+                method: 'POST',
                 headers,
+                body: JSON.stringify(requestBody),
                 signal: AbortSignal.timeout((apiConfig.timeout || 30) * 1000),
             });
             if (!response.ok) {
@@ -68,10 +70,10 @@ export class ScamLookupService {
             console.log('IPQS response:', data);
             // Create API call details
             const apiCallDetails = {
-                method: 'GET',
+                method: 'POST',
                 url: fullUrl,
                 headers,
-                body: null
+                body: requestBody
             };
             return this.parseIPQSResponse(type, input, data, apiConfig.name, apiCallDetails);
         }
@@ -79,10 +81,10 @@ export class ScamLookupService {
             console.error('IPQS lookup error:', error);
             // Create basic API call details for error case
             const errorApiCallDetails = {
-                method: 'GET',
+                method: 'POST',
                 url: `${apiConfig.url}/${endpoint || 'unknown'}`,
-                headers: { 'User-Agent': 'BeAware-ScamChecker/1.0' },
-                body: null
+                headers: { 'User-Agent': 'BeAware-ScamChecker/1.0', 'Content-Type': 'application/json' },
+                body: { error: 'Request failed' }
             };
             return this.createErrorResult(type, input, apiConfig.name, error, errorApiCallDetails);
         }
@@ -202,14 +204,104 @@ export class ScamLookupService {
         };
     }
     async lookupWithVirusTotal(type, input, apiConfig) {
-        // VirusTotal implementation placeholder
-        console.log('VirusTotal lookup not implemented yet');
-        return this.createNotImplementedResult(type, input, apiConfig.name);
+        try {
+            const requestBody = {
+                apikey: apiConfig.apiKey,
+                resource: input
+            };
+            const headers = {
+                'User-Agent': 'BeAware-ScamChecker/1.0',
+                'Content-Type': 'application/json',
+            };
+            const response = await fetch(`${apiConfig.url}/vtapi/v2/file/report`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(requestBody),
+                signal: AbortSignal.timeout((apiConfig.timeout || 30) * 1000),
+            });
+            if (!response.ok) {
+                throw new Error(`VirusTotal API error: ${response.status} ${response.statusText}`);
+            }
+            const data = await response.json();
+            const apiCallDetails = {
+                method: 'POST',
+                url: `${apiConfig.url}/vtapi/v2/file/report`,
+                headers,
+                body: requestBody
+            };
+            return {
+                type,
+                input,
+                provider: 'VirusTotal',
+                riskScore: data.positives || 0,
+                reputation: data.positives > 0 ? 'malicious' : 'safe',
+                status: data.positives > 0 ? 'malicious' : 'safe',
+                details: data,
+                rawResponse: data,
+                timestamp: new Date().toISOString(),
+                apiCallDetails,
+            };
+        }
+        catch (error) {
+            console.error('VirusTotal lookup error:', error);
+            return this.createErrorResult(type, input, 'VirusTotal', error, {
+                method: 'POST',
+                url: `${apiConfig.url}/vtapi/v2/file/report`,
+                headers: { 'Content-Type': 'application/json' },
+                body: { error: 'Request failed' }
+            });
+        }
     }
     async lookupWithAbuseIPDB(type, input, apiConfig) {
-        // AbuseIPDB implementation placeholder
-        console.log('AbuseIPDB lookup not implemented yet');
-        return this.createNotImplementedResult(type, input, apiConfig.name);
+        try {
+            const requestBody = {
+                ip: input,
+                maxAgeInDays: 90,
+                verbose: true
+            };
+            const headers = {
+                'User-Agent': 'BeAware-ScamChecker/1.0',
+                'Content-Type': 'application/json',
+                'Key': apiConfig.apiKey,
+            };
+            const response = await fetch(`${apiConfig.url}/api/v2/check`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(requestBody),
+                signal: AbortSignal.timeout((apiConfig.timeout || 30) * 1000),
+            });
+            if (!response.ok) {
+                throw new Error(`AbuseIPDB API error: ${response.status} ${response.statusText}`);
+            }
+            const data = await response.json();
+            const apiCallDetails = {
+                method: 'POST',
+                url: `${apiConfig.url}/api/v2/check`,
+                headers,
+                body: requestBody
+            };
+            return {
+                type,
+                input,
+                provider: 'AbuseIPDB',
+                riskScore: data.data?.abuseConfidencePercentage || 0,
+                reputation: data.data?.abuseConfidencePercentage > 50 ? 'malicious' : 'safe',
+                status: data.data?.abuseConfidencePercentage > 50 ? 'malicious' : 'safe',
+                details: data.data || {},
+                rawResponse: data,
+                timestamp: new Date().toISOString(),
+                apiCallDetails,
+            };
+        }
+        catch (error) {
+            console.error('AbuseIPDB lookup error:', error);
+            return this.createErrorResult(type, input, 'AbuseIPDB', error, {
+                method: 'POST',
+                url: `${apiConfig.url}/api/v2/check`,
+                headers: { 'Content-Type': 'application/json' },
+                body: { error: 'Request failed' }
+            });
+        }
     }
     async lookupWithGenericAPI(type, input, apiConfig) {
         try {
@@ -283,21 +375,19 @@ export class ScamLookupService {
                 .replace(/\{\{apiKey\}\}/g, encodeURIComponent(apiConfig.apiKey))
                 .replace(/\{\{key\}\}/g, encodeURIComponent(apiConfig.apiKey));
             console.log(`✅ Processed URL: ${url}`);
-            // Determine method and build request
-            const method = Object.keys(processedParams).length > 0 ? 'POST' : 'GET';
+            // Force all security API calls to use POST method to hide sensitive information
+            const method = 'POST';
             let body;
-            if (method === 'POST') {
-                // POST request with JSON body
-                body = JSON.stringify(processedParams);
-                processedHeaders['Content-Type'] = 'application/json';
-            }
-            else {
-                // For GET requests, add API key as query parameter if not already present and no auth header
-                if (apiConfig.apiKey && !url.includes('key=') && !processedHeaders['Authorization']) {
-                    const separator = url.includes('?') ? '&' : '?';
-                    url += `${separator}key=${encodeURIComponent(apiConfig.apiKey)}`;
+            // If no parameters were provided, create a basic request body with input data
+            if (Object.keys(processedParams).length === 0) {
+                processedParams[type] = input;
+                if (apiConfig.apiKey) {
+                    processedParams.key = apiConfig.apiKey;
                 }
             }
+            // POST request with JSON body
+            body = JSON.stringify(processedParams);
+            processedHeaders['Content-Type'] = 'application/json';
             console.log(`📡 ${method} ${url}`);
             console.log(`🔑 Headers:`, Object.keys(processedHeaders));
             if (body)

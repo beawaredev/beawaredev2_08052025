@@ -1,5 +1,5 @@
-import sql from 'mssql';
-import { pool } from './db.js';
+import sql from "mssql";
+import { pool } from "./db.js";
 // Azure SQL Database Storage Implementation
 export class AzureStorage {
     async ensureConnection() {
@@ -19,12 +19,12 @@ export class AzureStorage {
                 });
                 return;
             }
-            console.log('Establishing Azure SQL Database connection...');
+            console.log("Establishing Azure SQL Database connection...");
             await pool.connect();
-            console.log('Azure SQL Database connected successfully');
+            console.log("Azure SQL Database connected successfully");
         }
         catch (error) {
-            console.error('Failed to connect to Azure SQL Database:', error);
+            console.error("Failed to connect to Azure SQL Database:", error);
             // Reset pool on failure
             try {
                 if (pool && !pool.connected) {
@@ -32,16 +32,16 @@ export class AzureStorage {
                 }
             }
             catch (closeError) {
-                console.error('Error closing failed connection:', closeError);
+                console.error("Error closing failed connection:", closeError);
             }
-            throw new Error('Database connection failed. Please check your Azure SQL Database configuration.');
+            throw new Error("Database connection failed. Please check your Azure SQL Database configuration.");
         }
     }
     // User methods
     async getUser(id) {
         try {
             if (!id || isNaN(id)) {
-                console.log('Invalid user ID provided:', id);
+                console.log("Invalid user ID provided:", id);
                 return undefined;
             }
             await this.ensureConnection();
@@ -59,11 +59,11 @@ export class AzureStorage {
                 role: dbUser.role,
                 authProvider: dbUser.auth_provider,
                 googleId: dbUser.google_id,
-                createdAt: dbUser.created_at
+                createdAt: dbUser.created_at,
             };
         }
         catch (error) {
-            console.error('Error getting user:', error);
+            console.error("Error getting user:", error);
             return undefined;
         }
     }
@@ -84,11 +84,11 @@ export class AzureStorage {
                 role: dbUser.role,
                 authProvider: dbUser.auth_provider,
                 googleId: dbUser.google_id,
-                createdAt: dbUser.created_at
+                createdAt: dbUser.created_at,
             };
         }
         catch (error) {
-            console.error('Error getting user by email:', error);
+            console.error("Error getting user by email:", error);
             return undefined;
         }
     }
@@ -109,11 +109,11 @@ export class AzureStorage {
                 role: dbUser.role,
                 authProvider: dbUser.auth_provider,
                 googleId: dbUser.google_id,
-                createdAt: dbUser.created_at
+                createdAt: dbUser.created_at,
             };
         }
         catch (error) {
-            console.error('Error getting user by Google ID:', error);
+            console.error("Error getting user by Google ID:", error);
             return undefined;
         }
     }
@@ -134,11 +134,11 @@ export class AzureStorage {
                 role: dbUser.role,
                 authProvider: dbUser.auth_provider,
                 googleId: dbUser.google_id,
-                createdAt: dbUser.created_at
+                createdAt: dbUser.created_at,
             };
         }
         catch (error) {
-            console.error('Error getting user by username:', error);
+            console.error("Error getting user by username:", error);
             return undefined;
         }
     }
@@ -151,12 +151,12 @@ export class AzureStorage {
         OUTPUT INSERTED.*
         VALUES (
           '${userData.email.replace(/'/g, "''")}',
-          ${userData.password ? `'${userData.password.replace(/'/g, "''")}'` : 'NULL'},
-          '${(userData.displayName || '').replace(/'/g, "''")}',
-          ${userData.beawareUsername ? `'${userData.beawareUsername.replace(/'/g, "''")}'` : 'NULL'},
-          '${(userData.role || 'user').replace(/'/g, "''")}',
-          '${(userData.authProvider || 'local').replace(/'/g, "''")}',
-          ${userData.googleId ? `'${userData.googleId.replace(/'/g, "''")}'` : 'NULL'}
+          ${userData.password ? `'${userData.password.replace(/'/g, "''")}'` : "NULL"},
+          '${(userData.displayName || "").replace(/'/g, "''")}',
+          ${userData.beawareUsername ? `'${userData.beawareUsername.replace(/'/g, "''")}'` : "NULL"},
+          '${(userData.role || "user").replace(/'/g, "''")}',
+          '${(userData.authProvider || "local").replace(/'/g, "''")}',
+          ${userData.googleId ? `'${userData.googleId.replace(/'/g, "''")}'` : "NULL"}
         )
       `);
             const dbUser = result.recordset[0];
@@ -170,11 +170,11 @@ export class AzureStorage {
                 role: dbUser.role,
                 authProvider: dbUser.auth_provider,
                 googleId: dbUser.google_id,
-                createdAt: dbUser.created_at
+                createdAt: dbUser.created_at,
             };
         }
         catch (error) {
-            console.error('Error creating user:', error);
+            console.error("Error creating user:", error);
             throw error;
         }
     }
@@ -182,11 +182,11 @@ export class AzureStorage {
         try {
             await this.ensureConnection();
             const request = pool.request();
-            const result = await request.query('SELECT * FROM users ORDER BY created_at DESC');
+            const result = await request.query("SELECT * FROM users ORDER BY created_at DESC");
             return result.recordset;
         }
         catch (error) {
-            console.error('Error getting all users:', error);
+            console.error("Error getting all users:", error);
             return [];
         }
     }
@@ -194,27 +194,27 @@ export class AzureStorage {
     async createScamReport(reportData) {
         try {
             await this.ensureConnection();
-            console.log('📅 Raw incident date received:', reportData.incidentDate);
-            console.log('📅 Type of incident date:', typeof reportData.incidentDate);
+            console.log("📅 Raw incident date received:", reportData.incidentDate);
+            console.log("📅 Type of incident date:", typeof reportData.incidentDate);
             // Use parameterized query to avoid date conversion issues
             const request = pool.request();
             // Add parameters to prevent SQL injection and handle dates properly
-            request.input('userId', reportData.userId);
-            request.input('scamType', reportData.scamType);
-            request.input('scamPhoneNumber', reportData.scamPhoneNumber || null);
-            request.input('scamEmail', reportData.scamEmail || null);
-            request.input('scamBusinessName', reportData.scamBusinessName || null);
-            request.input('country', reportData.country);
-            request.input('city', reportData.city || null);
-            request.input('state', reportData.state || null);
-            request.input('zipCode', reportData.zipCode || null);
-            request.input('description', reportData.description);
+            request.input("userId", reportData.userId);
+            request.input("scamType", reportData.scamType);
+            request.input("scamPhoneNumber", reportData.scamPhoneNumber || null);
+            request.input("scamEmail", reportData.scamEmail || null);
+            request.input("scamBusinessName", reportData.scamBusinessName || null);
+            request.input("country", reportData.country);
+            request.input("city", reportData.city || null);
+            request.input("state", reportData.state || null);
+            request.input("zipCode", reportData.zipCode || null);
+            request.input("description", reportData.description);
             // Handle proof document fields
-            request.input('hasProofDocument', reportData.hasProofDocument || false);
-            request.input('proofFilePath', reportData.proofFilePath || null);
-            request.input('proofFileName', reportData.proofFileName || null);
-            request.input('proofFileType', reportData.proofFileType || null);
-            request.input('proofFileSize', reportData.proofFileSize || null);
+            request.input("hasProofDocument", reportData.hasProofDocument || false);
+            request.input("proofFilePath", reportData.proofFilePath || null);
+            request.input("proofFileName", reportData.proofFileName || null);
+            request.input("proofFileType", reportData.proofFileType || null);
+            request.input("proofFileSize", reportData.proofFileSize || null);
             // Handle incident date with proper parsing
             let incidentDate = new Date(); // default to current date
             if (reportData.incidentDate) {
@@ -223,8 +223,8 @@ export class AzureStorage {
                     incidentDate = parsedDate;
                 }
             }
-            request.input('incidentDate', incidentDate);
-            console.log('📅 Final incident date for SQL:', incidentDate);
+            request.input("incidentDate", incidentDate);
+            console.log("📅 Final incident date for SQL:", incidentDate);
             const result = await request.query(`
         INSERT INTO scam_reports (
           user_id, scam_type, scam_phone_number, scam_email, scam_business_name,
@@ -242,8 +242,8 @@ export class AzureStorage {
             return result.recordset[0];
         }
         catch (error) {
-            console.error('Error creating scam report:', error);
-            console.error('Report data received:', JSON.stringify(reportData, null, 2));
+            console.error("Error creating scam report:", error);
+            console.error("Report data received:", JSON.stringify(reportData, null, 2));
             throw error;
         }
     }
@@ -283,7 +283,7 @@ export class AzureStorage {
             return result.recordset[0] || undefined;
         }
         catch (error) {
-            console.error('Error getting scam report:', error);
+            console.error("Error getting scam report:", error);
             return undefined;
         }
     }
@@ -326,7 +326,7 @@ export class AzureStorage {
             return result.recordset;
         }
         catch (error) {
-            console.error('Error getting all scam reports:', error);
+            console.error("Error getting all scam reports:", error);
             return [];
         }
     }
@@ -334,7 +334,9 @@ export class AzureStorage {
         try {
             await this.ensureConnection();
             const request = pool.request();
-            const whereClause = includeUnpublished ? '' : 'WHERE is_published = CAST(1 AS BIT)';
+            const whereClause = includeUnpublished
+                ? ""
+                : "WHERE is_published = CAST(1 AS BIT)";
             const result = await request.query(`
         SELECT TOP ${limit}
           id,
@@ -368,7 +370,7 @@ export class AzureStorage {
             return result.recordset;
         }
         catch (error) {
-            console.error('Error getting recent scam reports:', error);
+            console.error("Error getting recent scam reports:", error);
             return [];
         }
     }
@@ -405,7 +407,7 @@ export class AzureStorage {
             return result.recordset;
         }
         catch (error) {
-            console.error('Error getting unverified scam reports:', error);
+            console.error("Error getting unverified scam reports:", error);
             return [];
         }
     }
@@ -442,7 +444,7 @@ export class AzureStorage {
             return result.recordset;
         }
         catch (error) {
-            console.error('Error getting verified scam reports:', error);
+            console.error("Error getting verified scam reports:", error);
             return [];
         }
     }
@@ -486,7 +488,7 @@ export class AzureStorage {
             return result.recordset;
         }
         catch (error) {
-            console.error('Error getting published scam reports:', error);
+            console.error("Error getting published scam reports:", error);
             return [];
         }
     }
@@ -498,7 +500,7 @@ export class AzureStorage {
             return result.recordset[0].total;
         }
         catch (error) {
-            console.error('Error getting total scam reports count:', error);
+            console.error("Error getting total scam reports count:", error);
             return 0;
         }
     }
@@ -510,7 +512,7 @@ export class AzureStorage {
             return result.recordset[0].total;
         }
         catch (error) {
-            console.error('Error getting published scam reports count:', error);
+            console.error("Error getting published scam reports count:", error);
             return 0;
         }
     }
@@ -522,7 +524,7 @@ export class AzureStorage {
             return result.recordset[0].total;
         }
         catch (error) {
-            console.error('Error getting verified scam reports count:', error);
+            console.error("Error getting verified scam reports count:", error);
             return 0;
         }
     }
@@ -534,7 +536,7 @@ export class AzureStorage {
             return result.recordset[0].total;
         }
         catch (error) {
-            console.error('Error getting unverified scam reports count:', error);
+            console.error("Error getting unverified scam reports count:", error);
             return 0;
         }
     }
@@ -571,7 +573,7 @@ export class AzureStorage {
             return result.recordset;
         }
         catch (error) {
-            console.error('Error getting unpublished scam reports:', error);
+            console.error("Error getting unpublished scam reports:", error);
             return [];
         }
     }
@@ -586,7 +588,7 @@ export class AzureStorage {
             return result.recordset[0] || null;
         }
         catch (error) {
-            console.error('Error getting consolidation for scam report:', error);
+            console.error("Error getting consolidation for scam report:", error);
             return null;
         }
     }
@@ -598,7 +600,7 @@ export class AzureStorage {
             return result.recordset;
         }
         catch (error) {
-            console.error('Error getting scam reports by user:', error);
+            console.error("Error getting scam reports by user:", error);
             return [];
         }
     }
@@ -610,7 +612,7 @@ export class AzureStorage {
             return result.recordset;
         }
         catch (error) {
-            console.error('Error getting scam reports by type:', error);
+            console.error("Error getting scam reports by type:", error);
             return [];
         }
     }
@@ -645,11 +647,11 @@ export class AzureStorage {
                 isPublished: dbReport.is_published,
                 reportedAt: dbReport.reported_at,
                 verifiedBy: dbReport.verified_by,
-                publishedBy: dbReport.published_by
+                publishedBy: dbReport.published_by,
             };
         }
         catch (error) {
-            console.error('Error verifying scam report:', error);
+            console.error("Error verifying scam report:", error);
             return undefined;
         }
     }
@@ -684,11 +686,11 @@ export class AzureStorage {
                 isPublished: dbReport.is_published,
                 reportedAt: dbReport.reported_at,
                 verifiedBy: dbReport.verified_by,
-                publishedBy: dbReport.published_by
+                publishedBy: dbReport.published_by,
             };
         }
         catch (error) {
-            console.error('Error publishing scam report:', error);
+            console.error("Error publishing scam report:", error);
             return undefined;
         }
     }
@@ -705,7 +707,7 @@ export class AzureStorage {
             return result.recordset[0] || undefined;
         }
         catch (error) {
-            console.error('Error unpublishing scam report:', error);
+            console.error("Error unpublishing scam report:", error);
             return undefined;
         }
     }
@@ -722,7 +724,7 @@ export class AzureStorage {
             return result.recordset[0];
         }
         catch (error) {
-            console.error('Error creating scam comment:', error);
+            console.error("Error creating scam comment:", error);
             throw error;
         }
     }
@@ -734,7 +736,7 @@ export class AzureStorage {
             return result.recordset;
         }
         catch (error) {
-            console.error('Error getting comments for scam report:', error);
+            console.error("Error getting comments for scam report:", error);
             return [];
         }
     }
@@ -755,11 +757,11 @@ export class AzureStorage {
             return {
                 id: 1,
                 updatedAt: new Date().toISOString(),
-                ...result.recordset[0]
+                ...result.recordset[0],
             };
         }
         catch (error) {
-            console.error('Error getting scam stats:', error);
+            console.error("Error getting scam stats:", error);
             return {
                 id: 1,
                 updatedAt: new Date().toISOString(),
@@ -767,7 +769,7 @@ export class AzureStorage {
                 verifiedReports: 0,
                 phoneScams: 0,
                 emailScams: 0,
-                businessScams: 0
+                businessScams: 0,
             };
         }
     }
@@ -795,9 +797,9 @@ export class AzureStorage {
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_NAME = 'security_checklist_items'
       `);
-            const existingColumns = columnsCheck.recordset.map(row => row.COLUMN_NAME.toLowerCase());
-            const hasToolLaunchUrl = existingColumns.includes('tool_launch_url');
-            const hasYoutubeVideoUrl = existingColumns.includes('youtube_video_url');
+            const existingColumns = columnsCheck.recordset.map((row) => row.COLUMN_NAME.toLowerCase());
+            const hasToolLaunchUrl = existingColumns.includes("tool_launch_url");
+            const hasYoutubeVideoUrl = existingColumns.includes("youtube_video_url");
             // Build query based on available columns
             let selectColumns = `
         id, title, description, category, priority, 
@@ -805,16 +807,16 @@ export class AzureStorage {
         help_url as helpUrl
       `;
             if (hasToolLaunchUrl) {
-                selectColumns += ', tool_launch_url as toolLaunchUrl';
+                selectColumns += ", tool_launch_url as toolLaunchUrl";
             }
             else {
-                selectColumns += ', NULL as toolLaunchUrl';
+                selectColumns += ", NULL as toolLaunchUrl";
             }
             if (hasYoutubeVideoUrl) {
-                selectColumns += ', youtube_video_url as youtubeVideoUrl';
+                selectColumns += ", youtube_video_url as youtubeVideoUrl";
             }
             else {
-                selectColumns += ', NULL as youtubeVideoUrl';
+                selectColumns += ", NULL as youtubeVideoUrl";
             }
             selectColumns += `, estimated_time_minutes as estimatedTimeMinutes,
           sort_order as sortOrder,
@@ -827,7 +829,7 @@ export class AzureStorage {
         WHERE is_active = 1 
         ORDER BY sort_order ASC
       `);
-            return result.recordset.map(item => ({
+            return result.recordset.map((item) => ({
                 id: item.id,
                 title: item.title,
                 description: item.description,
@@ -841,11 +843,11 @@ export class AzureStorage {
                 sortOrder: item.sortOrder,
                 isActive: Boolean(item.isActive),
                 createdAt: item.createdAt?.toISOString(),
-                updatedAt: item.updatedAt?.toISOString()
+                updatedAt: item.updatedAt?.toISOString(),
             }));
         }
         catch (error) {
-            console.error('Error getting security checklist items from database:', error);
+            console.error("Error getting security checklist items from database:", error);
             // Return hardcoded fallback data
             return [
                 {
@@ -861,7 +863,7 @@ export class AzureStorage {
                     estimatedTimeMinutes: 45,
                     sortOrder: 1,
                     isActive: true,
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
                 },
                 {
                     id: 2,
@@ -876,7 +878,7 @@ export class AzureStorage {
                     estimatedTimeMinutes: 15,
                     sortOrder: 2,
                     isActive: true,
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
                 },
                 {
                     id: 3,
@@ -891,7 +893,7 @@ export class AzureStorage {
                     estimatedTimeMinutes: 30,
                     sortOrder: 3,
                     isActive: true,
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
                 },
                 {
                     id: 4,
@@ -906,7 +908,7 @@ export class AzureStorage {
                     estimatedTimeMinutes: 20,
                     sortOrder: 4,
                     isActive: true,
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
                 },
                 {
                     id: 5,
@@ -921,7 +923,7 @@ export class AzureStorage {
                     estimatedTimeMinutes: 10,
                     sortOrder: 5,
                     isActive: true,
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
                 },
                 {
                     id: 6,
@@ -936,7 +938,7 @@ export class AzureStorage {
                     estimatedTimeMinutes: 25,
                     sortOrder: 6,
                     isActive: true,
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
                 },
                 {
                     id: 7,
@@ -951,7 +953,7 @@ export class AzureStorage {
                     estimatedTimeMinutes: 5,
                     sortOrder: 7,
                     isActive: true,
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
                 },
                 {
                     id: 8,
@@ -966,7 +968,7 @@ export class AzureStorage {
                     estimatedTimeMinutes: 30,
                     sortOrder: 8,
                     isActive: true,
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
                 },
                 {
                     id: 9,
@@ -981,7 +983,7 @@ export class AzureStorage {
                     estimatedTimeMinutes: 10,
                     sortOrder: 9,
                     isActive: true,
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
                 },
                 {
                     id: 10,
@@ -996,7 +998,7 @@ export class AzureStorage {
                     estimatedTimeMinutes: 60,
                     sortOrder: 10,
                     isActive: true,
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
                 },
                 {
                     id: 11,
@@ -1011,7 +1013,7 @@ export class AzureStorage {
                     estimatedTimeMinutes: 20,
                     sortOrder: 11,
                     isActive: true,
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
                 },
                 {
                     id: 12,
@@ -1026,7 +1028,7 @@ export class AzureStorage {
                     estimatedTimeMinutes: 30,
                     sortOrder: 12,
                     isActive: true,
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
                 },
                 {
                     id: 13,
@@ -1041,14 +1043,14 @@ export class AzureStorage {
                     isActive: true,
                     toolLaunchUrl: null,
                     youtubeVideoUrl: null,
-                    createdAt: new Date().toISOString()
-                }
+                    createdAt: new Date().toISOString(),
+                },
             ];
         }
     }
     async getSecurityChecklistItem(id) {
         const items = await this.getAllSecurityChecklistItems();
-        return items.find(item => item.id === id);
+        return items.find((item) => item.id === id);
     }
     async createSecurityChecklistItem(item) {
         try {
@@ -1059,41 +1061,41 @@ export class AzureStorage {
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_NAME = 'security_checklist_items'
       `);
-            const existingColumns = columnsCheck.recordset.map(row => row.COLUMN_NAME.toLowerCase());
-            const hasToolLaunchUrl = existingColumns.includes('tool_launch_url');
-            const hasYoutubeVideoUrl = existingColumns.includes('youtube_video_url');
+            const existingColumns = columnsCheck.recordset.map((row) => row.COLUMN_NAME.toLowerCase());
+            const hasToolLaunchUrl = existingColumns.includes("tool_launch_url");
+            const hasYoutubeVideoUrl = existingColumns.includes("youtube_video_url");
             const request = pool.request();
-            request.input('title', item.title);
-            request.input('description', item.description);
-            request.input('category', item.category);
-            request.input('priority', item.priority || 'medium');
-            request.input('recommendationText', item.recommendationText);
-            request.input('helpUrl', item.helpUrl || null);
-            request.input('estimatedTimeMinutes', item.estimatedTimeMinutes || 15);
-            request.input('sortOrder', item.sortOrder || 999);
-            request.input('isActive', item.isActive !== false);
+            request.input("title", item.title);
+            request.input("description", item.description);
+            request.input("category", item.category);
+            request.input("priority", item.priority || "medium");
+            request.input("recommendationText", item.recommendationText);
+            request.input("helpUrl", item.helpUrl || null);
+            request.input("estimatedTimeMinutes", item.estimatedTimeMinutes || 15);
+            request.input("sortOrder", item.sortOrder || 999);
+            request.input("isActive", item.isActive !== false);
             // Build query based on available columns
-            let insertColumns = 'title, description, category, priority, recommendation_text, help_url, estimated_time_minutes, sort_order, is_active, created_at, updated_at';
-            let insertValues = '@title, @description, @category, @priority, @recommendationText, @helpUrl, @estimatedTimeMinutes, @sortOrder, @isActive, GETDATE(), GETDATE()';
+            let insertColumns = "title, description, category, priority, recommendation_text, help_url, estimated_time_minutes, sort_order, is_active, created_at, updated_at";
+            let insertValues = "@title, @description, @category, @priority, @recommendationText, @helpUrl, @estimatedTimeMinutes, @sortOrder, @isActive, GETDATE(), GETDATE()";
             if (hasToolLaunchUrl) {
-                insertColumns += ', tool_launch_url';
-                insertValues += ', @toolLaunchUrl';
-                request.input('toolLaunchUrl', item.toolLaunchUrl || null);
+                insertColumns += ", tool_launch_url";
+                insertValues += ", @toolLaunchUrl";
+                request.input("toolLaunchUrl", item.toolLaunchUrl || null);
             }
             if (hasYoutubeVideoUrl) {
-                insertColumns += ', youtube_video_url';
-                insertValues += ', @youtubeVideoUrl';
-                request.input('youtubeVideoUrl', item.youtubeVideoUrl || null);
+                insertColumns += ", youtube_video_url";
+                insertValues += ", @youtubeVideoUrl";
+                request.input("youtubeVideoUrl", item.youtubeVideoUrl || null);
             }
             const query = `
         INSERT INTO security_checklist_items (${insertColumns})
         OUTPUT INSERTED.*
         VALUES (${insertValues})
       `;
-            console.log('Creating security checklist item:', item);
+            console.log("Creating security checklist item:", item);
             const result = await request.query(query);
             if (result.recordset.length === 0) {
-                throw new Error('Failed to create security checklist item');
+                throw new Error("Failed to create security checklist item");
             }
             const created = result.recordset[0];
             return {
@@ -1110,11 +1112,11 @@ export class AzureStorage {
                 sortOrder: created.sort_order,
                 isActive: Boolean(created.is_active),
                 createdAt: created.created_at?.toISOString(),
-                updatedAt: created.updated_at?.toISOString()
+                updatedAt: created.updated_at?.toISOString(),
             };
         }
         catch (error) {
-            console.error('Error creating security checklist item:', error);
+            console.error("Error creating security checklist item:", error);
             throw error;
         }
     }
@@ -1122,19 +1124,19 @@ export class AzureStorage {
         try {
             await this.ensureConnection();
             const request = pool.request();
-            request.input('itemId', itemId);
+            request.input("itemId", itemId);
             // Soft delete by setting is_active to false instead of actual deletion
             const query = `
         UPDATE security_checklist_items 
         SET is_active = 0, updated_at = GETDATE()
         WHERE id = @itemId AND is_active = 1
       `;
-            console.log('Deleting security checklist item:', itemId);
+            console.log("Deleting security checklist item:", itemId);
             const result = await request.query(query);
             return result.rowsAffected[0] > 0;
         }
         catch (error) {
-            console.error('Error deleting security checklist item:', error);
+            console.error("Error deleting security checklist item:", error);
             return false;
         }
     }
@@ -1145,53 +1147,61 @@ export class AzureStorage {
             const updateFields = [];
             const params = {};
             if (updates.title !== undefined) {
-                updateFields.push('title = @title');
+                updateFields.push("title = @title");
                 params.title = updates.title;
             }
             if (updates.description !== undefined) {
-                updateFields.push('description = @description');
+                updateFields.push("description = @description");
                 params.description = updates.description;
             }
             if (updates.recommendationText !== undefined) {
-                updateFields.push('recommendation_text = @recommendationText');
+                updateFields.push("recommendation_text = @recommendationText");
                 params.recommendationText = updates.recommendationText;
             }
             if (updates.helpUrl !== undefined) {
-                updateFields.push('help_url = @helpUrl');
+                updateFields.push("help_url = @helpUrl");
                 params.helpUrl = updates.helpUrl;
             }
             if (updates.toolLaunchUrl !== undefined) {
-                updateFields.push('tool_launch_url = @toolLaunchUrl');
+                updateFields.push("tool_launch_url = @toolLaunchUrl");
                 params.toolLaunchUrl = updates.toolLaunchUrl;
             }
             if (updates.youtubeVideoUrl !== undefined) {
-                updateFields.push('youtube_video_url = @youtubeVideoUrl');
+                updateFields.push("youtube_video_url = @youtubeVideoUrl");
                 params.youtubeVideoUrl = updates.youtubeVideoUrl;
             }
             if (updates.estimatedTimeMinutes !== undefined) {
-                updateFields.push('estimated_time_minutes = @estimatedTimeMinutes');
+                updateFields.push("estimated_time_minutes = @estimatedTimeMinutes");
                 params.estimatedTimeMinutes = updates.estimatedTimeMinutes;
+            }
+            if (updates.category !== undefined) {
+                updateFields.push("category = @category");
+                params.category = updates.category;
+            }
+            if (updates.priority !== undefined) {
+                updateFields.push("priority = @priority");
+                params.priority = updates.priority;
             }
             if (updateFields.length === 0) {
                 // No updates to apply, return current item
                 return await this.getSecurityChecklistItem(itemId);
             }
             // Always update the updated_at field
-            updateFields.push('updated_at = GETDATE()');
+            updateFields.push("updated_at = GETDATE()");
             const request = pool.request();
             // Add parameters to request
-            Object.keys(params).forEach(key => {
+            Object.keys(params).forEach((key) => {
                 request.input(key, params[key]);
             });
-            request.input('itemId', itemId);
+            request.input("itemId", itemId);
             const query = `
         UPDATE security_checklist_items 
-        SET ${updateFields.join(', ')}
+        SET ${updateFields.join(", ")}
         OUTPUT INSERTED.*
         WHERE id = @itemId
       `;
-            console.log('Executing update query:', query);
-            console.log('With parameters:', params);
+            console.log("Executing update query:", query);
+            console.log("With parameters:", params);
             const result = await request.query(query);
             if (result.recordset.length === 0) {
                 return null; // Item not found
@@ -1211,11 +1221,11 @@ export class AzureStorage {
                 sortOrder: updated.sort_order,
                 isActive: Boolean(updated.is_active),
                 createdAt: updated.created_at?.toISOString(),
-                updatedAt: updated.updated_at?.toISOString()
+                updatedAt: updated.updated_at?.toISOString(),
             };
         }
         catch (error) {
-            console.error('Error updating security checklist item:', error);
+            console.error("Error updating security checklist item:", error);
             return null;
         }
     }
@@ -1232,7 +1242,7 @@ export class AzureStorage {
         WHERE user_id = ${userId}
         ORDER BY checklist_item_id ASC
       `);
-            return result.recordset.map(item => ({
+            return result.recordset.map((item) => ({
                 id: item.id,
                 userId: item.userId,
                 checklistItemId: item.checklistItemId,
@@ -1240,11 +1250,11 @@ export class AzureStorage {
                 completedAt: item.completedAt?.toISOString() || null,
                 notes: item.notes || null,
                 createdAt: item.createdAt?.toISOString(),
-                updatedAt: item.updatedAt?.toISOString()
+                updatedAt: item.updatedAt?.toISOString(),
             }));
         }
         catch (error) {
-            console.error('Error getting user security progress from database:', error);
+            console.error("Error getting user security progress from database:", error);
             return [];
         }
     }
@@ -1266,8 +1276,8 @@ export class AzureStorage {
           UPDATE user_security_progress 
           SET 
             is_completed = ${isCompleted ? 1 : 0},
-            completed_at = ${completedAt ? `'${completedAt.toISOString()}'` : 'NULL'},
-            notes = ${notes ? `'${notes.replace(/'/g, "''")}'` : 'NULL'},
+            completed_at = ${completedAt ? `'${completedAt.toISOString()}'` : "NULL"},
+            notes = ${notes ? `'${notes.replace(/'/g, "''")}'` : "NULL"},
             updated_at = '${updatedAt.toISOString()}'
           OUTPUT INSERTED.*
           WHERE user_id = ${userId} AND checklist_item_id = ${checklistItemId}
@@ -1282,8 +1292,8 @@ export class AzureStorage {
             ${userId}, 
             ${checklistItemId}, 
             ${isCompleted ? 1 : 0},
-            ${completedAt ? `'${completedAt.toISOString()}'` : 'NULL'},
-            ${notes ? `'${notes.replace(/'/g, "''")}'` : 'NULL'},
+            ${completedAt ? `'${completedAt.toISOString()}'` : "NULL"},
+            ${notes ? `'${notes.replace(/'/g, "''")}'` : "NULL"},
             '${updatedAt.toISOString()}'
           )
         `);
@@ -1297,17 +1307,17 @@ export class AzureStorage {
                 completedAt: progressRecord.completed_at?.toISOString() || null,
                 notes: progressRecord.notes || null,
                 createdAt: progressRecord.created_at?.toISOString(),
-                updatedAt: progressRecord.updated_at?.toISOString()
+                updatedAt: progressRecord.updated_at?.toISOString(),
             };
         }
         catch (error) {
-            console.error('Error updating user security progress in database:', error);
+            console.error("Error updating user security progress in database:", error);
             throw error;
         }
     }
     async getUserSecurityProgressForItem(userId, checklistItemId) {
         const progress = await this.getUserSecurityProgress(userId);
-        return progress.find(p => p.checklistItemId === checklistItemId);
+        return progress.find((p) => p.checklistItemId === checklistItemId);
     }
     // Additional stub methods to satisfy IStorage interface
     async getConsolidatedScam(id) {
@@ -1346,8 +1356,28 @@ export class AzureStorage {
     async updateLawyerRequestStatus(id, status, lawyerProfileId) {
         return undefined;
     }
-    async addScamVideo(video) {
-        throw new Error("Not implemented");
+    async addScamVideo(data) {
+        const sql = this.sql; // <— how other methods in AzureStorage access mssql (usually `this.sql` or imported `sql`)
+        const pool = this.pool; // <— same pattern other AzureStorage methods use to get a Request
+        const featured = data.featured ? 1 : 0;
+        const request = pool
+            .request()
+            .input("title", sql.NVarChar(255), data.title)
+            .input("description", sql.NVarChar(sql.MAX), data.description)
+            .input("youtubeUrl", sql.NVarChar(2048), data.youtubeUrl)
+            .input("youtubeVideoId", sql.NVarChar(64), data.youtubeVideoId)
+            .input("scamType", sql.NVarChar(32), data.scamType)
+            .input("featured", sql.Bit, featured)
+            .input("consolidatedScamId", sql.Int, data.consolidatedScamId ?? null)
+            .input("addedById", sql.Int, data.addedById);
+        const result = await request.query(`
+      INSERT INTO ScamVideos
+        (title, description, youtubeUrl, youtubeVideoId, scamType, featured, consolidatedScamId, addedById, addedAt, updatedAt)
+      OUTPUT INSERTED.*
+      VALUES
+        (@title, @description, @youtubeUrl, @youtubeVideoId, @scamType, @featured, @consolidatedScamId, @addedById, SYSUTCDATETIME(), SYSUTCDATETIME())
+    `);
+        return result.recordset[0];
     }
     async getScamVideo(id) {
         return undefined;
@@ -1371,17 +1401,18 @@ export class AzureStorage {
             console.log("Expiration time calculated:", expiresAt);
             // First, invalidate any existing reset tokens for this user
             console.log("Invalidating existing reset tokens for user:", userId);
-            await pool.request()
-                .input('userId', sql.Int, userId)
-                .query('UPDATE password_resets SET used = 1 WHERE user_id = @userId AND used = 0');
+            await pool
+                .request()
+                .input("userId", sql.Int, userId)
+                .query("UPDATE password_resets SET used = 1 WHERE user_id = @userId AND used = 0");
             console.log("Existing tokens invalidated");
             // Create new reset token
             console.log("Creating new password reset record...");
-            const result = await pool.request()
-                .input('userId', sql.Int, userId)
-                .input('resetToken', sql.NVarChar, resetToken)
-                .input('expiresAt', sql.DateTime2, expiresAt)
-                .query(`
+            const result = await pool
+                .request()
+                .input("userId", sql.Int, userId)
+                .input("resetToken", sql.NVarChar, resetToken)
+                .input("expiresAt", sql.DateTime2, expiresAt).query(`
           INSERT INTO password_resets (user_id, reset_token, expires_at)
           OUTPUT INSERTED.*
           VALUES (@userId, @resetToken, @expiresAt)
@@ -1396,22 +1427,22 @@ export class AzureStorage {
                 resetToken: resetRecord.reset_token,
                 expiresAt: resetRecord.expires_at.toISOString(),
                 used: resetRecord.used,
-                createdAt: resetRecord.created_at.toISOString()
+                createdAt: resetRecord.created_at.toISOString(),
             };
             console.log("Returning password reset object:", passwordResetObject);
             return passwordResetObject;
         }
         catch (error) {
-            console.error('Error creating password reset:', error);
+            console.error("Error creating password reset:", error);
             throw error;
         }
     }
     async getPasswordReset(resetToken) {
         await this.ensureConnection();
         try {
-            const result = await pool.request()
-                .input('resetToken', sql.NVarChar, resetToken)
-                .query(`
+            const result = await pool
+                .request()
+                .input("resetToken", sql.NVarChar, resetToken).query(`
           SELECT * FROM password_resets 
           WHERE reset_token = @resetToken AND used = 0 AND expires_at > GETDATE()
         `);
@@ -1425,20 +1456,20 @@ export class AzureStorage {
                 resetToken: resetRecord.reset_token,
                 expiresAt: resetRecord.expires_at.toISOString(),
                 used: resetRecord.used,
-                createdAt: resetRecord.created_at.toISOString()
+                createdAt: resetRecord.created_at.toISOString(),
             };
         }
         catch (error) {
-            console.error('Error getting password reset:', error);
+            console.error("Error getting password reset:", error);
             throw error;
         }
     }
     async usePasswordReset(resetToken) {
         await this.ensureConnection();
         try {
-            const result = await pool.request()
-                .input('resetToken', sql.NVarChar, resetToken)
-                .query(`
+            const result = await pool
+                .request()
+                .input("resetToken", sql.NVarChar, resetToken).query(`
           UPDATE password_resets 
           SET used = 1 
           WHERE reset_token = @resetToken AND used = 0 AND expires_at > GETDATE()
@@ -1446,21 +1477,22 @@ export class AzureStorage {
             return result.rowsAffected[0] > 0;
         }
         catch (error) {
-            console.error('Error using password reset:', error);
+            console.error("Error using password reset:", error);
             throw error;
         }
     }
     async updateUserPassword(userId, newPassword) {
         await this.ensureConnection();
         try {
-            const result = await pool.request()
-                .input('userId', sql.Int, userId)
-                .input('password', sql.NVarChar, newPassword)
-                .query('UPDATE users SET password = @password WHERE id = @userId');
+            const result = await pool
+                .request()
+                .input("userId", sql.Int, userId)
+                .input("password", sql.NVarChar, newPassword)
+                .query("UPDATE users SET password = @password WHERE id = @userId");
             return result.rowsAffected[0] > 0;
         }
         catch (error) {
-            console.error('Error updating user password:', error);
+            console.error("Error updating user password:", error);
             throw error;
         }
     }
@@ -1471,20 +1503,20 @@ export class AzureStorage {
             // Build dynamic update query based on provided fields
             const updateFields = [];
             if (updateData.displayName !== undefined) {
-                updateFields.push(`display_name = '${(updateData.displayName || '').replace(/'/g, "''")}'`);
+                updateFields.push(`display_name = '${(updateData.displayName || "").replace(/'/g, "''")}'`);
             }
             if (updateData.beawareUsername !== undefined) {
-                updateFields.push(`beaware_username = '${(updateData.beawareUsername || '').replace(/'/g, "''")}'`);
+                updateFields.push(`beaware_username = '${(updateData.beawareUsername || "").replace(/'/g, "''")}'`);
             }
             if (updateData.role !== undefined) {
-                updateFields.push(`role = '${(updateData.role || 'user').replace(/'/g, "''")}'`);
+                updateFields.push(`role = '${(updateData.role || "user").replace(/'/g, "''")}'`);
             }
             if (updateFields.length === 0) {
-                throw new Error('No fields to update');
+                throw new Error("No fields to update");
             }
             const result = await request.query(`
         UPDATE users 
-        SET ${updateFields.join(', ')}
+        SET ${updateFields.join(", ")}
         OUTPUT INSERTED.*
         WHERE id = ${userId}
       `);
@@ -1501,11 +1533,11 @@ export class AzureStorage {
                 role: dbUser.role,
                 authProvider: dbUser.auth_provider,
                 googleId: dbUser.google_id,
-                createdAt: dbUser.created_at
+                createdAt: dbUser.created_at,
             };
         }
         catch (error) {
-            console.error('Error updating user:', error);
+            console.error("Error updating user:", error);
             throw error;
         }
     }
@@ -1513,7 +1545,7 @@ export class AzureStorage {
         try {
             await this.ensureConnection();
             const request = pool.request();
-            // Update users with null or empty beaware_username  
+            // Update users with null or empty beaware_username
             const result = await request.query(`
         UPDATE users 
         SET beaware_username = CONCAT('user_', id) 
@@ -1523,7 +1555,7 @@ export class AzureStorage {
             return result.rowsAffected[0];
         }
         catch (error) {
-            console.error('Error fixing empty usernames:', error);
+            console.error("Error fixing empty usernames:", error);
             throw error;
         }
     }
@@ -1547,12 +1579,12 @@ export class AzureStorage {
                     const constraintName = constraintResult.recordset[0].name;
                     console.log(`Found and dropping constraint: ${constraintName}`);
                     await request.query(`ALTER TABLE users DROP CONSTRAINT ${constraintName}`);
-                    console.log('Successfully removed unique constraint on beaware_username');
+                    console.log("Successfully removed unique constraint on beaware_username");
                     return;
                 }
             }
             catch (error1) {
-                console.log('Method 1 failed, trying method 2:', error1);
+                console.log("Method 1 failed, trying method 2:", error1);
             }
             // Method 2: Look for unique indexes
             try {
@@ -1570,32 +1602,54 @@ export class AzureStorage {
                     const indexName = indexResult.recordset[0].name;
                     console.log(`Found and dropping unique index: ${indexName}`);
                     await request.query(`DROP INDEX ${indexName} ON users`);
-                    console.log('Successfully removed unique index on beaware_username');
+                    console.log("Successfully removed unique index on beaware_username");
                     return;
                 }
             }
             catch (error2) {
-                console.log('Method 2 failed, trying method 3:', error2);
+                console.log("Method 2 failed, trying method 3:", error2);
             }
             // Method 3: Try the known constraint name pattern
             try {
                 await request.query(`ALTER TABLE users DROP CONSTRAINT UQ__users__71364CAB401C1DD1`);
-                console.log('Successfully removed constraint using known name');
+                console.log("Successfully removed constraint using known name");
             }
             catch (error3) {
-                console.log('Method 3 failed:', error3);
-                console.log('No unique constraint found on beaware_username or already removed');
+                console.log("Method 3 failed:", error3);
+                console.log("No unique constraint found on beaware_username or already removed");
             }
         }
         catch (error) {
-            console.error('Error removing username constraint:', error);
+            console.error("Error removing username constraint:", error);
             throw error;
         }
     }
     generateUniqueUsername() {
         // Generate random username with adjective + animal + number (no async needed)
-        const adjectives = ['brave', 'clever', 'swift', 'wise', 'bold', 'keen', 'bright', 'calm', 'kind', 'strong'];
-        const animals = ['fox', 'eagle', 'wolf', 'bear', 'lion', 'owl', 'hawk', 'tiger', 'deer', 'dolphin'];
+        const adjectives = [
+            "brave",
+            "clever",
+            "swift",
+            "wise",
+            "bold",
+            "keen",
+            "bright",
+            "calm",
+            "kind",
+            "strong",
+        ];
+        const animals = [
+            "fox",
+            "eagle",
+            "wolf",
+            "bear",
+            "lion",
+            "owl",
+            "hawk",
+            "tiger",
+            "deer",
+            "dolphin",
+        ];
         const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
         const animal = animals[Math.floor(Math.random() * animals.length)];
         const number = Math.floor(Math.random() * 1000);
@@ -1614,7 +1668,7 @@ export class AzureStorage {
         WHERE TABLE_NAME = 'api_configs'
       `);
             if (tableCheckResult.recordset[0].table_exists === 0) {
-                console.log('api_configs table does not exist, returning empty array');
+                console.log("api_configs table does not exist, returning empty array");
                 return [];
             }
             const result = await request.query(`
@@ -1625,7 +1679,7 @@ export class AzureStorage {
         FROM api_configs 
         ORDER BY name ASC
       `);
-            return result.recordset.map(row => ({
+            return result.recordset.map((row) => ({
                 id: row.id,
                 name: row.name,
                 type: row.type,
@@ -1638,11 +1692,11 @@ export class AzureStorage {
                 parameterMapping: row.parameterMapping,
                 headers: row.headers,
                 createdAt: row.createdAt?.toISOString(),
-                updatedAt: row.updatedAt?.toISOString()
+                updatedAt: row.updatedAt?.toISOString(),
             }));
         }
         catch (error) {
-            console.error('Error fetching API configs:', error);
+            console.error("Error fetching API configs:", error);
             return [];
         }
     }
@@ -1657,11 +1711,11 @@ export class AzureStorage {
         WHERE TABLE_NAME = 'api_configs'
       `);
             if (tableCheckResult.recordset[0].table_exists === 0) {
-                console.log('api_configs table does not exist');
+                console.log("api_configs table does not exist");
                 return undefined;
             }
             const queryRequest = pool.request();
-            queryRequest.input('type', sql.VarChar, type);
+            queryRequest.input("type", sql.VarChar, type);
             const result = await queryRequest.query(`
         SELECT TOP 1 id, name, type, url, api_key as apiKey, enabled, description,
                rate_limit as rateLimit, timeout,
@@ -1688,58 +1742,29 @@ export class AzureStorage {
                 parameterMapping: row.parameterMapping,
                 headers: row.headers,
                 createdAt: row.createdAt?.toISOString(),
-                updatedAt: row.updatedAt?.toISOString()
+                updatedAt: row.updatedAt?.toISOString(),
             };
         }
         catch (error) {
-            console.error('Error fetching API config by type:', error);
+            console.error("Error fetching API config by type:", error);
             return undefined;
         }
     }
     async createApiConfig(config) {
         try {
             await this.ensureConnection();
-            const request = pool.request();
-            // First, try to create the table if it doesn't exist
-            const createTableQuery = `
-        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'api_configs')
-        BEGIN
-            CREATE TABLE api_configs (
-                id INT IDENTITY(1,1) PRIMARY KEY,
-                name NVARCHAR(100) NOT NULL,
-                type NVARCHAR(50) NOT NULL,
-                url NVARCHAR(500) NOT NULL,
-                api_key NVARCHAR(255) NOT NULL,
-                enabled BIT NOT NULL DEFAULT 1,
-                description NVARCHAR(500),
-                rate_limit INT DEFAULT 100,
-                timeout INT DEFAULT 30,
-                parameter_mapping NVARCHAR(MAX),
-                headers NVARCHAR(MAX),
-                created_at DATETIME2 DEFAULT GETDATE(),
-                updated_at DATETIME2 DEFAULT GETDATE()
-            );
-        END
-      `;
-            try {
-                await request.query(createTableQuery);
-                console.log('API configs table created or verified');
-            }
-            catch (createError) {
-                console.log('Could not create table (may already exist):', createError.message);
-            }
-            // Now try to insert the config
+            // Insert the config directly into the existing table
             const insertRequest = pool.request();
-            insertRequest.input('name', sql.VarChar, config.name);
-            insertRequest.input('type', sql.VarChar, config.type);
-            insertRequest.input('url', sql.VarChar, config.url);
-            insertRequest.input('apiKey', sql.VarChar, config.apiKey);
-            insertRequest.input('enabled', sql.Bit, config.enabled ?? true);
-            insertRequest.input('description', sql.VarChar, config.description || null);
-            insertRequest.input('rateLimit', sql.Int, config.rateLimit ?? 60);
-            insertRequest.input('timeout', sql.Int, config.timeout ?? 30);
-            insertRequest.input('parameterMapping', sql.VarChar, config.parameterMapping || null);
-            insertRequest.input('headers', sql.VarChar, config.headers || null);
+            insertRequest.input("name", sql.VarChar, config.name);
+            insertRequest.input("type", sql.VarChar, config.type);
+            insertRequest.input("url", sql.VarChar, config.url);
+            insertRequest.input("apiKey", sql.VarChar, config.apiKey);
+            insertRequest.input("enabled", sql.Bit, config.enabled ?? true);
+            insertRequest.input("description", sql.VarChar, config.description || null);
+            insertRequest.input("rateLimit", sql.Int, config.rateLimit ?? 60);
+            insertRequest.input("timeout", sql.Int, config.timeout ?? 30);
+            insertRequest.input("parameterMapping", sql.VarChar, config.parameterMapping || null);
+            insertRequest.input("headers", sql.VarChar, config.headers || null);
             const result = await insertRequest.query(`
         INSERT INTO api_configs (name, type, url, api_key, enabled, description, rate_limit, timeout, parameter_mapping, headers, created_at, updated_at)
         OUTPUT INSERTED.id, INSERTED.name, INSERTED.type, INSERTED.url, 
@@ -1763,11 +1788,11 @@ export class AzureStorage {
                 parameterMapping: row.parameterMapping,
                 headers: row.headers,
                 createdAt: row.createdAt?.toISOString(),
-                updatedAt: row.updatedAt?.toISOString()
+                updatedAt: row.updatedAt?.toISOString(),
             };
         }
         catch (error) {
-            console.error('Error creating API config:', error);
+            console.error("Error creating API config:", error);
             throw error;
         }
     }
@@ -1777,53 +1802,53 @@ export class AzureStorage {
             const request = pool.request();
             const setClauses = [];
             if (updates.name !== undefined) {
-                request.input('name', sql.VarChar, updates.name);
-                setClauses.push('name = @name');
+                request.input("name", sql.VarChar, updates.name);
+                setClauses.push("name = @name");
             }
             if (updates.type !== undefined) {
-                request.input('type', sql.VarChar, updates.type);
-                setClauses.push('type = @type');
+                request.input("type", sql.VarChar, updates.type);
+                setClauses.push("type = @type");
             }
             if (updates.url !== undefined) {
-                request.input('url', sql.VarChar, updates.url);
-                setClauses.push('url = @url');
+                request.input("url", sql.VarChar, updates.url);
+                setClauses.push("url = @url");
             }
             if (updates.apiKey !== undefined) {
-                request.input('apiKey', sql.VarChar, updates.apiKey);
-                setClauses.push('api_key = @apiKey');
+                request.input("apiKey", sql.VarChar, updates.apiKey);
+                setClauses.push("api_key = @apiKey");
             }
             if (updates.enabled !== undefined) {
-                request.input('enabled', sql.Bit, updates.enabled);
-                setClauses.push('enabled = @enabled');
+                request.input("enabled", sql.Bit, updates.enabled);
+                setClauses.push("enabled = @enabled");
             }
             if (updates.description !== undefined) {
-                request.input('description', sql.VarChar, updates.description);
-                setClauses.push('description = @description');
+                request.input("description", sql.VarChar, updates.description);
+                setClauses.push("description = @description");
             }
             if (updates.rateLimit !== undefined) {
-                request.input('rateLimit', sql.Int, updates.rateLimit);
-                setClauses.push('rate_limit = @rateLimit');
+                request.input("rateLimit", sql.Int, updates.rateLimit);
+                setClauses.push("rate_limit = @rateLimit");
             }
             if (updates.timeout !== undefined) {
-                request.input('timeout', sql.Int, updates.timeout);
-                setClauses.push('timeout = @timeout');
+                request.input("timeout", sql.Int, updates.timeout);
+                setClauses.push("timeout = @timeout");
             }
             if (updates.parameterMapping !== undefined) {
-                request.input('parameterMapping', sql.VarChar, updates.parameterMapping);
-                setClauses.push('parameter_mapping = @parameterMapping');
+                request.input("parameterMapping", sql.VarChar, updates.parameterMapping);
+                setClauses.push("parameter_mapping = @parameterMapping");
             }
             if (updates.headers !== undefined) {
-                request.input('headers', sql.VarChar, updates.headers);
-                setClauses.push('headers = @headers');
+                request.input("headers", sql.VarChar, updates.headers);
+                setClauses.push("headers = @headers");
             }
             if (setClauses.length === 0) {
-                throw new Error('No updates provided');
+                throw new Error("No updates provided");
             }
-            setClauses.push('updated_at = GETDATE()');
-            request.input('id', sql.Int, id);
+            setClauses.push("updated_at = GETDATE()");
+            request.input("id", sql.Int, id);
             const result = await request.query(`
         UPDATE api_configs 
-        SET ${setClauses.join(', ')}
+        SET ${setClauses.join(", ")}
         OUTPUT INSERTED.id, INSERTED.name, INSERTED.type, INSERTED.url,
                INSERTED.api_key as apiKey, INSERTED.enabled, INSERTED.description,
                INSERTED.rate_limit as rateLimit, INSERTED.timeout,
@@ -1848,11 +1873,11 @@ export class AzureStorage {
                 parameterMapping: row.parameterMapping,
                 headers: row.headers,
                 createdAt: row.createdAt?.toISOString(),
-                updatedAt: row.updatedAt?.toISOString()
+                updatedAt: row.updatedAt?.toISOString(),
             };
         }
         catch (error) {
-            console.error('Error updating API config:', error);
+            console.error("Error updating API config:", error);
             return undefined;
         }
     }
@@ -1860,14 +1885,14 @@ export class AzureStorage {
         try {
             await this.ensureConnection();
             const request = pool.request();
-            request.input('id', sql.Int, id);
+            request.input("id", sql.Int, id);
             const result = await request.query(`
         DELETE FROM api_configs WHERE id = @id
       `);
             return result.rowsAffected[0] > 0;
         }
         catch (error) {
-            console.error('Error deleting API config:', error);
+            console.error("Error deleting API config:", error);
             return false;
         }
     }

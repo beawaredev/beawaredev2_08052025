@@ -7,10 +7,10 @@ import { storage } from "./storage.js";
 import { sendPasswordResetEmail } from "./emailService.js";
 import { getVersionInfo } from "../shared/version.js";
 import crypto from "crypto";
-import { insertUserSchema, insertScamCommentSchema, insertLawyerProfileSchema, insertLawyerRequestSchema, insertScamVideoSchema } from "../shared/schema.js";
+import { insertUserSchema, insertScamCommentSchema, insertLawyerProfileSchema, insertLawyerRequestSchema, insertScamVideoSchema, } from "../shared/schema.js";
 import { z } from "zod";
 import { ScamLookupService } from "./scamLookupService.js";
-import { hashPassword, verifyPassword, validatePasswordStrength } from './utils/passwordUtils.js';
+import { hashPassword, verifyPassword, validatePasswordStrength, } from "./utils/passwordUtils.js";
 // Path to the uploads directory
 const uploadDir = path.join(process.cwd(), "uploads");
 // Configure multer for file uploads
@@ -21,9 +21,9 @@ const multerStorage = multer.diskStorage({
     filename: (req, file, cb) => {
         // Generate unique filename with timestamp
         const timestamp = Date.now();
-        const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, "_");
         cb(null, `${timestamp}_${sanitizedName}`);
-    }
+    },
 });
 const upload = multer({
     storage: multerStorage,
@@ -33,22 +33,22 @@ const upload = multer({
     fileFilter: (req, file, cb) => {
         // Allow common document and image types
         const allowedTypes = [
-            'application/pdf',
-            'application/msword',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'image/jpeg',
-            'image/jpg',
-            'image/png',
-            'image/gif',
-            'text/plain'
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "image/jpeg",
+            "image/jpg",
+            "image/png",
+            "image/gif",
+            "text/plain",
         ];
         if (allowedTypes.includes(file.mimetype)) {
             cb(null, true);
         }
         else {
-            cb(new Error('Invalid file type. Only PDF, DOC, DOCX, JPG, PNG, GIF, and TXT files are allowed.'));
+            cb(new Error("Invalid file type. Only PDF, DOC, DOCX, JPG, PNG, GIF, and TXT files are allowed."));
         }
-    }
+    },
 });
 // File utility functions
 const getFilePath = (filename) => {
@@ -65,16 +65,16 @@ const fileExists = (filePath) => {
 const getFileMimeType = (filename) => {
     const ext = path.extname(filename).toLowerCase();
     const mimeTypes = {
-        '.pdf': 'application/pdf',
-        '.doc': 'application/msword',
-        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.png': 'image/png',
-        '.gif': 'image/gif',
-        '.txt': 'text/plain'
+        ".pdf": "application/pdf",
+        ".doc": "application/msword",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".gif": "image/gif",
+        ".txt": "text/plain",
     };
-    return mimeTypes[ext] || 'application/octet-stream';
+    return mimeTypes[ext] || "application/octet-stream";
 };
 // Ensure uploads directory exists
 if (!fs.existsSync(uploadDir)) {
@@ -90,14 +90,14 @@ export async function registerRoutes(app) {
     const requireAuth = async (req, res, next) => {
         try {
             // Try to get the user ID from the request
-            const userId = req.headers['x-user-id'];
-            const userEmail = req.headers['x-user-email'];
-            const userRole = req.headers['x-user-role'];
+            const userId = req.headers["x-user-id"];
+            const userEmail = req.headers["x-user-email"];
+            const userRole = req.headers["x-user-role"];
             // Add debugging info
             console.log("Authentication headers:", {
                 userId,
                 userEmail,
-                userRole
+                userRole,
             });
             // If we have valid auth headers, use them directly
             if (userId && userEmail && userRole) {
@@ -106,50 +106,13 @@ export async function registerRoutes(app) {
                 req.user = {
                     id: parseInt(userId, 10),
                     email: userEmail,
-                    role: userRole
+                    role: userRole,
                 };
                 return next();
             }
-            // Fallback: try to get admin user from database
-            console.log("Attempting to authenticate admin user from database");
-            try {
-                // Check for admin@beaware.com first (primary admin)
-                let user = await storage.getUserByEmail("admin@beaware.com");
-                if (!user) {
-                    // Check for backup admin@beaware.fyi
-                    user = await storage.getUserByEmail("admin@beaware.fyi");
-                }
-                if (!user) {
-                    console.log("Admin user not found, creating admin@beaware.com user");
-                    user = await storage.createUser({
-                        email: "admin@beaware.com",
-                        password: "password123",
-                        displayName: "Administrator",
-                        beawareUsername: "admin_beaware",
-                        role: "admin",
-                        authProvider: "local"
-                    });
-                    console.log("Admin user created successfully:", user);
-                }
-                else {
-                    console.log("Admin user found in database:", user);
-                    // Ensure the user has admin role
-                    if (user.role !== "admin") {
-                        console.log("Updating user role to admin");
-                        user = await storage.updateUser(user.id, { role: "admin" });
-                    }
-                }
-                req.user = user;
-                console.log("Set user object with role:", user.role);
-                next();
-            }
-            catch (dbError) {
-                console.error("Database authentication failed:", dbError);
-                // If database fails, proceed without authentication for now
-                console.log("Proceeding without authentication due to database error");
-                req.user = null;
-                next();
-            }
+            // No authentication headers - return 401
+            console.log("No authentication headers provided");
+            return res.status(401).json({ message: "Authentication required" });
         }
         catch (err) {
             console.error("Error in requireAuth middleware:", err);
@@ -160,17 +123,17 @@ export async function registerRoutes(app) {
     const requireAdmin = async (req, res, next) => {
         const user = req.user;
         // Check for user identification in headers
-        const headerUserId = req.headers['x-user-id'];
-        const headerEmail = req.headers['x-user-email'];
+        const headerUserId = req.headers["x-user-id"];
+        const headerEmail = req.headers["x-user-email"];
         console.log("Authorization check for admin access:", {
             userExists: !!user,
             userRole: user?.role,
             userEmail: user?.email,
             headerUserId,
             headerEmail,
-            environment: process.env.NODE_ENV || 'development',
+            environment: process.env.NODE_ENV || "development",
             requestUrl: req.url,
-            method: req.method
+            method: req.method,
         });
         // Case 1: User already authenticated through session
         if (user && user.role === "admin") {
@@ -187,7 +150,11 @@ export async function registerRoutes(app) {
                 verifiedUser = await storage.getUser(parseInt(headerUserId, 10));
             }
             if (verifiedUser && verifiedUser.role === "admin") {
-                console.log("Admin access granted for user:", { id: verifiedUser.id, email: verifiedUser.email, role: verifiedUser.role });
+                console.log("Admin access granted for user:", {
+                    id: verifiedUser.id,
+                    email: verifiedUser.email,
+                    role: verifiedUser.role,
+                });
                 req.user = verifiedUser;
                 return next();
             }
@@ -197,7 +164,9 @@ export async function registerRoutes(app) {
         }
         // If we get here, access is denied
         console.log("Admin access denied");
-        return res.status(403).json({ message: "Forbidden - Admin access required" });
+        return res
+            .status(403)
+            .json({ message: "Forbidden - Admin access required" });
     };
     // Endpoint to download proof files
     apiRouter.get("/files/:filename", async (req, res) => {
@@ -212,15 +181,15 @@ export async function registerRoutes(app) {
                 // Second attempt: Try to find the file by searching for files with similar names
                 const files = fs.readdirSync(uploadDir);
                 // Try to find a file that ends with the requested filename (ignoring timestamp prefix)
-                const matchingFile = files.find(file => {
+                const matchingFile = files.find((file) => {
                     // Remove timestamp prefix and compare the rest
-                    const fileWithoutTimestamp = file.substring(file.indexOf('_') + 1);
+                    const fileWithoutTimestamp = file.substring(file.indexOf("_") + 1);
                     // Try both with spaces and with underscores
-                    const requestedWithSpaces = decodedFilename.replace(/_/g, ' ');
-                    const requestedWithUnderscores = decodedFilename.replace(/ /g, '_');
-                    return fileWithoutTimestamp === decodedFilename ||
+                    const requestedWithSpaces = decodedFilename.replace(/_/g, " ");
+                    const requestedWithUnderscores = decodedFilename.replace(/ /g, "_");
+                    return (fileWithoutTimestamp === decodedFilename ||
                         fileWithoutTimestamp === requestedWithSpaces ||
-                        fileWithoutTimestamp === requestedWithUnderscores;
+                        fileWithoutTimestamp === requestedWithUnderscores);
                 });
                 if (matchingFile) {
                     console.log(`Found matching file: ${matchingFile}`);
@@ -231,7 +200,7 @@ export async function registerRoutes(app) {
                     return res.status(404).json({
                         success: false,
                         message: "File not found",
-                        details: `Requested: ${decodedFilename}`
+                        details: `Requested: ${decodedFilename}`,
                     });
                 }
             }
@@ -239,7 +208,7 @@ export async function registerRoutes(app) {
             const fileBaseName = path.basename(filePath);
             const mimeType = getFileMimeType(fileBaseName);
             // Set content headers
-            res.setHeader('Content-Type', mimeType);
+            res.setHeader("Content-Type", mimeType);
             // Send the file
             res.sendFile(filePath);
         }
@@ -248,7 +217,7 @@ export async function registerRoutes(app) {
             res.status(500).json({
                 success: false,
                 message: "Failed to serve file",
-                error: error instanceof Error ? error.message : "Unknown error"
+                error: error instanceof Error ? error.message : "Unknown error",
             });
         }
     });
@@ -261,7 +230,7 @@ export async function registerRoutes(app) {
             const transformedData = {
                 ...req.body,
                 // If displayName is present but display_name isn't, map displayName to display_name
-                displayName: req.body.displayName || req.body.display_name
+                displayName: req.body.displayName || req.body.display_name,
             };
             console.log("Transformed user data:", JSON.stringify(transformedData));
             try {
@@ -271,20 +240,26 @@ export async function registerRoutes(app) {
                 // Check if user with this email already exists
                 const existingUser = await storage.getUserByEmail(userData.email);
                 if (existingUser) {
-                    return res.status(400).json({ message: "User with this email already exists" });
+                    return res
+                        .status(400)
+                        .json({ message: "User with this email already exists" });
                 }
                 // Check if BeAware username already exists (if provided)
                 if (userData.beawareUsername) {
                     const existingUsernameUser = await storage.getUserByBeawareUsername(userData.beawareUsername);
                     if (existingUsernameUser) {
-                        return res.status(400).json({ message: "This BeAware username is already taken. Please choose a different one." });
+                        return res.status(400).json({
+                            message: "This BeAware username is already taken. Please choose a different one.",
+                        });
                     }
                 }
                 // Validate password strength if password is provided (local auth)
                 if (userData.password) {
                     const passwordValidation = validatePasswordStrength(userData.password);
                     if (!passwordValidation.isValid) {
-                        return res.status(400).json({ message: passwordValidation.message });
+                        return res
+                            .status(400)
+                            .json({ message: passwordValidation.message });
                     }
                     // Hash the password before storing
                     console.log("Hashing password for security...");
@@ -298,7 +273,7 @@ export async function registerRoutes(app) {
                 console.log("User created successfully:", JSON.stringify(userWithoutPassword));
                 res.status(201).json({
                     success: true,
-                    user: userWithoutPassword
+                    user: userWithoutPassword,
                 });
             }
             catch (validationError) {
@@ -306,7 +281,7 @@ export async function registerRoutes(app) {
                 if (validationError instanceof z.ZodError) {
                     return res.status(400).json({
                         message: "Invalid user data",
-                        errors: validationError.errors
+                        errors: validationError.errors,
                     });
                 }
                 throw validationError; // Re-throw if it's not a validation error
@@ -317,7 +292,7 @@ export async function registerRoutes(app) {
             // More detailed error response
             res.status(500).json({
                 message: "Failed to create user",
-                error: error instanceof Error ? error.message : "Unknown error"
+                error: error instanceof Error ? error.message : "Unknown error",
             });
         }
     });
@@ -333,14 +308,16 @@ export async function registerRoutes(app) {
             const available = !existingUser;
             res.json({
                 available,
-                message: available ? "Username is available" : "Username is already taken"
+                message: available
+                    ? "Username is available"
+                    : "Username is already taken",
             });
         }
         catch (error) {
             console.error("Error checking username availability:", error);
             res.status(500).json({
                 message: "Failed to check username availability",
-                error: error instanceof Error ? error.message : "Unknown error"
+                error: error instanceof Error ? error.message : "Unknown error",
             });
         }
     });
@@ -349,30 +326,36 @@ export async function registerRoutes(app) {
         try {
             const { email, displayName, googleId, beawareUsername } = req.body;
             if (!email || !googleId) {
-                return res.status(400).json({ message: "Email and googleId are required" });
+                return res
+                    .status(400)
+                    .json({ message: "Email and googleId are required" });
             }
             // Check if user already exists by email
             const existingUser = await storage.getUserByEmail(email);
             if (existingUser) {
-                return res.status(400).json({ message: "User with this email already exists" });
+                return res
+                    .status(400)
+                    .json({ message: "User with this email already exists" });
             }
             // Check if user already exists by Google ID
             const existingGoogleUser = await storage.getUserByGoogleId(googleId);
             if (existingGoogleUser) {
-                return res.status(400).json({ message: "User with this Google account already exists" });
+                return res
+                    .status(400)
+                    .json({ message: "User with this Google account already exists" });
             }
             // Generate a unique random username for signup (synchronous)
             const generatedUsername = storage.generateUniqueUsername();
             // Create new user with Google data and generated username
             const newUserData = {
                 email,
-                displayName: displayName || email.split('@')[0],
+                displayName: displayName || email.split("@")[0],
                 googleId,
                 beawareUsername: generatedUsername,
-                authProvider: 'google',
-                role: 'user'
+                authProvider: "google",
+                role: "user",
             };
-            console.log('Creating new Google user:', newUserData);
+            console.log("Creating new Google user:", newUserData);
             const user = await storage.createUser(newUserData);
             // Remove sensitive info from response
             const { password, ...userInfo } = user;
@@ -380,14 +363,14 @@ export async function registerRoutes(app) {
                 success: true,
                 user: userInfo,
                 message: "Account created successfully",
-                canChangeUsername: true // User can change their generated username once
+                canChangeUsername: true, // User can change their generated username once
             });
         }
         catch (error) {
             console.error("Error creating Google user:", error);
             res.status(500).json({
                 message: "Failed to create account",
-                error: error instanceof Error ? error.message : "Unknown error"
+                error: error instanceof Error ? error.message : "Unknown error",
             });
         }
     });
@@ -397,14 +380,14 @@ export async function registerRoutes(app) {
             await storage.removeUsernameUniqueConstraint();
             res.json({
                 success: true,
-                message: "Removed unique constraint on beaware_username to allow multiple null values"
+                message: "Removed unique constraint on beaware_username to allow multiple null values",
             });
         }
         catch (error) {
             console.error("Error removing username constraint:", error);
             res.status(500).json({
                 message: "Failed to remove constraint",
-                error: error instanceof Error ? error.message : "Unknown error"
+                error: error instanceof Error ? error.message : "Unknown error",
             });
         }
     });
@@ -413,7 +396,9 @@ export async function registerRoutes(app) {
         try {
             const { userId, newUsername } = req.body;
             if (!userId || !newUsername) {
-                return res.status(400).json({ message: "User ID and new username are required" });
+                return res
+                    .status(400)
+                    .json({ message: "User ID and new username are required" });
             }
             // Check if username is already taken
             const existingUser = await storage.getUserByBeawareUsername(newUsername);
@@ -423,7 +408,7 @@ export async function registerRoutes(app) {
             // Update the user's username
             const updatedUser = await storage.updateUser(userId, {
                 beawareUsername: newUsername,
-                hasChangedUsername: true
+                hasChangedUsername: true,
             });
             if (!updatedUser) {
                 return res.status(404).json({ message: "User not found" });
@@ -432,14 +417,14 @@ export async function registerRoutes(app) {
             res.json({
                 success: true,
                 user: userInfo,
-                message: "Username updated successfully"
+                message: "Username updated successfully",
             });
         }
         catch (error) {
             console.error("Error changing username:", error);
             res.status(500).json({
                 message: "Failed to change username",
-                error: error instanceof Error ? error.message : "Unknown error"
+                error: error instanceof Error ? error.message : "Unknown error",
             });
         }
     });
@@ -448,7 +433,9 @@ export async function registerRoutes(app) {
         try {
             const { email, beawareUsername } = req.body;
             if (!email || !beawareUsername) {
-                return res.status(400).json({ message: "Email and username are required" });
+                return res
+                    .status(400)
+                    .json({ message: "Email and username are required" });
             }
             // Check if username is already taken
             const existingUser = await storage.getUserByBeawareUsername(beawareUsername);
@@ -460,21 +447,23 @@ export async function registerRoutes(app) {
             if (!user) {
                 return res.status(404).json({ message: "User not found" });
             }
-            const updatedUser = await storage.updateUser(user.id, { beawareUsername });
+            const updatedUser = await storage.updateUser(user.id, {
+                beawareUsername,
+            });
             if (!updatedUser) {
                 return res.status(500).json({ message: "Failed to update username" });
             }
             res.json({
                 success: true,
                 user: updatedUser,
-                message: "Username updated successfully"
+                message: "Username updated successfully",
             });
         }
         catch (error) {
             console.error("Error updating username:", error);
             res.status(500).json({
                 message: "Failed to update username",
-                error: error instanceof Error ? error.message : "Unknown error"
+                error: error instanceof Error ? error.message : "Unknown error",
             });
         }
     });
@@ -505,14 +494,14 @@ export async function registerRoutes(app) {
             res.json({
                 success: true,
                 message: "Database constraints fixed",
-                usersUpdated: result
+                usersUpdated: result,
             });
         }
         catch (error) {
             console.error("Error fixing database constraints:", error);
             res.status(500).json({
                 message: "Failed to fix database constraints",
-                error: error instanceof Error ? error.message : "Unknown error"
+                error: error instanceof Error ? error.message : "Unknown error",
             });
         }
     });
@@ -532,7 +521,7 @@ export async function registerRoutes(app) {
                     displayName: "Administrator",
                     beawareUsername: "admin_beaware",
                     role: "admin",
-                    authProvider: "local"
+                    authProvider: "local",
                 });
                 console.log("Admin user created with hashed password");
             }
@@ -543,20 +532,20 @@ export async function registerRoutes(app) {
                     adminUser = await storage.updateUser(adminUser.id, { role: "admin" });
                 }
             }
-            // Remove password from response  
+            // Remove password from response
             const { password, ...adminWithoutPassword } = adminUser;
             console.log("Admin login successful:", adminWithoutPassword);
             res.json({
                 success: true,
                 user: adminWithoutPassword,
-                message: "Admin login successful"
+                message: "Admin login successful",
             });
         }
         catch (error) {
             console.error("Admin login error:", error);
             res.status(500).json({
                 message: "Failed to authenticate admin",
-                error: error instanceof Error ? error.message : "Unknown error"
+                error: error instanceof Error ? error.message : "Unknown error",
             });
         }
     });
@@ -569,13 +558,24 @@ export async function registerRoutes(app) {
         try {
             const { email, displayName, googleId, photoURL } = req.body;
             if (!email || !googleId) {
-                console.warn("Google login missing required fields:", { email: !!email, googleId: !!googleId });
-                return res.status(400).json({ message: "Email and googleId are required" });
+                console.warn("Google login missing required fields:", {
+                    email: !!email,
+                    googleId: !!googleId,
+                });
+                return res
+                    .status(400)
+                    .json({ message: "Email and googleId are required" });
             }
             // Check rate limiting
             const now = Date.now();
             const attemptKey = `${email}:${googleId}`;
-            const attempts = authAttempts.get(attemptKey) || { count: 0, lastAttempt: 0, blocked: false, blockUntil: 0, signupRedirectSent: false };
+            const attempts = authAttempts.get(attemptKey) || {
+                count: 0,
+                lastAttempt: 0,
+                blocked: false,
+                blockUntil: 0,
+                signupRedirectSent: false,
+            };
             // Reset attempts if enough time has passed
             if (now - attempts.lastAttempt > ATTEMPT_WINDOW) {
                 attempts.count = 0;
@@ -588,7 +588,7 @@ export async function registerRoutes(app) {
                 console.log(`Authentication blocked for ${email} - too many attempts`);
                 return res.status(429).json({
                     message: "Too many authentication attempts. Please wait before trying again.",
-                    blockedUntil: attempts.blockUntil
+                    blockedUntil: attempts.blockUntil,
                 });
             }
             // Update attempts
@@ -614,7 +614,7 @@ export async function registerRoutes(app) {
                 if (existingUserByEmail) {
                     console.log(`Found existing user with email: ${email}`);
                     // If the user exists by email but not by googleId, update the user with googleId
-                    if (existingUserByEmail.authProvider === 'local') {
+                    if (existingUserByEmail.authProvider === "local") {
                         // This is a special case where the user had a local account and now wants to use Google
                         console.log("Existing local user trying to log in with Google");
                         // Block this user after MAX_ATTEMPTS to prevent loops
@@ -625,14 +625,15 @@ export async function registerRoutes(app) {
                             authAttempts.set(attemptKey, attempts);
                             return res.status(429).json({
                                 message: "Too many authentication attempts. Authentication has been temporarily disabled for this account.",
-                                blockedUntil: attempts.blockUntil
+                                blockedUntil: attempts.blockUntil,
                             });
                         }
                         return res.status(400).json({
-                            message: "An account with this email already exists. Please log in with your password first and then link your Google account."
+                            message: "An account with this email already exists. Please log in with your password first and then link your Google account.",
                         });
                     }
-                    else if (existingUserByEmail.authProvider === 'google' && !existingUserByEmail.googleId) {
+                    else if (existingUserByEmail.authProvider === "google" &&
+                        !existingUserByEmail.googleId) {
                         // User created with Google auth but missing googleId (should be rare)
                         console.log(`Updating existing Google user with missing googleId: ${existingUserByEmail.id}`);
                         // In a full implementation, you would update the user here
@@ -653,8 +654,8 @@ export async function registerRoutes(app) {
                             message: "No account found with this email address.",
                             requiresSignup: true,
                             email: email,
-                            displayName: displayName || email.split('@')[0],
-                            googleId: googleId
+                            displayName: displayName || email.split("@")[0],
+                            googleId: googleId,
                         });
                     }
                     else {
@@ -666,7 +667,7 @@ export async function registerRoutes(app) {
                         return res.status(429).json({
                             message: "Signup redirect already sent. Please complete signup or wait before trying again.",
                             requiresSignup: true,
-                            retryAfter: Math.ceil(BLOCK_DURATION / 1000)
+                            retryAfter: Math.ceil(BLOCK_DURATION / 1000),
                         });
                     }
                 }
@@ -680,14 +681,14 @@ export async function registerRoutes(app) {
             res.status(200).json({
                 success: true,
                 user: userInfo,
-                needsUsername
+                needsUsername,
             });
         }
         catch (error) {
             console.error("Google login error:", error);
             res.status(500).json({
                 message: "Failed to authenticate with Google",
-                error: error instanceof Error ? error.message : "Unknown error"
+                error: error instanceof Error ? error.message : "Unknown error",
             });
         }
     });
@@ -695,7 +696,9 @@ export async function registerRoutes(app) {
         try {
             const { email, password } = req.body;
             if (!email || !password) {
-                return res.status(400).json({ message: "Email and password are required" });
+                return res
+                    .status(400)
+                    .json({ message: "Email and password are required" });
             }
             // Find user by email
             const user = await storage.getUserByEmail(email);
@@ -717,7 +720,7 @@ export async function registerRoutes(app) {
                 console.log("Admin user data:", JSON.stringify(userWithoutPassword));
                 res.json({
                     success: true,
-                    user: userWithoutPassword
+                    user: userWithoutPassword,
                 });
                 return;
             }
@@ -733,7 +736,7 @@ export async function registerRoutes(app) {
             const { password: _, ...userWithoutPassword } = user;
             res.json({
                 success: true,
-                user: userWithoutPassword
+                user: userWithoutPassword,
             });
         }
         catch (error) {
@@ -760,43 +763,49 @@ export async function registerRoutes(app) {
                 console.log("User not found, returning success for security");
                 return res.json({
                     success: true,
-                    message: "If an account with that email exists, a password reset link has been sent."
+                    message: "If an account with that email exists, a password reset link has been sent.",
                 });
             }
             // Generate secure reset token
-            const resetToken = crypto.randomBytes(32).toString('hex');
+            const resetToken = crypto.randomBytes(32).toString("hex");
             console.log("Generated reset token:", resetToken);
             // Create password reset record
             console.log("Creating password reset record for user ID:", user.id);
             const passwordReset = await storage.createPasswordReset(user.id, resetToken);
             console.log("Password reset record created:", passwordReset);
             // Get base URL for reset link
-            const baseUrl = req.protocol + '://' + req.get('host');
+            const baseUrl = req.protocol + "://" + req.get("host");
             console.log("Base URL for reset link:", baseUrl);
             // Send email
             console.log("Attempting to send password reset email...");
             const emailSent = await sendPasswordResetEmail(email, resetToken, baseUrl);
             console.log("Email sent result:", emailSent);
             if (!emailSent) {
-                console.error('Failed to send password reset email');
-                return res.status(500).json({ message: "Failed to send reset email" });
+                console.error("Failed to send password reset email");
+                return res
+                    .status(500)
+                    .json({ message: "Failed to send reset email" });
             }
             console.log("Password reset process completed successfully");
             res.json({
                 success: true,
-                message: "Password reset link has been sent to your email."
+                message: "Password reset link has been sent to your email.",
             });
         }
         catch (error) {
             console.error("Error in forgot password:", error);
-            res.status(500).json({ message: "Failed to process password reset request" });
+            res
+                .status(500)
+                .json({ message: "Failed to process password reset request" });
         }
     });
     apiRouter.post("/auth/reset-password", async (req, res) => {
         try {
             const { token, newPassword } = req.body;
             if (!token || !newPassword) {
-                return res.status(400).json({ message: "Token and new password are required" });
+                return res
+                    .status(400)
+                    .json({ message: "Token and new password are required" });
             }
             // Validate password strength
             const passwordValidation = validatePasswordStrength(newPassword);
@@ -806,7 +815,9 @@ export async function registerRoutes(app) {
             // Validate reset token
             const resetRecord = await storage.getPasswordReset(token);
             if (!resetRecord) {
-                return res.status(400).json({ message: "Invalid or expired reset token" });
+                return res
+                    .status(400)
+                    .json({ message: "Invalid or expired reset token" });
             }
             // Hash the new password
             console.log("Hashing new password for security...");
@@ -820,7 +831,7 @@ export async function registerRoutes(app) {
             await storage.usePasswordReset(token);
             res.json({
                 success: true,
-                message: "Password has been reset successfully"
+                message: "Password has been reset successfully",
             });
         }
         catch (error) {
@@ -834,7 +845,7 @@ export async function registerRoutes(app) {
             const resetRecord = await storage.getPasswordReset(token);
             res.json({
                 valid: !!resetRecord,
-                expired: !resetRecord
+                expired: !resetRecord,
             });
         }
         catch (error) {
@@ -847,7 +858,7 @@ export async function registerRoutes(app) {
         try {
             const users = await storage.getAllUsers();
             // Remove passwords from response
-            const usersWithoutPasswords = users.map(user => {
+            const usersWithoutPasswords = users.map((user) => {
                 const { password, ...userWithoutPassword } = user;
                 return userWithoutPassword;
             });
@@ -863,13 +874,15 @@ export async function registerRoutes(app) {
         try {
             const userId = parseInt(req.params.userId, 10);
             // Get user info from headers (for auth check)
-            const headerUserId = parseInt(req.headers['x-user-id'], 10) || 0;
-            const headerUserRole = req.headers['x-user-role'] || '';
+            const headerUserId = parseInt(req.headers["x-user-id"], 10) || 0;
+            const headerUserRole = req.headers["x-user-role"] || "";
             console.log(`Auth headers: User ID ${headerUserId}, Role: ${headerUserRole}`);
             // Ensure the user is requesting their own reports or is an admin
-            if (headerUserId !== userId && headerUserRole !== 'admin') {
+            if (headerUserId !== userId && headerUserRole !== "admin") {
                 console.log(`Access denied: headerUserId=${headerUserId}, userId=${userId}, role=${headerUserRole}`);
-                return res.status(403).json({ message: "Access denied: You can only view your own reports" });
+                return res.status(403).json({
+                    message: "Access denied: You can only view your own reports",
+                });
             }
             console.log(`Fetching scam reports for user ID ${userId}`);
             const reports = await storage.getScamReportsByUser(userId);
@@ -878,7 +891,9 @@ export async function registerRoutes(app) {
         }
         catch (error) {
             console.error(`Error fetching scam reports for user ID ${req.params.userId}:`, error);
-            res.status(500).json({ message: "Failed to fetch user's scam reports" });
+            res
+                .status(500)
+                .json({ message: "Failed to fetch user's scam reports" });
         }
     });
     // SCAM REPORT ROUTES
@@ -890,33 +905,33 @@ export async function registerRoutes(app) {
             console.log("📝 NEW SCAM REPORT SUBMISSION");
             console.log("==========================================");
             // 1. AUTHENTICATION CHECK
-            const userId = parseInt(req.headers['x-user-id'] || '0', 10);
-            const userEmail = req.headers['x-user-email'] || '';
+            const userId = parseInt(req.headers["x-user-id"] || "0", 10);
+            const userEmail = req.headers["x-user-email"] || "";
             console.log(`🔑 User Authentication - ID: ${userId}, Email: ${userEmail}`);
             if (!userId || isNaN(userId) || !userEmail) {
                 console.error("❌ Authentication failed - invalid user ID or email");
                 return res.status(401).json({
                     success: false,
-                    message: "Authentication required"
+                    message: "Authentication required",
                 });
             }
             // 2. REQUEST VALIDATION
-            if (!req.body || typeof req.body !== 'object') {
+            if (!req.body || typeof req.body !== "object") {
                 console.error("❌ Invalid request body:", req.body);
                 return res.status(400).json({
                     success: false,
-                    message: "Request body is missing or invalid"
+                    message: "Request body is missing or invalid",
                 });
             }
             // Check required fields
-            const requiredFields = ['scamType', 'description', 'incidentDate'];
-            const missingFields = requiredFields.filter(field => !req.body[field]);
+            const requiredFields = ["scamType", "description", "incidentDate"];
+            const missingFields = requiredFields.filter((field) => !req.body[field]);
             if (missingFields.length > 0) {
-                console.error(`❌ Missing required fields: ${missingFields.join(', ')}`);
+                console.error(`❌ Missing required fields: ${missingFields.join(", ")}`);
                 return res.status(400).json({
                     success: false,
                     message: "Required fields are missing",
-                    fields: missingFields
+                    fields: missingFields,
                 });
             }
             // 4. PREPARE DATABASE RECORD
@@ -926,13 +941,13 @@ export async function registerRoutes(app) {
                 // Accept various date formats and convert to YYYY-MM-DD
                 const dateValue = req.body.incidentDate;
                 if (dateValue instanceof Date) {
-                    formattedDate = dateValue.toISOString().split('T')[0];
+                    formattedDate = dateValue.toISOString().split("T")[0];
                 }
-                else if (typeof dateValue === 'string') {
+                else if (typeof dateValue === "string") {
                     // Try to parse the string date
                     const parsedDate = new Date(dateValue);
                     if (!isNaN(parsedDate.getTime())) {
-                        formattedDate = parsedDate.toISOString().split('T')[0];
+                        formattedDate = parsedDate.toISOString().split("T")[0];
                     }
                     else {
                         // If it's already in YYYY-MM-DD format, use as is
@@ -953,7 +968,7 @@ export async function registerRoutes(app) {
                 return res.status(400).json({
                     success: false,
                     message: "Invalid incident date format",
-                    error: dateError instanceof Error ? dateError.message : "Unknown error"
+                    error: dateError instanceof Error ? dateError.message : "Unknown error",
                 });
             }
             // 5. DATABASE INSERTION - Using ORM interface
@@ -965,7 +980,7 @@ export async function registerRoutes(app) {
                     proofFilePath: req.file.path,
                     proofFileName: req.file.originalname,
                     proofFileType: req.file.mimetype,
-                    proofFileSize: req.file.size
+                    proofFileSize: req.file.size,
                 };
             }
             // Create the report data object using the InsertScamReport type
@@ -976,7 +991,7 @@ export async function registerRoutes(app) {
                 scamEmail: req.body.scamEmail || null,
                 scamBusinessName: req.body.scamBusinessName || null,
                 incidentDate: new Date(formattedDate), // Convert string to Date object
-                country: req.body.country || 'USA',
+                country: req.body.country || "USA",
                 city: req.body.city || null,
                 state: req.body.state || null,
                 zipCode: req.body.zipCode || null,
@@ -984,8 +999,8 @@ export async function registerRoutes(app) {
                 // Add file information if a file was uploaded
                 ...(fileData && {
                     hasProofDocument: true,
-                    ...fileData
-                })
+                    ...fileData,
+                }),
             };
             try {
                 // Use the storage interface for reports with optional file attachment
@@ -994,7 +1009,7 @@ export async function registerRoutes(app) {
                 return res.status(201).json({
                     success: true,
                     message: "Scam report created successfully",
-                    report: newReport
+                    report: newReport,
                 });
             }
             catch (dbError) {
@@ -1002,7 +1017,9 @@ export async function registerRoutes(app) {
                 return res.status(500).json({
                     success: false,
                     message: "Failed to save report to database",
-                    error: dbError instanceof Error ? dbError.message : "Unknown database error"
+                    error: dbError instanceof Error
+                        ? dbError.message
+                        : "Unknown database error",
                 });
             }
         }
@@ -1011,56 +1028,56 @@ export async function registerRoutes(app) {
             return res.status(500).json({
                 success: false,
                 message: "An unexpected error occurred",
-                error: error instanceof Error ? error.message : "Unknown error"
+                error: error instanceof Error ? error.message : "Unknown error",
             });
         }
     });
     // File upload endpoint for scam reports with multer middleware
-    apiRouter.post("/scam-reports/upload", upload.single('proofFile'), async (req, res) => {
+    apiRouter.post("/scam-reports/upload", upload.single("proofFile"), async (req, res) => {
         try {
             // 1. AUTHENTICATION CHECK
-            const userId = parseInt(req.headers['x-user-id'] || '0', 10);
-            const userEmail = req.headers['x-user-email'] || '';
+            const userId = parseInt(req.headers["x-user-id"] || "0", 10);
+            const userEmail = req.headers["x-user-email"] || "";
             console.log(`🔑 User Authentication - ID: ${userId}, Email: ${userEmail}`);
             if (!userId || isNaN(userId) || !userEmail) {
                 console.error("❌ Authentication failed - invalid user ID or email");
                 return res.status(401).json({
                     success: false,
-                    message: "Authentication required"
+                    message: "Authentication required",
                 });
             }
             // 2. REQUEST VALIDATION
-            if (!req.body || typeof req.body !== 'object') {
+            if (!req.body || typeof req.body !== "object") {
                 console.error("❌ Invalid request body:", req.body);
                 return res.status(400).json({
                     success: false,
-                    message: "Request body is missing or invalid"
+                    message: "Request body is missing or invalid",
                 });
             }
-            // 3. FILE VALIDATION 
+            // 3. FILE VALIDATION
             if (!req.file) {
                 console.error("❌ No file uploaded");
                 return res.status(400).json({
                     success: false,
-                    message: "No file uploaded"
+                    message: "No file uploaded",
                 });
             }
             console.log("📎 File received:", {
                 filename: req.file.filename,
                 originalName: req.file.originalname,
                 size: req.file.size,
-                mimetype: req.file.mimetype
+                mimetype: req.file.mimetype,
             });
             // 4. FORM DATA VALIDATION
             // Check required fields
-            const requiredFields = ['scamType', 'description', 'incidentDate'];
-            const missingFields = requiredFields.filter(field => !req.body[field]);
+            const requiredFields = ["scamType", "description", "incidentDate"];
+            const missingFields = requiredFields.filter((field) => !req.body[field]);
             if (missingFields.length > 0) {
-                console.error(`❌ Missing required fields: ${missingFields.join(', ')}`);
+                console.error(`❌ Missing required fields: ${missingFields.join(", ")}`);
                 return res.status(400).json({
                     success: false,
                     message: "Required fields are missing",
-                    fields: missingFields
+                    fields: missingFields,
                 });
             }
             // 5. PREPARE DATABASE RECORD
@@ -1070,13 +1087,13 @@ export async function registerRoutes(app) {
                 // Accept various date formats and convert to YYYY-MM-DD
                 const dateValue = req.body.incidentDate;
                 if (dateValue instanceof Date) {
-                    formattedDate = dateValue.toISOString().split('T')[0];
+                    formattedDate = dateValue.toISOString().split("T")[0];
                 }
-                else if (typeof dateValue === 'string') {
+                else if (typeof dateValue === "string") {
                     // Try to parse the string date
                     const parsedDate = new Date(dateValue);
                     if (!isNaN(parsedDate.getTime())) {
-                        formattedDate = parsedDate.toISOString().split('T')[0];
+                        formattedDate = parsedDate.toISOString().split("T")[0];
                     }
                     else {
                         // If it's already in YYYY-MM-DD format, use as is
@@ -1097,7 +1114,7 @@ export async function registerRoutes(app) {
                 return res.status(400).json({
                     success: false,
                     message: "Invalid incident date format",
-                    error: dateError instanceof Error ? dateError.message : "Unknown error"
+                    error: dateError instanceof Error ? dateError.message : "Unknown error",
                 });
             }
             // Process file upload
@@ -1105,7 +1122,7 @@ export async function registerRoutes(app) {
                 proofFilePath: req.file.path,
                 proofFileName: req.file.originalname,
                 proofFileType: req.file.mimetype,
-                proofFileSize: req.file.size
+                proofFileSize: req.file.size,
             };
             // Create the report data object
             const reportData = {
@@ -1115,13 +1132,13 @@ export async function registerRoutes(app) {
                 scamEmail: req.body.scamEmail || null,
                 scamBusinessName: req.body.scamBusinessName || null,
                 incidentDate: new Date(formattedDate), // Convert string to Date object
-                country: req.body.country || 'USA',
+                country: req.body.country || "USA",
                 city: req.body.city || null,
                 state: req.body.state || null,
                 zipCode: req.body.zipCode || null,
                 description: req.body.description,
                 hasProofDocument: true,
-                ...fileData
+                ...fileData,
             };
             try {
                 // Use the storage interface for reports with file attachment
@@ -1130,7 +1147,7 @@ export async function registerRoutes(app) {
                 return res.status(201).json({
                     success: true,
                     message: "Scam report with file uploaded successfully",
-                    report: newReport
+                    report: newReport,
                 });
             }
             catch (dbError) {
@@ -1138,7 +1155,9 @@ export async function registerRoutes(app) {
                 return res.status(500).json({
                     success: false,
                     message: "Failed to save report to database",
-                    error: dbError instanceof Error ? dbError.message : "Unknown database error"
+                    error: dbError instanceof Error
+                        ? dbError.message
+                        : "Unknown database error",
                 });
             }
         }
@@ -1147,7 +1166,7 @@ export async function registerRoutes(app) {
             return res.status(500).json({
                 success: false,
                 message: "An unexpected error occurred",
-                error: error instanceof Error ? error.message : "Unknown error"
+                error: error instanceof Error ? error.message : "Unknown error",
             });
         }
     });
@@ -1162,14 +1181,14 @@ export async function registerRoutes(app) {
             console.log(`📄 Pagination: page=${page}, limit=${limit}, offset=${offset}`);
             // Check user role to determine if we should include unpublished reports
             const user = req.user;
-            const userRole = user?.role || req.headers['x-user-role'] || '';
-            const isAdmin = userRole === 'admin';
+            const userRole = user?.role || req.headers["x-user-role"] || "";
+            const isAdmin = userRole === "admin";
             console.log(`👤 User role: ${userRole}, isAdmin: ${isAdmin}`);
             let reports;
             let totalCount;
             // Check if we're filtering by verification status
             if (req.query.isVerified !== undefined) {
-                const isVerified = req.query.isVerified === 'true';
+                const isVerified = req.query.isVerified === "true";
                 console.log(`Filtering scam reports by verification status: isVerified=${isVerified}`);
                 if (isVerified) {
                     reports = await storage.getVerifiedScamReports(page, limit);
@@ -1181,10 +1200,10 @@ export async function registerRoutes(app) {
                 }
                 // Filter out unpublished reports if not admin (this should be done in the database query)
                 if (!isAdmin) {
-                    reports = reports.filter(report => report.isPublished !== false);
+                    reports = reports.filter((report) => report.isPublished !== false);
                     console.log(`Filtered reports for non-admin user, showing only published: ${reports.length}`);
                 }
-                console.log(`Returning ${reports.length} ${isVerified ? 'verified' : 'unverified'} reports (page ${page})`);
+                console.log(`Returning ${reports.length} ${isVerified ? "verified" : "unverified"} reports (page ${page})`);
             }
             else {
                 // No filtering by verification status
@@ -1205,11 +1224,13 @@ export async function registerRoutes(app) {
                 const user = userId ? await storage.getUser(userId) : null;
                 return {
                     ...report,
-                    user: user ? {
-                        id: user.id,
-                        displayName: user.displayName,
-                        email: user.email
-                    } : undefined
+                    user: user
+                        ? {
+                            id: user.id,
+                            displayName: user.displayName,
+                            email: user.email,
+                        }
+                        : undefined,
                 };
             }));
             console.log(`Returning ${reportsWithUsers.length} reports (page ${page} of ${Math.ceil(totalCount / limit)})`);
@@ -1220,8 +1241,8 @@ export async function registerRoutes(app) {
                     page,
                     limit,
                     totalCount,
-                    totalPages: Math.ceil(totalCount / limit)
-                }
+                    totalPages: Math.ceil(totalCount / limit),
+                },
             });
         }
         catch (error) {
@@ -1233,8 +1254,8 @@ export async function registerRoutes(app) {
     apiRouter.get("/scam-reports/recent", async (req, res) => {
         try {
             const limit = parseInt(req.query.limit || "5", 10);
-            const userRole = req.headers['x-user-role'] || '';
-            const isAdmin = userRole === 'admin';
+            const userRole = req.headers["x-user-role"] || "";
+            const isAdmin = userRole === "admin";
             console.log(`👤 User requesting recent reports - Role: ${userRole}, isAdmin: ${isAdmin}`);
             // Get recent reports - pass includeUnpublished as true for admins
             let recentReports = await storage.getRecentScamReports(limit, isAdmin);
@@ -1266,12 +1287,14 @@ export async function registerRoutes(app) {
                     hasProofDocument: report.hasProofDocument,
                     proofFilePath: report.proofFilePath,
                     userId: report.userId,
-                    user: user ? {
-                        id: user.id,
-                        displayName: user.displayName,
-                        email: user.email
-                    } : null,
-                    consolidatedInfo
+                    user: user
+                        ? {
+                            id: user.id,
+                            displayName: user.displayName,
+                            email: user.email,
+                        }
+                        : null,
+                    consolidatedInfo,
                 };
             }));
             console.log(`Returning ${reportsWithUsers.length} recent reports`);
@@ -1286,10 +1309,10 @@ export async function registerRoutes(app) {
     apiRouter.get("/scam-reports/by-type/:type", async (req, res) => {
         try {
             const type = req.params.type;
-            const userRole = req.headers['x-user-role'] || '';
-            const isAdmin = userRole === 'admin';
+            const userRole = req.headers["x-user-role"] || "";
+            const isAdmin = userRole === "admin";
             console.log(`👤 User requesting reports by type ${type} - Role: ${userRole}, isAdmin: ${isAdmin}`);
-            if (!['phone', 'email', 'business'].includes(type)) {
+            if (!["phone", "email", "business"].includes(type)) {
                 return res.status(400).json({ message: "Invalid scam type" });
             }
             // Get reports by type
@@ -1297,7 +1320,7 @@ export async function registerRoutes(app) {
             // Filter out unpublished reports for non-admin users
             if (!isAdmin) {
                 console.log(`Filtering unpublished reports for non-admin user`);
-                reports = reports.filter(report => report.isPublished !== false);
+                reports = reports.filter((report) => report.isPublished !== false);
                 console.log(`After filtering: ${reports.length} published reports of type ${type}`);
             }
             res.json(reports);
@@ -1311,8 +1334,8 @@ export async function registerRoutes(app) {
     apiRouter.get("/scam-reports/:id", async (req, res) => {
         try {
             const id = parseInt(req.params.id, 10);
-            const userRole = req.headers['x-user-role'] || '';
-            const isAdmin = userRole === 'admin';
+            const userRole = req.headers["x-user-role"] || "";
+            const isAdmin = userRole === "admin";
             console.log(`👤 User requesting scam report ID ${id} - Role: ${userRole}, isAdmin: ${isAdmin}`);
             const report = await storage.getScamReport(id);
             if (!report) {
@@ -1323,7 +1346,7 @@ export async function registerRoutes(app) {
                 console.log(`⚠️ Non-admin user tried to access unpublished report ID ${id}`);
                 return res.status(403).json({
                     message: "This report is not available",
-                    notPublished: true
+                    notPublished: true,
                 });
             }
             // Get the user who reported it
@@ -1334,13 +1357,17 @@ export async function registerRoutes(app) {
                 const commentUser = await storage.getUser(comment.userId);
                 return {
                     ...comment,
-                    user: commentUser ? {
-                        id: commentUser.id,
-                        beawareUsername: commentUser.beawareUsername,
-                        // Only show real info to admins
-                        displayName: user?.role === 'admin' ? commentUser.displayName : undefined,
-                        email: user?.role === 'admin' ? commentUser.email : undefined
-                    } : null
+                    user: commentUser
+                        ? {
+                            id: commentUser.id,
+                            beawareUsername: commentUser.beawareUsername,
+                            // Only show real info to admins
+                            displayName: user?.role === "admin"
+                                ? commentUser.displayName
+                                : undefined,
+                            email: user?.role === "admin" ? commentUser.email : undefined,
+                        }
+                        : null,
                 };
             }));
             // Get consolidation info if available
@@ -1351,14 +1378,16 @@ export async function registerRoutes(app) {
             }
             res.json({
                 ...report,
-                user: user ? {
-                    id: user.id,
-                    beawareUsername: user.beawareUsername,
-                    displayName: user.displayName,
-                    email: user.email
-                } : null,
+                user: user
+                    ? {
+                        id: user.id,
+                        beawareUsername: user.beawareUsername,
+                        displayName: user.displayName,
+                        email: user.email,
+                    }
+                    : null,
                 comments: commentsWithUser,
-                consolidatedInfo
+                consolidatedInfo,
             });
         }
         catch (error) {
@@ -1378,7 +1407,7 @@ export async function registerRoutes(app) {
                 console.error("❌ Admin validation failed in verify endpoint");
                 return res.status(400).json({ message: "Valid admin user required" });
             }
-            if (adminUser.role !== 'admin') {
+            if (adminUser.role !== "admin") {
                 console.error(`❌ Non-admin user ${adminUser.email} attempted to verify a report`);
                 return res.status(403).json({ message: "Admin privileges required" });
             }
@@ -1394,7 +1423,7 @@ export async function registerRoutes(app) {
                 return res.json({
                     success: true,
                     message: "Scam report was already verified",
-                    report: originalReport
+                    report: originalReport,
                 });
             }
             // Verify the report
@@ -1402,7 +1431,9 @@ export async function registerRoutes(app) {
             const report = await storage.verifyScamReport(id, adminUser.id);
             if (!report) {
                 console.error(`❌ Verification failed for scam report ID ${id}`);
-                return res.status(404).json({ message: "Scam report not found or verification failed" });
+                return res
+                    .status(404)
+                    .json({ message: "Scam report not found or verification failed" });
             }
             console.log(`🎉 Successfully verified scam report: ${JSON.stringify(report)}`);
             // Also verify the consolidated scam if one exists
@@ -1421,7 +1452,7 @@ export async function registerRoutes(app) {
             res.json({
                 success: true,
                 message: "Scam report verified successfully",
-                report
+                report,
             });
         }
         catch (error) {
@@ -1454,11 +1485,13 @@ export async function registerRoutes(app) {
             // Publish the report
             const report = await storage.publishScamReport(id, adminUser.id);
             if (!report) {
-                return res.status(500).json({ message: "Failed to publish scam report" });
+                return res
+                    .status(500)
+                    .json({ message: "Failed to publish scam report" });
             }
             res.json({
                 message: "Scam report published successfully",
-                report
+                report,
             });
         }
         catch (error) {
@@ -1491,11 +1524,13 @@ export async function registerRoutes(app) {
             // Unpublish the report
             const report = await storage.unpublishScamReport(id, adminUser.id);
             if (!report) {
-                return res.status(500).json({ message: "Failed to unpublish scam report" });
+                return res
+                    .status(500)
+                    .json({ message: "Failed to unpublish scam report" });
             }
             res.json({
                 message: "Scam report unpublished successfully",
-                report
+                report,
             });
         }
         catch (error) {
@@ -1518,7 +1553,7 @@ export async function registerRoutes(app) {
             console.error("❌ Error getting published scam reports:", error);
             res.status(500).json({
                 message: "Failed to get published scam reports",
-                error: error instanceof Error ? error.message : "Unknown error"
+                error: error instanceof Error ? error.message : "Unknown error",
             });
         }
     });
@@ -1530,7 +1565,9 @@ export async function registerRoutes(app) {
         }
         catch (error) {
             console.error("❌ Error getting unpublished scam reports:", error);
-            res.status(500).json({ message: "Failed to get unpublished scam reports" });
+            res
+                .status(500)
+                .json({ message: "Failed to get unpublished scam reports" });
         }
     });
     // SCAM COMMENT ROUTES
@@ -1540,7 +1577,7 @@ export async function registerRoutes(app) {
             // Combine request data with authenticated user
             const commentData = {
                 ...req.body,
-                userId: user.id
+                userId: user.id,
             };
             const validCommentData = insertScamCommentSchema.parse(commentData);
             const comment = await storage.createScamComment(validCommentData);
@@ -1550,15 +1587,15 @@ export async function registerRoutes(app) {
                 user: {
                     id: user.id,
                     displayName: user.displayName,
-                    email: user.email
-                }
+                    email: user.email,
+                },
             });
         }
         catch (error) {
             if (error instanceof z.ZodError) {
                 return res.status(400).json({
                     message: "Invalid comment data",
-                    errors: error.errors
+                    errors: error.errors,
                 });
             }
             console.error("Error creating comment:", error);
@@ -1584,14 +1621,14 @@ export async function registerRoutes(app) {
         try {
             const consolidatedScams = await storage.getAllConsolidatedScams();
             // Transform database field names to camelCase for frontend compatibility
-            const transformedScams = consolidatedScams.map(scam => ({
+            const transformedScams = consolidatedScams.map((scam) => ({
                 id: scam.id,
                 scamType: scam.scamType,
                 identifier: scam.identifier,
                 reportCount: scam.reportCount,
                 firstReportedAt: scam.firstReportedAt,
                 lastReportedAt: scam.lastReportedAt,
-                isVerified: scam.isVerified
+                isVerified: scam.isVerified,
             }));
             res.json(transformedScams);
         }
@@ -1603,7 +1640,7 @@ export async function registerRoutes(app) {
     apiRouter.get("/consolidated-scams/by-type/:type", async (req, res) => {
         try {
             const type = req.params.type;
-            if (!['phone', 'email', 'business'].includes(type)) {
+            if (!["phone", "email", "business"].includes(type)) {
                 return res.status(400).json({ message: "Invalid scam type" });
             }
             const scams = await storage.getConsolidatedScamsByType(type);
@@ -1619,13 +1656,15 @@ export async function registerRoutes(app) {
             const id = parseInt(req.params.id, 10);
             const consolidatedScam = await storage.getConsolidatedScam(id);
             if (!consolidatedScam) {
-                return res.status(404).json({ message: "Consolidated scam not found" });
+                return res
+                    .status(404)
+                    .json({ message: "Consolidated scam not found" });
             }
             // Get all reports for this consolidated scam
             const reports = await storage.getScamReportsForConsolidatedScam(id);
             res.json({
                 ...consolidatedScam,
-                reports
+                reports,
             });
         }
         catch (error) {
@@ -1645,7 +1684,7 @@ export async function registerRoutes(app) {
                 console.error("❌ Admin validation failed in verify consolidated scam endpoint");
                 return res.status(400).json({ message: "Valid admin user required" });
             }
-            if (adminUser.role !== 'admin') {
+            if (adminUser.role !== "admin") {
                 console.error(`❌ Non-admin user ${adminUser.email} attempted to verify a consolidated scam`);
                 return res.status(403).json({ message: "Admin privileges required" });
             }
@@ -1653,7 +1692,9 @@ export async function registerRoutes(app) {
             const originalScam = await storage.getConsolidatedScam(id);
             if (!originalScam) {
                 console.error(`❌ Consolidated scam with ID ${id} not found`);
-                return res.status(404).json({ message: "Consolidated scam not found" });
+                return res
+                    .status(404)
+                    .json({ message: "Consolidated scam not found" });
             }
             console.log(`✓ Found consolidated scam: ${JSON.stringify(originalScam)}`);
             if (originalScam.isVerified) {
@@ -1661,7 +1702,7 @@ export async function registerRoutes(app) {
                 return res.json({
                     success: true,
                     message: "Consolidated scam was already verified",
-                    consolidatedScam: originalScam
+                    consolidatedScam: originalScam,
                 });
             }
             // Use the storage method to verify the consolidated scam
@@ -1669,13 +1710,15 @@ export async function registerRoutes(app) {
             const updatedScam = await storage.verifyConsolidatedScam(id);
             if (!updatedScam) {
                 console.error(`❌ Verification failed for consolidated scam ID ${id}`);
-                return res.status(500).json({ message: "Failed to verify consolidated scam" });
+                return res
+                    .status(500)
+                    .json({ message: "Failed to verify consolidated scam" });
             }
             console.log(`🎉 Successfully verified consolidated scam: ${JSON.stringify(updatedScam)}`);
             res.json({
                 success: true,
                 message: "Consolidated scam verified successfully",
-                consolidatedScam: updatedScam
+                consolidatedScam: updatedScam,
             });
         }
         catch (error) {
@@ -1709,23 +1752,27 @@ export async function registerRoutes(app) {
             // Check if this user already has a lawyer profile
             const existingProfile = await storage.getLawyerProfileByUserId(user.id);
             if (existingProfile) {
-                return res.status(400).json({ message: "User already has a lawyer profile" });
+                return res
+                    .status(400)
+                    .json({ message: "User already has a lawyer profile" });
             }
             // Process the form data
             const profileData = {
                 userId: user.id,
-                ...req.body
+                ...req.body,
             };
             // Handle array fields that might come as strings
-            if (typeof profileData.secondarySpecializations === 'string') {
+            if (typeof profileData.secondarySpecializations === "string") {
                 profileData.secondarySpecializations = JSON.parse(profileData.secondarySpecializations);
             }
-            if (typeof profileData.caseTypes === 'string') {
+            if (typeof profileData.caseTypes === "string") {
                 profileData.caseTypes = JSON.parse(profileData.caseTypes);
             }
             // Convert string boolean values to actual booleans
-            profileData.acceptingNewClients = profileData.acceptingNewClients === 'true';
-            profileData.offersFreeConsultation = profileData.offersFreeConsultation === 'true';
+            profileData.acceptingNewClients =
+                profileData.acceptingNewClients === "true";
+            profileData.offersFreeConsultation =
+                profileData.offersFreeConsultation === "true";
             // Parse numeric fields
             profileData.yearsOfExperience = parseInt(profileData.yearsOfExperience, 10);
             // File upload functionality has been completely removed
@@ -1740,7 +1787,7 @@ export async function registerRoutes(app) {
             if (error instanceof z.ZodError) {
                 return res.status(400).json({
                     message: "Invalid lawyer profile data",
-                    errors: error.errors
+                    errors: error.errors,
                 });
             }
             console.error("Error creating lawyer profile:", error);
@@ -1751,7 +1798,7 @@ export async function registerRoutes(app) {
     apiRouter.get("/lawyer-profiles", async (req, res) => {
         try {
             // By default, only return verified lawyer profiles
-            const onlyVerified = req.query.verified !== 'false';
+            const onlyVerified = req.query.verified !== "false";
             let profiles;
             if (onlyVerified) {
                 profiles = await storage.getVerifiedLawyerProfiles();
@@ -1793,7 +1840,9 @@ export async function registerRoutes(app) {
             }
             const profile = await storage.getLawyerProfileByUserId(userId);
             if (!profile) {
-                return res.status(404).json({ message: "Lawyer profile not found for this user" });
+                return res
+                    .status(404)
+                    .json({ message: "Lawyer profile not found for this user" });
             }
             res.json(profile);
         }
@@ -1815,24 +1864,26 @@ export async function registerRoutes(app) {
                 return res.status(404).json({ message: "Lawyer profile not found" });
             }
             // Check permission (user can update their own profile, admin can update any)
-            if (profile.userId !== user.id && user.role !== 'admin') {
+            if (profile.userId !== user.id && user.role !== "admin") {
                 return res.status(403).json({ message: "Permission denied" });
             }
             // Process the update data
             const updateData = { ...req.body };
             // Handle array fields that might come as strings
-            if (typeof updateData.secondarySpecializations === 'string') {
+            if (typeof updateData.secondarySpecializations === "string") {
                 updateData.secondarySpecializations = JSON.parse(updateData.secondarySpecializations);
             }
-            if (typeof updateData.caseTypes === 'string') {
+            if (typeof updateData.caseTypes === "string") {
                 updateData.caseTypes = JSON.parse(updateData.caseTypes);
             }
             // Convert string boolean values to actual booleans
             if (updateData.acceptingNewClients !== undefined) {
-                updateData.acceptingNewClients = updateData.acceptingNewClients === 'true';
+                updateData.acceptingNewClients =
+                    updateData.acceptingNewClients === "true";
             }
             if (updateData.offersFreeConsultation !== undefined) {
-                updateData.offersFreeConsultation = updateData.offersFreeConsultation === 'true';
+                updateData.offersFreeConsultation =
+                    updateData.offersFreeConsultation === "true";
             }
             // Parse numeric fields
             if (updateData.yearsOfExperience !== undefined) {
@@ -1874,12 +1925,14 @@ export async function registerRoutes(app) {
             const verifiedProfile = await storage.verifyLawyerProfile(id, admin.id);
             if (!verifiedProfile) {
                 console.error(`Verification failed for lawyer profile ID ${id}`);
-                return res.status(500).json({ message: "Failed to verify lawyer profile" });
+                return res
+                    .status(500)
+                    .json({ message: "Failed to verify lawyer profile" });
             }
             console.log(`Successfully verified lawyer profile: ${JSON.stringify(verifiedProfile)}`);
             res.json({
                 success: true,
-                profile: verifiedProfile
+                profile: verifiedProfile,
             });
         }
         catch (error) {
@@ -1893,13 +1946,13 @@ export async function registerRoutes(app) {
         try {
             // User ID is optional
             let userId = null;
-            if (req.headers['x-user-id']) {
-                userId = parseInt(req.headers['x-user-id'], 10);
+            if (req.headers["x-user-id"]) {
+                userId = parseInt(req.headers["x-user-id"], 10);
             }
             // Process request data
             const requestData = {
                 ...req.body,
-                userId
+                userId,
             };
             // Validate with schema
             const validRequestData = insertLawyerRequestSchema.parse(requestData);
@@ -1911,7 +1964,7 @@ export async function registerRoutes(app) {
             if (error instanceof z.ZodError) {
                 return res.status(400).json({
                     message: "Invalid lawyer request data",
-                    errors: error.errors
+                    errors: error.errors,
                 });
             }
             console.error("Error creating lawyer request:", error);
@@ -1922,7 +1975,7 @@ export async function registerRoutes(app) {
     apiRouter.get("/lawyer-requests", requireAuth, requireAdmin, async (req, res) => {
         try {
             let requests;
-            if (req.query.status === 'pending') {
+            if (req.query.status === "pending") {
                 requests = await storage.getPendingLawyerRequests();
             }
             else {
@@ -1948,7 +2001,7 @@ export async function registerRoutes(app) {
                 return res.status(404).json({ message: "Lawyer profile not found" });
             }
             // Check permission (lawyers can see their own requests, admin can see any)
-            if (profile.userId !== user.id && user.role !== 'admin') {
+            if (profile.userId !== user.id && user.role !== "admin") {
                 return res.status(403).json({ message: "Permission denied" });
             }
             const requests = await storage.getLawyerRequestsByLawyer(id);
@@ -1967,7 +2020,8 @@ export async function registerRoutes(app) {
                 return res.status(400).json({ message: "Invalid ID" });
             }
             const { status } = req.body;
-            if (!status || !['pending', 'accepted', 'rejected', 'completed'].includes(status)) {
+            if (!status ||
+                !["pending", "accepted", "rejected", "completed"].includes(status)) {
                 return res.status(400).json({ message: "Invalid status" });
             }
             const user = req.user;
@@ -1979,11 +2033,11 @@ export async function registerRoutes(app) {
             if (request.lawyerProfileId) {
                 const profile = await storage.getLawyerProfile(request.lawyerProfileId);
                 // Only the assigned lawyer or admin can update status
-                if (profile && profile.userId !== user.id && user.role !== 'admin') {
+                if (profile && profile.userId !== user.id && user.role !== "admin") {
                     return res.status(403).json({ message: "Permission denied" });
                 }
             }
-            else if (user.role !== 'admin') {
+            else if (user.role !== "admin") {
                 // Only admin can update unassigned requests
                 return res.status(403).json({ message: "Permission denied" });
             }
@@ -1992,7 +2046,9 @@ export async function registerRoutes(app) {
         }
         catch (error) {
             console.error("Error updating lawyer request status:", error);
-            res.status(500).json({ message: "Failed to update lawyer request status" });
+            res
+                .status(500)
+                .json({ message: "Failed to update lawyer request status" });
         }
     });
     // Assign a lawyer to a request (admin only)
@@ -2004,7 +2060,9 @@ export async function registerRoutes(app) {
             }
             const { lawyerProfileId } = req.body;
             if (!lawyerProfileId) {
-                return res.status(400).json({ message: "Lawyer profile ID is required" });
+                return res
+                    .status(400)
+                    .json({ message: "Lawyer profile ID is required" });
             }
             const profileId = parseInt(lawyerProfileId, 10);
             if (isNaN(profileId)) {
@@ -2045,20 +2103,24 @@ export async function registerRoutes(app) {
     apiRouter.get("/scam-videos/featured", async (req, res) => {
         try {
             // Get limit from query parameter, default to 5
-            const limit = req.query.limit ? parseInt(req.query.limit, 10) : 5;
+            const limit = req.query.limit
+                ? parseInt(req.query.limit, 10)
+                : 5;
             const videos = await storage.getFeaturedScamVideos(limit);
             res.json(videos);
         }
         catch (error) {
             console.error("Error fetching featured scam videos:", error);
-            res.status(500).json({ message: "Failed to fetch featured scam videos" });
+            res
+                .status(500)
+                .json({ message: "Failed to fetch featured scam videos" });
         }
     });
     // Get videos by scam type
     apiRouter.get("/scam-videos/type/:scamType", async (req, res) => {
         try {
             const scamType = req.params.scamType;
-            if (!['phone', 'email', 'business'].includes(scamType)) {
+            if (!["phone", "email", "business"].includes(scamType)) {
                 return res.status(400).json({ message: "Invalid scam type" });
             }
             const videos = await storage.getScamVideosByType(scamType);
@@ -2066,7 +2128,9 @@ export async function registerRoutes(app) {
         }
         catch (error) {
             console.error("Error fetching scam videos by type:", error);
-            res.status(500).json({ message: "Failed to fetch scam videos by type" });
+            res
+                .status(500)
+                .json({ message: "Failed to fetch scam videos by type" });
         }
     });
     // Get videos for a consolidated scam
@@ -2078,7 +2142,9 @@ export async function registerRoutes(app) {
         }
         catch (error) {
             console.error("Error fetching videos for consolidated scam:", error);
-            res.status(500).json({ message: "Failed to fetch videos for consolidated scam" });
+            res
+                .status(500)
+                .json({ message: "Failed to fetch videos for consolidated scam" });
         }
     });
     // Get a specific video by ID
@@ -2103,16 +2169,16 @@ export async function registerRoutes(app) {
             // Validate the request body
             const videoData = insertScamVideoSchema.parse({
                 ...req.body,
-                addedById: user.id
+                addedById: user.id,
             });
             // Extract the YouTube video ID from the URL if not provided
             if (!videoData.youtubeVideoId && videoData.youtubeUrl) {
                 const url = new URL(videoData.youtubeUrl);
-                let videoId = '';
-                if (url.hostname.includes('youtube.com')) {
-                    videoId = url.searchParams.get('v') || '';
+                let videoId = "";
+                if (url.hostname.includes("youtube.com")) {
+                    videoId = url.searchParams.get("v") || "";
                 }
-                else if (url.hostname.includes('youtu.be')) {
+                else if (url.hostname.includes("youtu.be")) {
                     videoId = url.pathname.substring(1);
                 }
                 if (videoId) {
@@ -2120,11 +2186,19 @@ export async function registerRoutes(app) {
                 }
                 else {
                     return res.status(400).json({
-                        message: "Could not extract YouTube video ID from URL. Please provide a valid YouTube URL or specify the video ID directly."
+                        message: "Could not extract YouTube video ID from URL. Please provide a valid YouTube URL or specify the video ID directly.",
                     });
                 }
             }
-            const video = await storage.createScamVideo(videoData);
+            const createFn = storage.insertScamVideo ??
+                storage.addScamVideo ??
+                storage.createScamVideo ??
+                storage.scamVideos?.create;
+            if (typeof createFn !== "function") {
+                throw new Error("Storage adapter is missing a scam video create method");
+            }
+            // Call with the proper context (namespaced adapters may live under storage.scamVideos)
+            const video = await createFn.call(storage.scamVideos ?? storage, videoData);
             res.status(201).json(video);
         }
         catch (error) {
@@ -2132,12 +2206,12 @@ export async function registerRoutes(app) {
             if (error instanceof z.ZodError) {
                 return res.status(400).json({
                     message: "Invalid scam video data",
-                    errors: error.errors
+                    errors: error.errors,
                 });
             }
             res.status(500).json({
                 message: "Failed to create scam video",
-                error: error instanceof Error ? error.message : "Unknown error"
+                error: error instanceof Error ? error.message : "Unknown error",
             });
         }
     });
@@ -2187,7 +2261,9 @@ export async function registerRoutes(app) {
         try {
             const { messages } = req.body;
             if (!messages || !Array.isArray(messages)) {
-                return res.status(400).json({ error: "Invalid request format. 'messages' array is required." });
+                return res.status(400).json({
+                    error: "Invalid request format. 'messages' array is required.",
+                });
             }
             // Check if Perplexity API key exists
             const apiKey = process.env.PERPLEXITY_API_KEY;
@@ -2196,26 +2272,26 @@ export async function registerRoutes(app) {
                 // Return a fallback response if no API key is available
                 return res.status(200).json({
                     response: "I'm sorry, but I'm currently operating in limited mode. My responses are based on pre-defined information about common scams. For more detailed assistance, please try again later when my full capabilities are available.",
-                    source: "fallback"
+                    source: "fallback",
                 });
             }
             // Format messages for Perplexity API
             const formattedMessages = [
                 {
                     role: "system",
-                    content: "You are a helpful assistant for scam victims. Provide specific, actionable advice for people who've been scammed. Be supportive and empathetic, but focus on practical steps they can take. Include references to official resources when appropriate. Keep your responses concise and direct."
+                    content: "You are a helpful assistant for scam victims. Provide specific, actionable advice for people who've been scammed. Be supportive and empathetic, but focus on practical steps they can take. Include references to official resources when appropriate. Keep your responses concise and direct.",
                 },
                 ...messages.map((msg) => ({
                     role: msg.role,
-                    content: msg.content
-                }))
+                    content: msg.content,
+                })),
             ];
             // Call Perplexity API
             const response = await fetch("https://api.perplexity.ai/chat/completions", {
                 method: "POST",
                 headers: {
-                    "Authorization": `Bearer ${apiKey}`,
-                    "Content-Type": "application/json"
+                    Authorization: `Bearer ${apiKey}`,
+                    "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
                     model: "llama-3.1-sonar-small-128k-online",
@@ -2225,8 +2301,8 @@ export async function registerRoutes(app) {
                     presence_penalty: 0,
                     frequency_penalty: 1,
                     return_related_questions: false,
-                    stream: false
-                })
+                    stream: false,
+                }),
             });
             if (!response.ok) {
                 const errorText = await response.text();
@@ -2237,7 +2313,7 @@ export async function registerRoutes(app) {
             return res.status(200).json({
                 response: data.choices[0].message.content,
                 citations: data.citations || [],
-                source: "perplexity"
+                source: "perplexity",
             });
         }
         catch (error) {
@@ -2245,7 +2321,7 @@ export async function registerRoutes(app) {
             return res.status(500).json({
                 error: "Failed to get AI response",
                 response: "I'm having trouble connecting to my knowledge base right now. Please try again in a moment.",
-                source: "error"
+                source: "error",
             });
         }
     });
@@ -2260,14 +2336,16 @@ export async function registerRoutes(app) {
                 email: z.string().email("Invalid email address"),
                 subject: z.string().min(1, "Subject is required"),
                 message: z.string().min(1, "Message is required"),
-                category: z.enum(["general", "feedback", "question", "report", "other"]).optional(),
+                category: z
+                    .enum(["general", "feedback", "question", "report", "other"])
+                    .optional(),
             });
             const result = contactSchema.safeParse(req.body);
             if (!result.success) {
                 return res.status(400).json({
                     success: false,
                     message: "Invalid form data",
-                    errors: result.error.flatten().fieldErrors
+                    errors: result.error.flatten().fieldErrors,
                 });
             }
             const { name, email, subject, message } = result.data;
@@ -2287,7 +2365,7 @@ ${message}
 <p><strong>Email:</strong> ${email}</p>
 <p><strong>Subject:</strong> ${subject}</p>
 <h3>Message:</h3>
-<p>${message.replace(/\n/g, '<br>')}</p>
+<p>${message.replace(/\n/g, "<br>")}</p>
       `;
             // Send email
             const emailSent = await sendEmail({
@@ -2295,20 +2373,20 @@ ${message}
                 subject: emailSubject,
                 text: emailText,
                 html: emailHtml,
-                from: `"BeAware Contact Form" <beaware.fyi@gmail.com>`
+                from: `"BeAware Contact Form" <beaware.fyi@gmail.com>`,
             });
             // Even if email fails, we'll return success to the user since the data is safely logged
             // in the server console and the user doesn't need to know about backend email issues
             return res.status(200).json({
                 success: true,
-                message: "Your message has been sent successfully. We'll get back to you soon!"
+                message: "Your message has been sent successfully. We'll get back to you soon!",
             });
         }
         catch (error) {
             console.error("Contact form submission error:", error);
             return res.status(500).json({
                 success: false,
-                message: "An unexpected error occurred. Please try again later."
+                message: "An unexpected error occurred. Please try again later.",
             });
         }
     });
@@ -2321,7 +2399,9 @@ ${message}
         }
         catch (error) {
             console.error("Error fetching security checklist items:", error);
-            res.status(500).json({ message: "Failed to fetch security checklist items" });
+            res
+                .status(500)
+                .json({ message: "Failed to fetch security checklist items" });
         }
     });
     // Get user's security progress
@@ -2357,26 +2437,30 @@ ${message}
                 isCompleted,
                 isCompletedType: typeof isCompleted,
                 notes,
-                body: req.body
+                body: req.body,
             });
             // More flexible boolean validation
             let completedStatus;
-            if (typeof isCompleted === 'boolean') {
+            if (typeof isCompleted === "boolean") {
                 completedStatus = isCompleted;
             }
-            else if (typeof isCompleted === 'string') {
-                completedStatus = isCompleted.toLowerCase() === 'true';
+            else if (typeof isCompleted === "string") {
+                completedStatus = isCompleted.toLowerCase() === "true";
             }
-            else if (typeof isCompleted === 'number') {
+            else if (typeof isCompleted === "number") {
                 completedStatus = isCompleted === 1;
             }
             else {
-                return res.status(400).json({ message: "isCompleted must be a boolean value" });
+                return res
+                    .status(400)
+                    .json({ message: "isCompleted must be a boolean value" });
             }
             // Verify the checklist item exists
             const item = await storage.getSecurityChecklistItem(itemId);
             if (!item) {
-                return res.status(404).json({ message: "Security checklist item not found" });
+                return res
+                    .status(404)
+                    .json({ message: "Security checklist item not found" });
             }
             const progress = await storage.updateUserSecurityProgress(user.id, itemId, completedStatus, notes);
             res.json(progress);
@@ -2397,13 +2481,17 @@ ${message}
             console.log(`Admin ${user.id} creating security checklist item:`, itemData);
             const newItem = await storage.createSecurityChecklistItem(itemData);
             if (!newItem) {
-                return res.status(500).json({ message: "Failed to create security checklist item" });
+                return res
+                    .status(500)
+                    .json({ message: "Failed to create security checklist item" });
             }
             res.status(201).json(newItem);
         }
         catch (error) {
             console.error("Error creating security checklist item:", error);
-            res.status(500).json({ message: "Failed to create security checklist item" });
+            res
+                .status(500)
+                .json({ message: "Failed to create security checklist item" });
         }
     });
     // Update security checklist item (admin only)
@@ -2421,13 +2509,17 @@ ${message}
             console.log(`Admin ${user.id} updating security checklist item ${itemId}:`, updates);
             const updatedItem = await storage.updateSecurityChecklistItem(itemId, updates);
             if (!updatedItem) {
-                return res.status(404).json({ message: "Security checklist item not found" });
+                return res
+                    .status(404)
+                    .json({ message: "Security checklist item not found" });
             }
             res.json(updatedItem);
         }
         catch (error) {
             console.error("Error updating security checklist item:", error);
-            res.status(500).json({ message: "Failed to update security checklist item" });
+            res
+                .status(500)
+                .json({ message: "Failed to update security checklist item" });
         }
     });
     // Delete security checklist item (admin only)
@@ -2444,13 +2536,20 @@ ${message}
             console.log(`Admin ${user.id} deleting security checklist item ${itemId}`);
             const deleted = await storage.deleteSecurityChecklistItem(itemId);
             if (!deleted) {
-                return res.status(404).json({ message: "Security checklist item not found" });
+                return res
+                    .status(404)
+                    .json({ message: "Security checklist item not found" });
             }
-            res.json({ success: true, message: "Security checklist item deleted successfully" });
+            res.json({
+                success: true,
+                message: "Security checklist item deleted successfully",
+            });
         }
         catch (error) {
             console.error("Error deleting security checklist item:", error);
-            res.status(500).json({ message: "Failed to delete security checklist item" });
+            res
+                .status(500)
+                .json({ message: "Failed to delete security checklist item" });
         }
     });
     // VERSION AND HEALTH CHECK ROUTES
@@ -2470,7 +2569,7 @@ ${message}
             res.json({
                 status: "healthy",
                 timestamp: new Date().toISOString(),
-                version: versionInfo
+                version: versionInfo,
             });
         }
         catch (error) {
@@ -2478,8 +2577,19 @@ ${message}
             res.status(500).json({
                 status: "unhealthy",
                 timestamp: new Date().toISOString(),
-                error: "Health check failed"
+                error: "Health check failed",
             });
+        }
+    });
+    // Serve version.json at root level for frontend consumption
+    app.get("/version.json", async (req, res) => {
+        try {
+            const versionInfo = getVersionInfo();
+            res.json(versionInfo);
+        }
+        catch (error) {
+            console.error("Error getting version info for /version.json:", error);
+            res.status(500).json({ error: "Failed to get version information" });
         }
     });
     // SCAM LOOKUP API ENDPOINTS
@@ -2490,7 +2600,7 @@ ${message}
             if (!type || !input) {
                 return res.status(400).json({
                     success: false,
-                    message: "Type and input are required"
+                    message: "Type and input are required",
                 });
             }
             console.log(`🔍 Scam lookup request - Type: ${type}, Input: ${input}`);
@@ -2500,7 +2610,7 @@ ${message}
                 return res.status(404).json({
                     success: false,
                     message: `No API configuration found for type: ${type}`,
-                    availableTypes: ['phone', 'email', 'url', 'ip', 'domain']
+                    availableTypes: ["phone", "email", "url", "ip", "domain"],
                 });
             }
             console.log(`📡 Using API config: ${apiConfig.name} for ${type} lookup`);
@@ -2510,7 +2620,7 @@ ${message}
             console.log(`✅ Scam lookup result: ${result.status} (Risk: ${result.riskScore})`);
             return res.json({
                 success: true,
-                result
+                result,
             });
         }
         catch (error) {
@@ -2518,7 +2628,7 @@ ${message}
             return res.status(500).json({
                 success: false,
                 message: "Scam lookup failed",
-                error: error instanceof Error ? error.message : "Unknown error"
+                error: error instanceof Error ? error.message : "Unknown error",
             });
         }
     });
@@ -2529,13 +2639,13 @@ ${message}
             if (!Array.isArray(checks) || checks.length === 0) {
                 return res.status(400).json({
                     success: false,
-                    message: "Checks array is required and must not be empty"
+                    message: "Checks array is required and must not be empty",
                 });
             }
             if (checks.length > 10) {
                 return res.status(400).json({
                     success: false,
-                    message: "Maximum 10 checks per batch request"
+                    message: "Maximum 10 checks per batch request",
                 });
             }
             console.log(`🔍 Batch scam lookup request - ${checks.length} items`);
@@ -2552,12 +2662,14 @@ ${message}
                         results.push({
                             type: check.type,
                             input: check.input,
-                            provider: 'none',
+                            provider: "none",
                             riskScore: 0,
-                            reputation: 'no config',
-                            status: 'unknown',
-                            details: { error: `No API configuration found for type: ${check.type}` },
-                            timestamp: new Date().toISOString()
+                            reputation: "no config",
+                            status: "unknown",
+                            details: {
+                                error: `No API configuration found for type: ${check.type}`,
+                            },
+                            timestamp: new Date().toISOString(),
                         });
                     }
                 }
@@ -2565,18 +2677,20 @@ ${message}
                     results.push({
                         type: check.type,
                         input: check.input,
-                        provider: 'error',
+                        provider: "error",
                         riskScore: 0,
-                        reputation: 'error',
-                        status: 'unknown',
-                        details: { error: error instanceof Error ? error.message : 'Unknown error' },
-                        timestamp: new Date().toISOString()
+                        reputation: "error",
+                        status: "unknown",
+                        details: {
+                            error: error instanceof Error ? error.message : "Unknown error",
+                        },
+                        timestamp: new Date().toISOString(),
                     });
                 }
             }
             return res.json({
                 success: true,
-                results
+                results,
             });
         }
         catch (error) {
@@ -2584,35 +2698,35 @@ ${message}
             return res.status(500).json({
                 success: false,
                 message: "Batch scam lookup failed",
-                error: error instanceof Error ? error.message : "Unknown error"
+                error: error instanceof Error ? error.message : "Unknown error",
             });
         }
     });
     // User-facing scam lookup endpoint (requires authentication)
     apiRouter.post("/scam-lookup", requireAuth, async (req, res) => {
         try {
-            console.log('🔍 Scam lookup request received:', {
+            console.log("🔍 Scam lookup request received:", {
                 body: req.body,
                 type: typeof req.body?.type,
                 value: typeof req.body?.value,
-                bodyString: JSON.stringify(req.body)
+                bodyString: JSON.stringify(req.body),
             });
             const { type, value } = req.body;
             if (!type || !value) {
-                console.log('❌ Missing type or value:', { type, value });
+                console.log("❌ Missing type or value:", { type, value });
                 return res.status(400).json({
                     success: false,
-                    error: "Type and value are required"
+                    error: "Type and value are required",
                 });
             }
             console.log(`Scam lookup request: ${type} = ${value}`);
             // Get all enabled API configurations for this type
             const allConfigs = await storage.getApiConfigs();
-            const configs = allConfigs.filter(config => config.enabled && config.type === type);
+            const configs = allConfigs.filter((config) => config.enabled && config.type === type);
             if (configs.length === 0) {
                 return res.status(404).json({
                     success: false,
-                    error: `No enabled API configurations found for type: ${type}`
+                    error: `No enabled API configurations found for type: ${type}`,
                 });
             }
             console.log(`Found ${configs.length} enabled configs for type ${type}`);
@@ -2622,7 +2736,7 @@ ${message}
                 const startTime = Date.now();
                 try {
                     // Use the existing scam lookup service
-                    const { ScamLookupService } = await import('./scamLookupService.js');
+                    const { ScamLookupService } = await import("./scamLookupService.js");
                     const lookupService = ScamLookupService.getInstance();
                     const result = await lookupService.lookupScamData(type, value, config);
                     const responseTime = Date.now() - startTime;
@@ -2653,7 +2767,7 @@ ${message}
                             fraud_score: result.details?.fraud_score,
                             // Exclude API keys, URLs, and internal system data
                         },
-                        timestamp: result.timestamp
+                        timestamp: result.timestamp,
                         // Completely exclude: rawResponse, apiCallDetails
                     };
                     results.push({
@@ -2669,10 +2783,12 @@ ${message}
                     console.error(`Lookup error for ${config.name} (${type}:${value}):`, lookupError);
                     results.push({
                         success: false,
-                        error: lookupError instanceof Error ? lookupError.message : "Lookup failed",
+                        error: lookupError instanceof Error
+                            ? lookupError.message
+                            : "Lookup failed",
                         apiName: config.name,
                         responseTime,
-                        apiId: config.id
+                        apiId: config.id,
                     });
                 }
             }
@@ -2681,7 +2797,7 @@ ${message}
                 results,
                 totalApis: configs.length,
                 type,
-                value
+                value,
             });
         }
         catch (error) {
@@ -2689,7 +2805,7 @@ ${message}
             res.status(500).json({
                 success: false,
                 error: "Internal server error",
-                apiName: "System"
+                apiName: "System",
             });
         }
     });
@@ -2700,13 +2816,13 @@ ${message}
             const apiConfigs = await storage.getApiConfigs();
             // Filter to only return enabled configs with minimal information for public use
             const publicConfigs = apiConfigs
-                .filter(config => config.enabled)
-                .map(config => ({
+                .filter((config) => config.enabled)
+                .map((config) => ({
                 id: config.id,
                 name: config.name,
                 type: config.type,
                 description: config.description,
-                enabled: config.enabled
+                enabled: config.enabled,
             }));
             console.log(`Returning ${publicConfigs.length} public API configurations`);
             res.json(publicConfigs);
@@ -2721,9 +2837,9 @@ ${message}
         try {
             const configs = await storage.getApiConfigs();
             // Hide API keys in the response for security
-            const sanitizedConfigs = configs.map(config => ({
+            const sanitizedConfigs = configs.map((config) => ({
                 ...config,
-                apiKey: config.apiKey ? '***' + config.apiKey.slice(-4) : ''
+                apiKey: config.apiKey ? "***" + config.apiKey.slice(-4) : "",
             }));
             res.json(sanitizedConfigs);
         }
@@ -2735,18 +2851,21 @@ ${message}
     apiRouter.post("/api-configs", requireAuth, requireAdmin, async (req, res) => {
         try {
             const configData = req.body;
-            console.log('Received API config data:', configData);
-            console.log('Request headers:', req.headers);
+            console.log("Received API config data:", configData);
+            console.log("Request headers:", req.headers);
             // Validate required fields
-            if (!configData.name || !configData.type || !configData.url || !configData.apiKey) {
-                console.log('Validation failed - missing fields:', {
+            if (!configData.name ||
+                !configData.type ||
+                !configData.url ||
+                !configData.apiKey) {
+                console.log("Validation failed - missing fields:", {
                     name: !!configData.name,
                     type: !!configData.type,
                     url: !!configData.url,
-                    apiKey: !!configData.apiKey
+                    apiKey: !!configData.apiKey,
                 });
                 return res.status(400).json({
-                    message: "Name, type, url, and apiKey are required"
+                    message: "Name, type, url, and apiKey are required",
                 });
             }
             // Set defaults
@@ -2757,7 +2876,7 @@ ${message}
             // Hide API key in response
             const sanitizedConfig = {
                 ...newConfig,
-                apiKey: newConfig.apiKey ? '***' + newConfig.apiKey.slice(-4) : ''
+                apiKey: newConfig.apiKey ? "***" + newConfig.apiKey.slice(-4) : "",
             };
             res.status(201).json(sanitizedConfig);
         }
@@ -2772,12 +2891,16 @@ ${message}
             const updates = req.body;
             const updatedConfig = await storage.updateApiConfig(id, updates);
             if (!updatedConfig) {
-                return res.status(404).json({ message: "API configuration not found" });
+                return res
+                    .status(404)
+                    .json({ message: "API configuration not found" });
             }
             // Hide API key in response
             const sanitizedConfig = {
                 ...updatedConfig,
-                apiKey: updatedConfig.apiKey ? '***' + updatedConfig.apiKey.slice(-4) : ''
+                apiKey: updatedConfig.apiKey
+                    ? "***" + updatedConfig.apiKey.slice(-4)
+                    : "",
             };
             res.json(sanitizedConfig);
         }
@@ -2791,7 +2914,9 @@ ${message}
             const id = parseInt(req.params.id);
             const success = await storage.deleteApiConfig(id);
             if (!success) {
-                return res.status(404).json({ message: "API configuration not found" });
+                return res
+                    .status(404)
+                    .json({ message: "API configuration not found" });
             }
             res.json({ message: "API configuration deleted successfully" });
         }
@@ -2809,16 +2934,16 @@ ${message}
             if (!type) {
                 return res.status(400).json({
                     success: false,
-                    message: "Test type is required"
+                    message: "Test type is required",
                 });
             }
             // Get the API config
             const configs = await storage.getApiConfigs();
-            const config = configs.find(c => c.id === id);
+            const config = configs.find((c) => c.id === id);
             if (!config) {
                 return res.status(404).json({
                     success: false,
-                    message: "API configuration not found"
+                    message: "API configuration not found",
                 });
             }
             console.log(`🔧 Testing API config: ${config.name}`);
@@ -2830,14 +2955,14 @@ ${message}
                     success: true,
                     testResult: {
                         type,
-                        input: testInput || 'test',
+                        input: testInput || "test",
                         provider: config.name,
                         riskScore: 0,
-                        reputation: 'disabled',
-                        status: 'unknown',
-                        details: { message: 'API configuration is disabled' },
+                        reputation: "disabled",
+                        status: "unknown",
+                        details: { message: "API configuration is disabled" },
                         timestamp: new Date().toISOString(),
-                    }
+                    },
                 });
             }
             // Test the API
@@ -2846,12 +2971,12 @@ ${message}
             console.log(`✅ API test completed:`, {
                 provider: testResult.provider,
                 status: testResult.status,
-                reputation: testResult.reputation
+                reputation: testResult.reputation,
             });
             return res.json({
                 success: true,
                 testResult,
-                message: `Test completed for ${config.name}`
+                message: `Test completed for ${config.name}`,
             });
         }
         catch (error) {
@@ -2860,7 +2985,7 @@ ${message}
                 success: false,
                 message: "API test failed",
                 error: error instanceof Error ? error.message : "Unknown error",
-                details: error instanceof Error ? error.stack : undefined
+                details: error instanceof Error ? error.stack : undefined,
             });
         }
     });

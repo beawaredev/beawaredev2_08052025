@@ -5,18 +5,18 @@ import { getVersionInfo } from "../shared/version.js";
 // Import vite utilities conditionally to avoid production errors
 // Simple logging function
 const log = (message) => console.log(message);
-// Import global deployment configuration 
-import * as fs from 'fs';
+// Import global deployment configuration
+import * as fs from "fs";
 // Read and parse deploy-config.js as a module
-const configPath = path.join(process.cwd(), 'deploy-config.js');
+const configPath = path.join(process.cwd(), "deploy-config.js");
 let config = {
-    server: { port: process.env.PORT || 5000, host: '0.0.0.0' },
+    server: { port: process.env.PORT || 5000, host: "0.0.0.0" },
     database: {
-        server: process.env.AZURE_SQL_SERVER || 'beawaredevdbserver.database.windows.net',
-        port: parseInt(process.env.AZURE_SQL_PORT || '1433'),
-        database: process.env.AZURE_SQL_DATABASE || 'Beawaredevdb',
-        user: process.env.AZURE_SQL_USER || 'beawaredevadmin',
-        password: process.env.AZURE_SQL_PASSWORD || 'Getmeup81$'
+        server: process.env.AZURE_SQL_SERVER || "beawaredevdbserver.database.windows.net",
+        port: parseInt(process.env.AZURE_SQL_PORT || "1433"),
+        database: process.env.AZURE_SQL_DATABASE || "Beawaredevdb",
+        user: process.env.AZURE_SQL_USER || "beawaredevadmin",
+        password: process.env.AZURE_SQL_PASSWORD || "Getmeup81$",
     },
     firebase: {
         apiKey: process.env.VITE_FIREBASE_API_KEY,
@@ -26,69 +26,63 @@ let config = {
     uploads: {
         enabled: true,
         maxFileSize: 10 * 1024 * 1024,
-        allowedTypes: ['application/pdf', 'image/jpeg', 'image/png'],
-        directory: process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads'),
+        allowedTypes: ["application/pdf", "image/jpeg", "image/png"],
+        directory: process.env.UPLOAD_DIR || path.join(process.cwd(), "uploads"),
     },
     email: {
         enabled: !!process.env.EMAIL_PASSWORD,
-        from: 'beaware.fyi@gmail.com',
+        from: "beaware.fyi@gmail.com",
         password: process.env.EMAIL_PASSWORD,
     },
     environment: {
         isReplit: !!process.env.REPL_ID || !!process.env.REPL_SLUG,
-        isProduction: process.env.NODE_ENV === 'production',
-        isDocker: fs.existsSync('/.dockerenv') || process.env.RUNNING_IN_DOCKER === 'true',
+        isProduction: process.env.NODE_ENV === "production",
+        isDocker: fs.existsSync("/.dockerenv") || process.env.RUNNING_IN_DOCKER === "true",
         isAzure: !!process.env.WEBSITE_SITE_NAME || !!process.env.WEBSITE_INSTANCE_ID,
     },
 };
+// 🔹 Feature flags
+const disableReportSubmission = process.env.DISABLE_REPORT_SUBMISSION === "true";
 // Create a simple validation function
 const validateConfig = () => {
     const issues = [];
-    // Check Azure SQL Database configuration
-    if (!config.database.server) {
-        issues.push('AZURE_SQL_SERVER is not defined');
-    }
-    if (!config.database.database) {
-        issues.push('AZURE_SQL_DATABASE is not defined');
-    }
-    if (!config.database.user) {
-        issues.push('AZURE_SQL_USER is not defined');
-    }
-    if (!config.database.password) {
-        issues.push('AZURE_SQL_PASSWORD is not defined');
-    }
-    if (!config.firebase.apiKey) {
-        issues.push('VITE_FIREBASE_API_KEY is not defined');
-    }
-    if (!config.firebase.projectId) {
-        issues.push('VITE_FIREBASE_PROJECT_ID is not defined');
-    }
-    if (!config.firebase.appId) {
-        issues.push('VITE_FIREBASE_APP_ID is not defined');
-    }
+    if (!config.database.server)
+        issues.push("AZURE_SQL_SERVER is not defined");
+    if (!config.database.database)
+        issues.push("AZURE_SQL_DATABASE is not defined");
+    if (!config.database.user)
+        issues.push("AZURE_SQL_USER is not defined");
+    if (!config.database.password)
+        issues.push("AZURE_SQL_PASSWORD is not defined");
+    if (!config.firebase.apiKey)
+        issues.push("VITE_FIREBASE_API_KEY is not defined");
+    if (!config.firebase.projectId)
+        issues.push("VITE_FIREBASE_PROJECT_ID is not defined");
+    if (!config.firebase.appId)
+        issues.push("VITE_FIREBASE_APP_ID is not defined");
     if (issues.length > 0) {
-        console.warn('⚠️ Configuration issues detected:');
-        issues.forEach(issue => console.warn(`  - ${issue}`));
+        console.warn("⚠️ Configuration issues detected:");
+        issues.forEach((issue) => console.warn(`  - ${issue}`));
     }
     else {
-        console.log('✅ Configuration validation passed');
+        console.log("✅ Configuration validation passed");
     }
     return issues.length === 0;
 };
-// Simple function to log deployment info
 const logDeploymentInfo = () => {
-    console.log('🚀 Deployment environment detected:');
+    console.log("🚀 Deployment environment detected:");
     if (config.environment.isReplit)
-        console.log('  - Running on Replit');
+        console.log("  - Running on Replit");
     if (config.environment.isProduction)
-        console.log('  - Running in production mode');
+        console.log("  - Running in production mode");
     if (config.environment.isDocker)
-        console.log('  - Running in Docker container');
+        console.log("  - Running in Docker container");
     if (config.environment.isAzure)
-        console.log('  - Running on Azure');
-    if (!config.environment.isReplit && !config.environment.isDocker && !config.environment.isAzure)
-        console.log('  - Running locally');
-    // Create uploads directory if it doesn't exist
+        console.log("  - Running on Azure");
+    if (!config.environment.isReplit &&
+        !config.environment.isDocker &&
+        !config.environment.isAzure)
+        console.log("  - Running locally");
     if (!fs.existsSync(config.uploads.directory)) {
         try {
             fs.mkdirSync(config.uploads.directory, { recursive: true });
@@ -101,12 +95,10 @@ const logDeploymentInfo = () => {
 };
 // Initialize the Express application
 const app = express();
-// Log deployment environment information
 logDeploymentInfo();
-// Log version information
 try {
     const versionInfo = getVersionInfo();
-    console.log('📋 Version Information:');
+    console.log("📋 Version Information:");
     console.log(`  - Version: ${versionInfo.version}`);
     console.log(`  - Build Hash: ${versionInfo.hash}`);
     console.log(`  - Environment: ${versionInfo.environment}`);
@@ -117,24 +109,19 @@ try {
     }
 }
 catch (error) {
-    console.log('📋 Version Information: Development build');
+    console.log("📋 Version Information: Development build");
 }
 // Ensure HTML is never sent when the client expects JSON
 app.use((req, res, next) => {
-    const requestPath = req.path;
-    // If this is an API request, make sure we never send HTML responses
-    if (requestPath.startsWith('/api')) {
-        // Set content type to JSON for all API routes
-        res.setHeader('Content-Type', 'application/json');
-        // Intercept HTML error responses
+    if (req.path.startsWith("/api")) {
+        res.setHeader("Content-Type", "application/json");
         const originalSend = res.send;
         res.send = function (body) {
-            // If the response is HTML but we're in an API route, convert to JSON error
-            if (typeof body === 'string' && body.startsWith('<!DOCTYPE html>')) {
-                console.error("Prevented HTML response in API route:", requestPath);
+            if (typeof body === "string" && body.startsWith("<!DOCTYPE html>")) {
+                console.error("Prevented HTML response in API route:", req.path);
                 return res.status(500).json({
                     error: "Server Error",
-                    message: "The server attempted to return HTML instead of JSON"
+                    message: "The server attempted to return HTML instead of JSON",
                 });
             }
             return originalSend.call(this, body);
@@ -142,41 +129,45 @@ app.use((req, res, next) => {
     }
     next();
 });
-// Basic CORS support
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, x-user-id, x-user-email, x-user-role');
-    // Handle preflight OPTIONS requests
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
+// Basic CORS
+app.use((_, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, x-user-id, x-user-email, x-user-role");
     next();
 });
 app.use(express.json());
-app.use(express.urlencoded({ extended: true })); // Changed to true for nested objects
-// Apply MIME type headers for static files
+app.use(express.urlencoded({ extended: true }));
+// 🔹 Block report submissions when disabled
 app.use((req, res, next) => {
-    if (req.path.endsWith('.js')) {
-        res.setHeader('Content-Type', 'application/javascript');
-    }
-    else if (req.path.endsWith('.css')) {
-        res.setHeader('Content-Type', 'text/css');
+    if (disableReportSubmission &&
+        req.path.startsWith("/api/scam-reports") &&
+        req.method !== "GET") {
+        return res.status(403).json({
+            code: "REPORT_SUBMISSION_DISABLED",
+            message: "Submitting new reports is temporarily disabled.",
+        });
     }
     next();
 });
-// Server is ready for routing
-// Add diagnostics route for Docker troubleshooting
-app.get('/api/diagnostics', (req, res) => {
-    // Import the os module safely
-    import('os').then(os => {
+// Apply MIME type headers
+app.use((req, res, next) => {
+    if (req.path.endsWith(".js"))
+        res.setHeader("Content-Type", "application/javascript");
+    else if (req.path.endsWith(".css"))
+        res.setHeader("Content-Type", "text/css");
+    next();
+});
+// Diagnostics route
+app.get("/api/diagnostics", (req, res) => {
+    import("os")
+        .then((os) => {
         res.json({
             firebase: {
                 apiKeyExists: !!process.env.VITE_FIREBASE_API_KEY,
                 projectIdExists: !!process.env.VITE_FIREBASE_PROJECT_ID,
                 appIdExists: !!process.env.VITE_FIREBASE_APP_ID,
-                // Show info for debugging only (not secure for production)
-                apiKey: process.env.VITE_FIREBASE_API_KEY ? '[REDACTED]' : null,
+                apiKey: process.env.VITE_FIREBASE_API_KEY ? "[REDACTED]" : null,
                 projectId: process.env.VITE_FIREBASE_PROJECT_ID || null,
             },
             database: {
@@ -194,45 +185,22 @@ app.get('/api/diagnostics', (req, res) => {
                 timestamp: new Date().toISOString(),
                 uptime: process.uptime(),
                 hostname: os.hostname(),
-            }
+            },
         });
-    }).catch((err) => {
-        // Fallback if os module import fails
-        res.json({
-            firebase: {
-                apiKeyExists: !!process.env.VITE_FIREBASE_API_KEY,
-                projectIdExists: !!process.env.VITE_FIREBASE_PROJECT_ID,
-                appIdExists: !!process.env.VITE_FIREBASE_APP_ID,
-                apiKey: process.env.VITE_FIREBASE_API_KEY ? '[REDACTED]' : null,
-                projectId: process.env.VITE_FIREBASE_PROJECT_ID || null,
-            },
-            database: {
-                databaseUrlExists: !!process.env.DATABASE_URL,
-                pgHostExists: !!process.env.PGHOST,
-            },
-            environment: {
-                nodeEnv: process.env.NODE_ENV,
-                port: process.env.PORT,
-                isDocker: config.environment.isDocker,
-                isReplit: config.environment.isReplit,
-                isAzure: config.environment.isAzure,
-            },
-            server: {
-                timestamp: new Date().toISOString(),
-                uptime: process.uptime(),
-                error: err.message || 'Unknown error'
-            }
-        });
+    })
+        .catch((err) => {
+        res.json({ error: err.message || "Unknown error" });
     });
 });
-// Serve static files from the uploads directory
-const uploadsDir = config.uploads.directory || path.join(process.cwd(), 'uploads');
-app.use('/uploads', express.static(uploadsDir));
+// Serve uploads
+const uploadsDir = config.uploads.directory || path.join(process.cwd(), "uploads");
+app.use("/uploads", express.static(uploadsDir));
 console.log(`Serving static files from: ${uploadsDir}`);
+// API logging
 app.use((req, res, next) => {
     const start = Date.now();
     const path = req.path;
-    let capturedJsonResponse = undefined;
+    let capturedJsonResponse;
     const originalResJson = res.json;
     res.json = function (bodyJson, ...args) {
         capturedJsonResponse = bodyJson;
@@ -242,12 +210,10 @@ app.use((req, res, next) => {
         const duration = Date.now() - start;
         if (path.startsWith("/api")) {
             let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-            if (capturedJsonResponse) {
+            if (capturedJsonResponse)
                 logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-            }
-            if (logLine.length > 80) {
+            if (logLine.length > 80)
                 logLine = logLine.slice(0, 79) + "…";
-            }
             log(logLine);
         }
     });
@@ -261,32 +227,20 @@ app.use((req, res, next) => {
         res.status(status).json({ message });
         throw err;
     });
-    // importantly only setup vite in development and after
-    // setting up all the other routes so the catch-all route
-    // doesn't interfere with the other routes
     if (app.get("env") === "development") {
         const { setupVite } = await import("./vite.js");
         await setupVite(app, server);
     }
     else {
-        // Serve static files in production
-        app.use(express.static(path.join(process.cwd(), 'dist/public')));
-        app.get('*', (req, res) => {
-            res.sendFile(path.join(process.cwd(), 'dist/public/index.html'));
+        app.use(express.static(path.join(process.cwd(), "dist/public")));
+        app.get("*", (req, res) => {
+            res.sendFile(path.join(process.cwd(), "dist/public/index.html"));
         });
     }
-    // Serve the app using configuration from deploy-config.js
-    // This serves both the API and the client
-    // Azure App Service uses the PORT environment variable
     const port = process.env.PORT || config.server.port || 5000;
     const host = config.server.host || "0.0.0.0";
-    server.listen({
-        port,
-        host,
-        reusePort: true,
-    }, () => {
-        log(`🚀 Server running at http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`);
-        // Validate configuration and show any warnings
+    server.listen({ port, host, reusePort: true }, () => {
+        log(`🚀 Server running at http://${host === "0.0.0.0" ? "localhost" : host}:${port}`);
         validateConfig();
     });
 })();
