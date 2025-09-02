@@ -1003,7 +1003,7 @@ export class AzureStorage implements IStorage {
           sort_order as sortOrder,
           is_active as isActive,
           created_at as createdAt,
-          updated_at as updatedAt`;
+          updated_at`;
 
       const result = await request.query(`
         SELECT ${selectColumns}
@@ -1026,7 +1026,7 @@ export class AzureStorage implements IStorage {
         sortOrder: item.sortOrder,
         isActive: Boolean(item.isActive),
         createdAt: item.createdAt?.toISOString(),
-        updatedAt: item.updatedAt?.toISOString(),
+        updatedAt: item.updated_at?.toISOString(),
       }));
     } catch (error) {
       console.error(
@@ -1053,6 +1053,7 @@ export class AzureStorage implements IStorage {
           sortOrder: 1,
           isActive: true,
           createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         },
         {
           id: 2,
@@ -1069,6 +1070,7 @@ export class AzureStorage implements IStorage {
           sortOrder: 2,
           isActive: true,
           createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         },
         {
           id: 3,
@@ -1085,6 +1087,7 @@ export class AzureStorage implements IStorage {
           sortOrder: 3,
           isActive: true,
           createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         },
         {
           id: 4,
@@ -1482,7 +1485,7 @@ export class AzureStorage implements IStorage {
         SELECT 
           id, user_id as userId, checklist_item_id as checklistItemId,
           is_completed as isCompleted, completed_at as completedAt,
-          notes, created_at as createdAt, updated_at as updatedAt
+          notes, created_at as createdAt, updated_at
         FROM user_security_progress 
         WHERE user_id = ${userId}
         ORDER BY checklist_item_id ASC
@@ -1496,7 +1499,7 @@ export class AzureStorage implements IStorage {
         completedAt: item.completedAt?.toISOString() || null,
         notes: item.notes || null,
         createdAt: item.createdAt?.toISOString(),
-        updatedAt: item.updatedAt?.toISOString(),
+        updatedAt: item.updated_at?.toISOString(),
       }));
     } catch (error) {
       console.error(
@@ -1644,44 +1647,45 @@ export class AzureStorage implements IStorage {
     return undefined;
   }
 
-  async addScamVideo(video: { title: string; videoUrl: string; createdBy: number; }) {
-    const featured = 0;
-    const scamType = "business"; // Default scam type
-    const description = ""; // Default empty description
+  async addScamVideo(video: InsertScamVideo) {
+    try {
+      await this.ensureConnection();
+      
+      const request = pool
+        .request()
+        .input("title", sql.NVarChar(255), video.title)
+        .input("description", sql.NVarChar(sql.MAX), video.description || "")
+        .input("video_url", sql.NVarChar(2048), video.videoUrl || video.youtubeUrl)
+        .input("scam_type", sql.NVarChar(32), video.scamType || "business")
+        .input("created_by", sql.Int, video.createdBy || video.addedById);
 
-    const request = pool
-      .request()
-      .input("title", sql.NVarChar(255), video.title)
-      .input("description", sql.NVarChar(sql.MAX), description)
-      .input("youtubeUrl", sql.NVarChar(2048), video.videoUrl)
-      .input("youtubeVideoId", sql.NVarChar(64), "")
-      .input("scamType", sql.NVarChar(32), scamType)
-      .input("featured", sql.Bit, featured)
-      .input("consolidatedScamId", sql.Int, null)
-      .input("addedById", sql.Int, video.createdBy);
+      const result = await request.query(`
+        INSERT INTO scam_videos (title, description, video_url, scam_type, created_by)
+        VALUES (@title, @description, @video_url, @scam_type, @created_by);
+        
+        SELECT * FROM scam_videos WHERE id = SCOPE_IDENTITY();
+      `);
 
-    const result = await request.query(`
-      INSERT INTO scam_videos
-        (title, description, youtubeUrl, youtubeVideoId, scamType, featured, consolidatedScamId, addedById, addedAt, updatedAt)
-      OUTPUT INSERTED.*
-      VALUES
-        (@title, @description, @youtubeUrl, @youtubeVideoId, @scamType, @featured, @consolidatedScamId, @addedById, SYSUTCDATETIME(), SYSUTCDATETIME())
-    `);
-
-    const insertedRow = result.recordset[0];
-    return {
-      id: insertedRow.id,
-      title: insertedRow.title,
-      videoUrl: insertedRow.youtubeUrl,
-      thumbnailUrl: "",
-      scamType: insertedRow.scamType,
-      description: insertedRow.description,
-      featured: !!insertedRow.featured,
-      consolidatedScamId: insertedRow.consolidatedScamId,
-      createdBy: insertedRow.addedById,
-      createdAt: insertedRow.addedAt,
-      updatedAt: insertedRow.updatedAt
-    };
+      const insertedRow = result.recordset[0];
+      
+      // Return with proper field mapping
+      return {
+        id: insertedRow.id,
+        title: insertedRow.title,
+        videoUrl: insertedRow.video_url,
+        thumbnailUrl: insertedRow.thumbnail_url || "",
+        scamType: insertedRow.scam_type || "business",
+        description: insertedRow.description || "",
+        featured: !!insertedRow.is_featured,
+        consolidatedScamId: insertedRow.consolidated_scam_id,
+        createdBy: insertedRow.created_by,
+        createdAt: new Date(insertedRow.created_at).toISOString(),
+        updatedAt: new Date(insertedRow.updated_at).toISOString()
+      };
+    } catch (error) {
+      console.error("Error in addScamVideo:", error);
+      throw error;
+    }
   }
 
   async getScamVideo(id: number): Promise<ScamVideo | undefined> {
@@ -2037,7 +2041,7 @@ export class AzureStorage implements IStorage {
         SELECT id, name, type, url, api_key as apiKey, enabled, description, 
                rate_limit as rateLimit, timeout,
                parameter_mapping as parameterMapping, headers,
-               created_at as createdAt, updated_at as updatedAt
+               created_at as createdAt, updated_at
         FROM api_configs 
         ORDER BY name ASC
       `);
@@ -2055,7 +2059,7 @@ export class AzureStorage implements IStorage {
         parameterMapping: row.parameterMapping,
         headers: row.headers,
         createdAt: row.createdAt?.toISOString(),
-        updatedAt: row.updatedAt?.toISOString(),
+        updatedAt: row.updated_at?.toISOString(),
       }));
     } catch (error) {
       console.error("Error fetching API configs:", error);
@@ -2087,7 +2091,7 @@ export class AzureStorage implements IStorage {
         SELECT TOP 1 id, name, type, url, api_key as apiKey, enabled, description,
                rate_limit as rateLimit, timeout,
                parameter_mapping as parameterMapping, headers,
-               created_at as createdAt, updated_at as updatedAt
+               created_at as createdAt, updated_at
         FROM api_configs 
         WHERE type = @type AND enabled = 1
         ORDER BY id DESC
@@ -2111,7 +2115,7 @@ export class AzureStorage implements IStorage {
         parameterMapping: row.parameterMapping,
         headers: row.headers,
         createdAt: row.createdAt?.toISOString(),
-        updatedAt: row.updatedAt?.toISOString(),
+        updatedAt: row.updated_at?.toISOString(),
       };
     } catch (error) {
       console.error("Error fetching API config by type:", error);
@@ -2150,7 +2154,7 @@ export class AzureStorage implements IStorage {
                INSERTED.api_key as apiKey, INSERTED.enabled, INSERTED.description,
                INSERTED.rate_limit as rateLimit, INSERTED.timeout,
                INSERTED.parameter_mapping as parameterMapping, INSERTED.headers,
-               INSERTED.created_at as createdAt, INSERTED.updated_at as updatedAt
+               INSERTED.created_at as createdAt, INSERTED.updated_at
         VALUES (@name, @type, @url, @apiKey, @enabled, @description, @rateLimit, @timeout, @parameterMapping, @headers, GETDATE(), GETDATE())
       `);
 
@@ -2168,7 +2172,7 @@ export class AzureStorage implements IStorage {
         parameterMapping: row.parameterMapping,
         headers: row.headers,
         createdAt: row.createdAt?.toISOString(),
-        updatedAt: row.updatedAt?.toISOString(),
+        updatedAt: row.updated_at?.toISOString(),
       };
     } catch (error) {
       console.error("Error creating API config:", error);
@@ -2244,7 +2248,7 @@ export class AzureStorage implements IStorage {
                INSERTED.api_key as apiKey, INSERTED.enabled, INSERTED.description,
                INSERTED.rate_limit as rateLimit, INSERTED.timeout,
                INSERTED.parameter_mapping as parameterMapping, INSERTED.headers,
-               INSERTED.created_at as createdAt, INSERTED.updated_at as updatedAt
+               INSERTED.created_at as createdAt, INSERTED.updated_at
         WHERE id = @id
       `);
 
@@ -2266,7 +2270,7 @@ export class AzureStorage implements IStorage {
         parameterMapping: row.parameterMapping,
         headers: row.headers,
         createdAt: row.createdAt?.toISOString(),
-        updatedAt: row.updatedAt?.toISOString(),
+        updatedAt: row.updated_at?.toISOString(),
       };
     } catch (error) {
       console.error("Error updating API config:", error);

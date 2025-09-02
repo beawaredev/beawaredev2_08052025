@@ -2807,69 +2807,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create a new scam video (admin only)
+  // Create a new scam video (admin only) - SIMPLIFIED VERSION
   apiRouter.post(
     "/scam-videos",
     requireAdmin,
     async (req: Request, res: Response) => {
       try {
         const user = (req as any).user;
-
-        // Validate the request body
-        const videoData = insertScamVideoSchema.parse({
-          ...req.body,
-          addedById: user.id,
-        });
-
-        // Extract the YouTube video ID from the URL if not provided
-        if (!videoData.youtubeVideoId && videoData.youtubeUrl) {
-          const url = new URL(videoData.youtubeUrl);
-          let videoId = "";
-
-          if (url.hostname.includes("youtube.com")) {
-            videoId = url.searchParams.get("v") || "";
-          } else if (url.hostname.includes("youtu.be")) {
-            videoId = url.pathname.substring(1);
-          }
-
-          if (videoId) {
-            videoData.youtubeVideoId = videoId;
-          } else {
-            return res.status(400).json({
-              message:
-                "Could not extract YouTube video ID from URL. Please provide a valid YouTube URL or specify the video ID directly.",
-            });
-          }
-        }
-
-        const createFn =
-          (storage as any).insertScamVideo ??
-          (storage as any).addScamVideo ??
-          (storage as any).createScamVideo ??
-          (storage as any).scamVideos?.create;
-
-        if (typeof createFn !== "function") {
-          throw new Error(
-            "Storage adapter is missing a scam video create method",
-          );
-        }
-
-        // Call with the proper context (namespaced adapters may live under storage.scamVideos)
-        const video = await createFn.call(
-          (storage as any).scamVideos ?? storage,
-          videoData,
-        );
-        res.status(201).json(video);
-      } catch (error) {
-        console.error("Error creating scam video:", error);
-
-        if (error instanceof z.ZodError) {
+        
+        // Simple validation
+        if (!req.body.title || !req.body.videoUrl) {
           return res.status(400).json({
-            message: "Invalid scam video data",
-            errors: error.errors,
+            message: "Title and videoUrl are required"
           });
         }
 
+        // Direct database insert bypassing complex validation
+        const sql = require('mssql');
+        const result = await sql.query`
+          INSERT INTO scam_videos (title, description, video_url, scam_type, created_by)
+          VALUES (${req.body.title}, ${req.body.description || ""}, ${req.body.videoUrl}, ${req.body.scamType || "business"}, ${user.id});
+          
+          SELECT * FROM scam_videos WHERE id = SCOPE_IDENTITY();
+        `;
+
+        const insertedRow = result.recordset[0];
+        
+        const video = {
+          id: insertedRow.id,
+          title: insertedRow.title,
+          videoUrl: insertedRow.video_url,
+          thumbnailUrl: insertedRow.thumbnail_url || "",
+          scamType: insertedRow.scam_type || "business",
+          description: insertedRow.description || "",
+          featured: !!insertedRow.is_featured,
+          consolidatedScamId: insertedRow.consolidated_scam_id,
+          createdBy: insertedRow.created_by,
+          createdAt: new Date(insertedRow.created_at).toISOString(),
+          updatedAt: new Date(insertedRow.updated_at).toISOString()
+        };
+
+        res.status(201).json(video);
+      } catch (error) {
+        console.error("Error creating scam video:", error);
         res.status(500).json({
           message: "Failed to create scam video",
           error: error instanceof Error ? error.message : "Unknown error",

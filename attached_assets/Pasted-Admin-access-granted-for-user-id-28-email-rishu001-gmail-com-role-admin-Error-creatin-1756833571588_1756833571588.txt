@@ -1,0 +1,195 @@
+Admin access granted for user: { id: 28, email: 'rishu001@gmail.com', role: 'admin' }
+Error creating scam video: RequestError: Invalid column name 'updatedAt'.
+    at handleError (/home/runner/workspace/node_modules/mssql/lib/tedious/request.js:384:15)
+    at Connection.emit (node:events:524:28)
+    at emit (/home/runner/workspace/node_modules/tedious/src/connection.ts:1927:18)
+    at onErrorMessage (/home/runner/workspace/node_modules/tedious/src/token/handler.ts:386:21)
+    at token (/home/runner/workspace/node_modules/tedious/src/token/token-stream-parser.ts:23:55)
+    at Readable.emit (node:events:524:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushObjectMode (node:internal/streams/readable:538:3)
+    at Readable.push (node:internal/streams/readable:393:5)
+    at nextAsync (node:internal/streams/from:194:22)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+  code: 'EREQUEST',
+  originalError: Error: Invalid column name 'updatedAt'.
+      at handleError (/home/runner/workspace/node_modules/mssql/lib/tedious/request.js:382:19)
+      at Connection.emit (node:events:524:28)
+      at emit (/home/runner/workspace/node_modules/tedious/src/connection.ts:1927:18)
+      at onErrorMessage (/home/runner/workspace/node_modules/tedious/src/token/handler.ts:386:21)
+      at token (/home/runner/workspace/node_modules/tedious/src/token/token-stream-parser.ts:23:55)
+      at Readable.emit (node:events:524:28)
+      at addChunk (node:internal/streams/readable:561:12)
+      at readableAddChunkPushObjectMode (node:internal/streams/readable:538:3)
+      at Readable.push (node:internal/streams/readable:393:5)
+      at nextAsync (node:internal/streams/from:194:22)
+      at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+    info: ErrorMessageToken {
+      name: 'ERROR',
+      handlerName: 'onErrorMessage',
+      number: 207,
+      state: 1,
+      class: 16,
+      message: "Invalid column name 'updatedAt'.",
+      serverName: 'beawaredevdbserver',
+      procName: '',
+      lineNumber: 3
+    }
+  },
+  number: 207,
+  lineNumber: 3,
+  state: 1,
+  class: 16,
+  serverName: 'beawaredevdbserver',
+  procName: '',
+  precedingErrors: [
+    RequestError: Invalid column name 'youtubeUrl'.
+        at handleError (/home/runner/workspace/node_modules/mssql/lib/tedious/request.js:384:15)
+        at Connection.emit (node:events:524:28)
+        at emit (/home/runner/workspace/node_modules/tedious/src/connection.ts:1927:18)
+        at onErrorMessage (/home/runner/workspace/node_modules/tedious/src/token/handler.ts:386:21)
+        at token (/home/runner/workspace/node_modules/tedious/src/token/token-stream-parser.ts:23:55)
+        at Readable.emit (node:events:524:28)
+        at addChunk (node:internal/streams/readable:561:12)
+        at readableAddChunkPushObjectMode (node:internal/streams/readable:538:3)
+        at Readable.push (node:internal/streams/readable:393:5)
+        at nextAsync (node:internal/streams/from:194:22)
+        at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+      code: 'EREQUEST',
+      originalError: [Error],
+      number: 207,
+      lineNumber: 3,
+      state: 1,
+      class: 16,
+      serverName: 'beawaredevdbserver',
+      procName: ''
+    },
+    RequestError: Invalid column name 'youtubeVideoId'.
+        at handleError (/home/runner/workspace/node_modules/mssql/lib/tedious/request.js:384:15)
+        at Connection.emit (node:events:524:28)
+        at emit (/home/runner/workspace/node_modules/tedious/src/connection.ts:1927:18)
+        at onErrorMessage (/home/runner/workspace/node_modules/tedious/src/token/handler.ts:386:21)
+        at token (/home/runner/workspace/node_modules/tedious/src/token/token-stream-parser.ts:23:55)
+        at Readable.emit (node:events:524:28)
+        at addChunk (node:internal/streams/readable:561:12)
+        at readableAddChunkPushObjectMode (node:internal/streams/readable:538:3)
+        at Readable.push (node:internal/streams/readable:393:5)
+        at nextAsync (node:internal/streams/from:194:22)
+        at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+      code: 'EREQUEST',
+      originalError: [Error],
+      number: 207,
+      lineNumber: 3,
+      state: 1,
+      class: 16,
+      serverName: 'beawaredevdbserver',
+      procName: ''
+    },
+    RequestError: Invalid column name 'scamType'.
+        at handleError (/home/runner/workspace/node_modules/mssql/lib/tedious/request.js:384:15)
+        at Connection.emit (node:events:524:28)
+        at emit (/home/runner/workspace/node_modules/tedious/src/connection.ts:1927:18)
+        at onErrorMessage (/home/runner/workspace/node_modules/tedious/src/token/handler.ts:386:21)
+        at token (/home/runner/workspace/node_modules/tedious/src/token/token-stream-parser.ts:23:55)
+        at Readable.emit (node:events:524:28)
+        at addChunk (node:internal/streams/readable:561:12)
+        at readableAddChunkPushObjectMode (node:internal/streams/readable:538:3)
+        at Readable.push (node:internal/streams/readable:393:5)
+        at nextAsync (node:internal/streams/from:194:22)
+        at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+      code: 'EREQUEST',
+      originalError: [Error],
+      number: 207,
+      lineNumber: 3,
+      state: 1,
+      class: 16,
+      serverName: 'beawaredevdbserver',
+      procName: ''
+    },
+    RequestError: Invalid column name 'featured'.
+        at handleError (/home/runner/workspace/node_modules/mssql/lib/tedious/request.js:384:15)
+        at Connection.emit (node:events:524:28)
+        at emit (/home/runner/workspace/node_modules/tedious/src/connection.ts:1927:18)
+        at onErrorMessage (/home/runner/workspace/node_modules/tedious/src/token/handler.ts:386:21)
+        at token (/home/runner/workspace/node_modules/tedious/src/token/token-stream-parser.ts:23:55)
+        at Readable.emit (node:events:524:28)
+        at addChunk (node:internal/streams/readable:561:12)
+        at readableAddChunkPushObjectMode (node:internal/streams/readable:538:3)
+        at Readable.push (node:internal/streams/readable:393:5)
+        at nextAsync (node:internal/streams/from:194:22)
+        at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+      code: 'EREQUEST',
+      originalError: [Error],
+      number: 207,
+      lineNumber: 3,
+      state: 1,
+      class: 16,
+      serverName: 'beawaredevdbserver',
+      procName: ''
+    },
+    RequestError: Invalid column name 'consolidatedScamId'.
+        at handleError (/home/runner/workspace/node_modules/mssql/lib/tedious/request.js:384:15)
+        at Connection.emit (node:events:524:28)
+        at emit (/home/runner/workspace/node_modules/tedious/src/connection.ts:1927:18)
+        at onErrorMessage (/home/runner/workspace/node_modules/tedious/src/token/handler.ts:386:21)
+        at token (/home/runner/workspace/node_modules/tedious/src/token/token-stream-parser.ts:23:55)
+        at Readable.emit (node:events:524:28)
+        at addChunk (node:internal/streams/readable:561:12)
+        at readableAddChunkPushObjectMode (node:internal/streams/readable:538:3)
+        at Readable.push (node:internal/streams/readable:393:5)
+        at nextAsync (node:internal/streams/from:194:22)
+        at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+      code: 'EREQUEST',
+      originalError: [Error],
+      number: 207,
+      lineNumber: 3,
+      state: 1,
+      class: 16,
+      serverName: 'beawaredevdbserver',
+      procName: ''
+    },
+    RequestError: Invalid column name 'addedById'.
+        at handleError (/home/runner/workspace/node_modules/mssql/lib/tedious/request.js:384:15)
+        at Connection.emit (node:events:524:28)
+        at emit (/home/runner/workspace/node_modules/tedious/src/connection.ts:1927:18)
+        at onErrorMessage (/home/runner/workspace/node_modules/tedious/src/token/handler.ts:386:21)
+        at token (/home/runner/workspace/node_modules/tedious/src/token/token-stream-parser.ts:23:55)
+        at Readable.emit (node:events:524:28)
+        at addChunk (node:internal/streams/readable:561:12)
+        at readableAddChunkPushObjectMode (node:internal/streams/readable:538:3)
+        at Readable.push (node:internal/streams/readable:393:5)
+        at nextAsync (node:internal/streams/from:194:22)
+        at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+      code: 'EREQUEST',
+      originalError: [Error],
+      number: 207,
+      lineNumber: 3,
+      state: 1,
+      class: 16,
+      serverName: 'beawaredevdbserver',
+      procName: ''
+    },
+    RequestError: Invalid column name 'addedAt'.
+        at handleError (/home/runner/workspace/node_modules/mssql/lib/tedious/request.js:384:15)
+        at Connection.emit (node:events:524:28)
+        at emit (/home/runner/workspace/node_modules/tedious/src/connection.ts:1927:18)
+        at onErrorMessage (/home/runner/workspace/node_modules/tedious/src/token/handler.ts:386:21)
+        at token (/home/runner/workspace/node_modules/tedious/src/token/token-stream-parser.ts:23:55)
+        at Readable.emit (node:events:524:28)
+        at addChunk (node:internal/streams/readable:561:12)
+        at readableAddChunkPushObjectMode (node:internal/streams/readable:538:3)
+        at Readable.push (node:internal/streams/readable:393:5)
+        at nextAsync (node:internal/streams/from:194:22)
+        at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+      code: 'EREQUEST',
+      originalError: [Error],
+      number: 207,
+      lineNumber: 3,
+      state: 1,
+      class: 16,
+      serverName: 'beawaredevdbserver',
+      procName: ''
+    }
+  ]
+}
+POST /api/scam-videos 500 in 136ms :: {"message":"Failed to create scam video",…
