@@ -40,9 +40,11 @@ import {
   verifyPassword,
   validatePasswordStrength,
 } from "./utils/passwordUtils.js";
-
+import { Router } from "express";
+import { listScamVideos, listFeaturedScamVideos } from "./AzureStorage";
 // Path to the uploads directory
 const uploadDir = path.join(process.cwd(), "uploads");
+const router = Router();
 
 // Configure multer for file uploads
 const multerStorage = multer.diskStorage({
@@ -1769,6 +1771,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch scam report" });
     }
   });
+  router.get("/api/scam-videos", async (_req, res) => {
+    try {
+      const rows = await listScamVideos();
+      res.json(rows);
+    } catch (e: any) {
+      console.error("Error listing scam videos:", e);
+      res.status(500).json({ message: "Failed to list videos" });
+    }
+  });
+
+  router.get("/api/scam-videos/featured", async (_req, res) => {
+    try {
+      const rows = await listFeaturedScamVideos();
+      res.json(rows);
+    } catch (e: any) {
+      console.error("Error listing featured scam videos:", e);
+      res.status(500).json({ message: "Failed to list featured videos" });
+    }
+  });
 
   // Verify a scam report (admin only)
   apiRouter.post(
@@ -2225,7 +2246,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } catch (error) {
         console.error(
-          `❌ Error verifying consolidated scam ID ${req.params.id}:`,
+          `P�� Error verifying consolidated scam ID ${req.params.id}:`,
           error,
         );
         res.status(500).json({ message: "Failed to verify consolidated scam" });
@@ -2815,9 +2836,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         // Use header-based user ID directly since requireAdmin validates headers
         const headerUserId = parseInt(req.headers["x-user-id"] as string);
-        
+
         if (!headerUserId) {
-          return res.status(400).json({ message: "User ID header is required" });
+          return res
+            .status(400)
+            .json({ message: "User ID header is required" });
         }
 
         const video = await storage.addScamVideo({
@@ -2825,7 +2848,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           description: req.body.description || "",
           videoUrl: req.body.videoUrl,
           scamType: req.body.scamType || "business",
-          createdBy: headerUserId
+          createdBy: headerUserId,
         });
 
         res.status(201).json(video);
@@ -3838,3 +3861,4 @@ ${message}
   const httpServer = createServer(app);
   return httpServer;
 }
+export default router;
