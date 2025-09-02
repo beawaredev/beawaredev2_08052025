@@ -2807,49 +2807,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create a new scam video (admin only) - SIMPLIFIED VERSION
+  // Create a new scam video (admin only) - FINAL WORKING VERSION
   apiRouter.post(
     "/scam-videos",
     requireAdmin,
     async (req: Request, res: Response) => {
       try {
-        const user = (req as any).user;
+        // Use header-based user ID directly since requireAdmin validates headers
+        const headerUserId = parseInt(req.headers["x-user-id"] as string);
         
-        // Simple validation
-        if (!req.body.title || !req.body.videoUrl) {
-          return res.status(400).json({
-            message: "Title and videoUrl are required"
-          });
+        if (!headerUserId) {
+          return res.status(400).json({ message: "User ID header is required" });
         }
 
-        // Direct database insert bypassing complex validation
-        const sql = require('mssql');
-        const result = await sql.query`
-          INSERT INTO scam_videos (title, description, video_url, scam_type, created_by)
-          VALUES (${req.body.title}, ${req.body.description || ""}, ${req.body.videoUrl}, ${req.body.scamType || "business"}, ${user.id});
-          
-          SELECT * FROM scam_videos WHERE id = SCOPE_IDENTITY();
-        `;
-
-        const insertedRow = result.recordset[0];
-        
-        const video = {
-          id: insertedRow.id,
-          title: insertedRow.title,
-          videoUrl: insertedRow.video_url,
-          thumbnailUrl: insertedRow.thumbnail_url || "",
-          scamType: insertedRow.scam_type || "business",
-          description: insertedRow.description || "",
-          featured: !!insertedRow.is_featured,
-          consolidatedScamId: insertedRow.consolidated_scam_id,
-          createdBy: insertedRow.created_by,
-          createdAt: new Date(insertedRow.created_at).toISOString(),
-          updatedAt: new Date(insertedRow.updated_at).toISOString()
-        };
+        const video = await storage.addScamVideo({
+          title: req.body.title,
+          description: req.body.description || "",
+          videoUrl: req.body.videoUrl,
+          scamType: req.body.scamType || "business",
+          createdBy: headerUserId
+        });
 
         res.status(201).json(video);
       } catch (error) {
         console.error("Error creating scam video:", error);
+
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({
+            message: "Invalid scam video data",
+            errors: error.errors,
+          });
+        }
+
         res.status(500).json({
           message: "Failed to create scam video",
           error: error instanceof Error ? error.message : "Unknown error",

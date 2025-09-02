@@ -1003,7 +1003,7 @@ export class AzureStorage implements IStorage {
           sort_order as sortOrder,
           is_active as isActive,
           created_at as createdAt,
-          updated_at`;
+          updated_at as updatedAt`;
 
       const result = await request.query(`
         SELECT ${selectColumns}
@@ -1661,9 +1661,8 @@ export class AzureStorage implements IStorage {
 
       const result = await request.query(`
         INSERT INTO scam_videos (title, description, video_url, scam_type, created_by)
-        VALUES (@title, @description, @video_url, @scam_type, @created_by);
-        
-        SELECT * FROM scam_videos WHERE id = SCOPE_IDENTITY();
+        OUTPUT INSERTED.*
+        VALUES (@title, @description, @video_url, @scam_type, @created_by)
       `);
 
       const insertedRow = result.recordset[0];
