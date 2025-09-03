@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { apiRequest } from "@/lib/api-interceptor"; // FIX: use interceptor used elsewhere
+import { apiRequest } from "@/lib/api-interceptor";
 import { type ScamVideo, type ScamType } from "@shared/schema";
 import { ScamVideoPlayer } from "@/components/ScamVideoPlayer";
 import { useToast } from "@/hooks/use-toast";
@@ -60,18 +60,83 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-// If you have an auth context, import it. This is used to populate `createdBy`.
-// Make sure your context exposes a numeric `id` or a string `uid`.
 import { useAuth } from "@/contexts/AuthContext";
 
-// ---- Form schema for adding/editing a video (kept from your version) ----
+/** ------------------------------------------------------------------
+ * URL Normalization + Validation helpers
+ * ------------------------------------------------------------------ */
+function extractYouTubeId(input?: string | null): string | null {
+  if (!input) return null;
+  // bare ID
+  if (/^[a-zA-Z0-9_-]{10,14}$/.test(input)) return input;
+  try {
+    const u = new URL(input);
+    if (u.hostname.includes("youtube.com")) {
+      const v = u.searchParams.get("v");
+      if (v) return v;
+      const parts = u.pathname.split("/");
+      const maybe = parts.pop() || "";
+      if (parts.includes("embed") || parts.includes("shorts"))
+        return maybe || null;
+    }
+    if (u.hostname === "youtu.be") {
+      const id = u.pathname.replace("/", "");
+      if (id) return id;
+    }
+  } catch {}
+  return null;
+}
+
+function extractVimeoId(input?: string | null): string | null {
+  if (!input) return null;
+  // bare numeric ID
+  if (/^\d{6,}$/.test(input)) return input;
+  try {
+    const u = new URL(input);
+    if (u.hostname.includes("vimeo.com")) {
+      const parts = u.pathname.split("/").filter(Boolean);
+      const id = parts.pop();
+      if (id && /^\d+$/.test(id)) return id;
+    }
+  } catch {}
+  return null;
+}
+
+/** Convert raw input (ID or URL) into a canonical playable URL */
+function normalizeVideoUrl(input: string): string | null {
+  if (!input) return null;
+  const s = input.trim();
+
+  // direct mp4 allowed
+  if (/^https?:\/\/.+\.mp4($|\?)/i.test(s)) return s;
+
+  // Try YT / Vimeo
+  const ytId = extractYouTubeId(s);
+  if (ytId) return `https://www.youtube.com/watch?v=${ytId}`;
+  const vmId = extractVimeoId(s);
+  if (vmId) return `https://vimeo.com/${vmId}`;
+
+  // If generic http(s) URL, let the player try
+  if (/^https?:\/\//i.test(s)) return s;
+
+  return null;
+}
+
+function isPlayable(url?: string | null): boolean {
+  if (!url) return false;
+  return /(youtube\.com|youtu\.be|vimeo\.com)|\.mp4($|\?)/i.test(url);
+}
+
+/** ------------------------------------------------------------------
+ * Form schema (expanded to allow YouTube/Vimeo/.mp4 or raw ID)
+ * ------------------------------------------------------------------ */
 const videoFormSchema = z.object({
   title: z.string().min(5, { message: "Title must be at least 5 characters" }),
   description: z
     .string()
     .min(10, { message: "Description must be at least 10 characters" }),
-  youtubeUrl: z.string().url({ message: "Must be a valid YouTube URL" }),
-  youtubeVideoId: z.string().optional(),
+  // accept any non-empty string; we'll normalize/validate ourselves
+  videoInput: z.string().min(3, { message: "Provide a valid URL or ID" }),
   scamType: z.enum(["phone", "email", "business"]),
   featured: z.boolean().default(false),
   consolidatedScamId: z.number().nullable().optional(),
@@ -79,27 +144,14 @@ const videoFormSchema = z.object({
 
 type VideoFormValues = z.infer<typeof videoFormSchema>;
 
-// ---- helpers ----
-const getYouTubeId = (url: string): string | null => {
-  try {
-    const urlObj = new URL(url);
-    if (urlObj.hostname.includes("youtube.com")) {
-      return urlObj.searchParams.get("v");
-    } else if (urlObj.hostname.includes("youtu.be")) {
-      return urlObj.pathname.substring(1);
-    }
-  } catch {
-    // ignore parse errors; validation handles it
-  }
-  return null;
-};
-
+/** ------------------------------------------------------------------
+ * Component
+ * ------------------------------------------------------------------ */
 export function ScamVideoManager() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
-  // Pull current user to populate `createdBy`. Fallback tries `uid`.
   const { user } = useAuth?.() || { user: undefined };
+
   const currentUserId = useMemo(() => {
     const n = Number(user?.id ?? user?.uid ?? 0);
     return Number.isFinite(n) && n > 0 ? n : 0;
@@ -111,7 +163,7 @@ export function ScamVideoManager() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-  // ---- Fetch all videos ----
+  // Fetch all videos
   const {
     data: videos = [],
     isLoading,
@@ -127,7 +179,7 @@ export function ScamVideoManager() {
     },
   });
 
-  // Categorized lists (unchanged)
+  // Categorized lists
   const phoneVideos = videos.filter((v) => v.scamType === "phone");
   const emailVideos = videos.filter((v) => v.scamType === "email");
   const businessVideos = videos.filter((v) => v.scamType === "business");
@@ -141,32 +193,29 @@ export function ScamVideoManager() {
           "Missing user id for createdBy. Ensure you are logged in and your AuthContext exposes a numeric id.",
         );
       }
-      const youtubeVideoId =
-        data.youtubeVideoId || getYouTubeId(data.youtubeUrl);
-      if (!youtubeVideoId) {
+      const normalizedUrl = normalizeVideoUrl(data.videoInput);
+      if (!normalizedUrl || !isPlayable(normalizedUrl)) {
         throw new Error(
-          "Could not extract YouTube video ID from the provided URL.",
+          "Unsupported or invalid video source. Provide a YouTube/Vimeo link or ID, or a direct .mp4 URL.",
         );
       }
 
-      // Map required backend fields:
-      // - videoUrl (string)     ← from youtubeUrl
-      // - createdBy (number)
-      const payload = {
-        title: data.title?.trim(),
-        description: data.description?.trim(),
+      const payload: any = {
+        title: data.title.trim(),
+        description: data.description.trim(),
         scamType: data.scamType,
         featured: !!data.featured,
         consolidatedScamId: data.consolidatedScamId ?? null,
-
-        // backend-required
-        videoUrl: data.youtubeUrl.trim(),
+        videoUrl: normalizedUrl,
         createdBy: currentUserId,
-
-        // keep your extended fields too
-        youtubeUrl: data.youtubeUrl.trim(),
-        youtubeVideoId,
       };
+
+      // Keep YouTube ID for legacy consumers, if applicable
+      const ytId = extractYouTubeId(normalizedUrl);
+      if (ytId) {
+        payload.youtubeUrl = normalizedUrl;
+        payload.youtubeVideoId = ytId;
+      }
 
       const response = await apiRequest("/api/scam-videos", {
         method: "POST",
@@ -206,41 +255,40 @@ export function ScamVideoManager() {
       id: number;
       data: Partial<VideoFormValues>;
     }) => {
-      const youtubeVideoId =
-        data.youtubeVideoId ||
-        (data.youtubeUrl ? getYouTubeId(data.youtubeUrl) : undefined);
-      if (data.youtubeUrl && !youtubeVideoId) {
-        throw new Error(
-          "Could not extract YouTube video ID from the provided URL.",
-        );
+      const payload: any = {};
+
+      if (data.title != null) payload.title = data.title.trim();
+      if (data.description != null)
+        payload.description = data.description.trim();
+      if (data.scamType != null) payload.scamType = data.scamType;
+      if (data.featured != null) payload.featured = !!data.featured;
+      if (data.consolidatedScamId !== undefined)
+        payload.consolidatedScamId = data.consolidatedScamId ?? null;
+
+      if (data.videoInput != null) {
+        const normalizedUrl = normalizeVideoUrl(data.videoInput);
+        if (!normalizedUrl || !isPlayable(normalizedUrl)) {
+          throw new Error(
+            "Unsupported or invalid video source. Provide a YouTube/Vimeo link or ID, or a direct .mp4 URL.",
+          );
+        }
+        payload.videoUrl = normalizedUrl;
+
+        const ytId = extractYouTubeId(normalizedUrl);
+        if (ytId) {
+          payload.youtubeUrl = normalizedUrl;
+          payload.youtubeVideoId = ytId;
+        } else {
+          // If switching to Vimeo/mp4, clear YouTube-specific fields to avoid confusion
+          payload.youtubeUrl = null;
+          payload.youtubeVideoId = null;
+        }
       }
 
-      // Preserve existing createdBy from server if your API returns it on GET,
-      // but to be safe, also send current user if available.
-      const payload = {
-        ...(data.title != null ? { title: data.title?.trim() } : {}),
-        ...(data.description != null
-          ? { description: data.description?.trim() }
-          : {}),
-        ...(data.scamType != null ? { scamType: data.scamType } : {}),
-        ...(data.featured != null ? { featured: !!data.featured } : {}),
-        ...(data.consolidatedScamId !== undefined
-          ? { consolidatedScamId: data.consolidatedScamId ?? null }
-          : {}),
-
-        ...(data.youtubeUrl != null
-          ? {
-              videoUrl: data.youtubeUrl.trim(),
-              youtubeUrl: data.youtubeUrl.trim(),
-            }
-          : {}),
-        ...(youtubeVideoId ? { youtubeVideoId } : {}),
-
-        ...(currentUserId ? { createdBy: currentUserId } : {}),
-      };
+      if (currentUserId) payload.createdBy = currentUserId;
 
       const response = await apiRequest(`/api/scam-videos/${id}`, {
-        method: "PUT", // FIX: align with backend expecting full object
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
@@ -429,11 +477,10 @@ export function ScamVideoManager() {
           <DialogHeader>
             <DialogTitle>Add Educational Video</DialogTitle>
             <DialogDescription>
-              Add a YouTube video to help users learn about scams and how to
-              protect themselves.
+              Add a YouTube, Vimeo, or .mp4 video to help users learn about
+              scams and how to protect themselves.
             </DialogDescription>
           </DialogHeader>
-
           <VideoForm
             onSubmit={(data) => addVideoMutation.mutate(data)}
             isSubmitting={addVideoMutation.isPending}
@@ -450,26 +497,12 @@ export function ScamVideoManager() {
               Update the details of this educational video.
             </DialogDescription>
           </DialogHeader>
-
           {editingVideo && (
             <VideoForm
               video={editingVideo}
-              onSubmit={(data) => {
-                const extractedVideoId = getYouTubeId(data.youtubeUrl);
-                if (!extractedVideoId) {
-                  toast({
-                    title: "Invalid YouTube URL",
-                    description:
-                      "Could not extract a valid YouTube video ID from this URL. Please use a valid YouTube URL.",
-                    variant: "destructive",
-                  });
-                  return;
-                }
-                updateVideoMutation.mutate({
-                  id: editingVideo.id,
-                  data: { ...data, youtubeVideoId: extractedVideoId },
-                });
-              }}
+              onSubmit={(data) =>
+                updateVideoMutation.mutate({ id: editingVideo.id, data })
+              }
               isSubmitting={updateVideoMutation.isPending}
             />
           )}
@@ -506,6 +539,9 @@ export function ScamVideoManager() {
   );
 }
 
+/** ------------------------------------------------------------------
+ * VideoList: uses ScamVideoPlayer with normalized videoUrl
+ * ------------------------------------------------------------------ */
 function VideoList({
   videos,
   onEdit,
@@ -531,84 +567,98 @@ function VideoList({
 
   return (
     <div className="space-y-4">
-      {videos.map((video) => (
-        <Card key={video.id} className="overflow-hidden">
-          <div className="flex flex-col md:flex-row">
-            <div className="md:w-1/3 lg:w-1/4">
-              <div className="aspect-video">
-                <ScamVideoPlayer videoId={video.youtubeVideoId} />
+      {videos.map((video) => {
+        const normalized = normalizeVideoUrl(
+          (video.youtubeUrl as string) || (video.videoUrl as string) || "",
+        );
+        const playableUrl = normalized || (video.videoUrl as string) || "";
+        return (
+          <Card key={video.id} className="overflow-hidden">
+            <div className="flex flex-col md:flex-row">
+              <div className="md:w-1/3 lg:w-1/4">
+                <div className="aspect-video">
+                  {/* Use videoUrl so the player can decide YouTube/Vimeo/mp4 */}
+                  <ScamVideoPlayer videoUrl={playableUrl} title={video.title} />
+                </div>
+              </div>
+              <div className="flex-1">
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="flex items-center">
+                        {video.title}
+                        {video.featured && (
+                          <Badge className="ml-2" variant="secondary">
+                            Featured
+                          </Badge>
+                        )}
+                      </CardTitle>
+                      <CardDescription>
+                        Type: <Badge variant="outline">{video.scamType}</Badge>
+                      </CardDescription>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => onEdit(video)}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        onClick={() => onDelete(video)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                    {video.description}
+                  </p>
+                  <div className="mt-4 text-xs text-muted-foreground">
+                    Added:{" "}
+                    {video.addedAt
+                      ? new Date(video.addedAt).toLocaleDateString()
+                      : "—"}
+                    {video.updatedAt && video.updatedAt !== video.addedAt && (
+                      <span className="ml-2">
+                        · Updated:{" "}
+                        {new Date(video.updatedAt).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Button variant="outline" size="sm" asChild>
+                    <a
+                      href={
+                        (video.youtubeUrl as string) ||
+                        (video.videoUrl as string) ||
+                        playableUrl
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" /> Watch Source
+                    </a>
+                  </Button>
+                </CardFooter>
               </div>
             </div>
-            <div className="flex-1">
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="flex items-center">
-                      {video.title}
-                      {video.featured && (
-                        <Badge className="ml-2" variant="secondary">
-                          Featured
-                        </Badge>
-                      )}
-                    </CardTitle>
-                    <CardDescription>
-                      Type: <Badge variant="outline">{video.scamType}</Badge>
-                    </CardDescription>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => onEdit(video)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="icon"
-                      onClick={() => onDelete(video)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  {video.description}
-                </p>
-                <div className="mt-4 text-xs text-muted-foreground">
-                  Added:{" "}
-                  {video.addedAt
-                    ? new Date(video.addedAt).toLocaleDateString()
-                    : "—"}
-                  {video.updatedAt && video.updatedAt !== video.addedAt && (
-                    <span className="ml-2">
-                      · Updated:{" "}
-                      {new Date(video.updatedAt).toLocaleDateString()}
-                    </span>
-                  )}
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button variant="outline" size="sm" asChild>
-                  <a
-                    href={video.youtubeUrl || video.videoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <ExternalLink className="h-4 w-4 mr-2" /> Watch on YouTube
-                  </a>
-                </Button>
-              </CardFooter>
-            </div>
-          </div>
-        </Card>
-      ))}
+          </Card>
+        );
+      })}
     </div>
   );
 }
 
+/** ------------------------------------------------------------------
+ * VideoForm: zod-driven form; shows live preview using normalized input
+ * ------------------------------------------------------------------ */
 function VideoForm({
   video,
   onSubmit,
@@ -624,35 +674,36 @@ function VideoForm({
       ? {
           title: video.title || "",
           description: video.description || "",
-          youtubeUrl: (video.youtubeUrl || video.videoUrl || "").toString(),
+          videoInput:
+            (video.youtubeUrl as string) || (video.videoUrl as string) || "",
           scamType: (video.scamType as ScamType) || "phone",
           featured: !!video.featured,
-          consolidatedScamId: video.consolidatedScamId ?? null,
+          consolidatedScamId: (video.consolidatedScamId as number) ?? null,
         }
       : {
           title: "",
           description: "",
-          youtubeUrl: "",
+          videoInput: "",
           scamType: "phone",
           featured: false,
           consolidatedScamId: null,
         },
   });
 
-  const youtubeUrl = form.watch("youtubeUrl");
-  const videoId = youtubeUrl ? getYouTubeId(youtubeUrl) : null;
+  const rawInput = form.watch("videoInput");
+  const normalizedUrl = normalizeVideoUrl(rawInput || "");
 
   const onSubmitForm = (data: VideoFormValues) => {
-    const extractedVideoId = getYouTubeId(data.youtubeUrl);
-    if (extractedVideoId) {
-      onSubmit({ ...data, youtubeVideoId: extractedVideoId });
-    } else {
-      form.setError("youtubeUrl", {
+    const url = normalizeVideoUrl(data.videoInput);
+    if (!url || !isPlayable(url)) {
+      form.setError("videoInput", {
         type: "manual",
         message:
-          "Could not extract YouTube video ID from this URL. Please use a valid YouTube URL.",
+          "Unsupported or invalid video source. Provide a YouTube/Vimeo link or ID, or a direct .mp4 URL.",
       });
+      return;
     }
+    onSubmit(data);
   };
 
   return (
@@ -679,18 +730,21 @@ function VideoForm({
 
             <FormField
               control={form.control}
-              name="youtubeUrl"
+              name="videoInput"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>YouTube URL</FormLabel>
+                  <FormLabel>Video URL or ID</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="https://www.youtube.com/watch?v=..."
+                      placeholder="YouTube/Vimeo URL or ID, or direct .mp4 URL"
                       {...field}
                     />
                   </FormControl>
                   <FormDescription>
-                    Enter the full YouTube video URL
+                    Examples:{" "}
+                    <code>https://www.youtube.com/watch?v=abc123</code>,{" "}
+                    <code>abc123</code>, <code>https://vimeo.com/12345678</code>
+                    , <code>https://cdn.example.com/video.mp4</code>
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -765,15 +819,15 @@ function VideoForm({
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-lg font-medium">Video Preview</h3>
-            {videoId ? (
+            <h3 className="text-lg font-medium">Live Preview</h3>
+            {normalizedUrl ? (
               <div className="aspect-video overflow-hidden rounded-md border">
-                <ScamVideoPlayer videoId={videoId} />
+                <ScamVideoPlayer videoUrl={normalizedUrl} />
               </div>
             ) : (
               <div className="aspect-video flex items-center justify-center rounded-md border bg-muted">
                 <p className="text-muted-foreground">
-                  Enter a valid YouTube URL to see preview
+                  Enter a supported URL or ID to see preview
                 </p>
               </div>
             )}

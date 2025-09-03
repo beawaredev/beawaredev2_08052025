@@ -1,29 +1,62 @@
-import * as sql from "mssql";
-// ---- Azure SQL pool singleton (top-level) ----
-let __sharedPool: sql.ConnectionPool | null = null;
-async function getPool(): Promise<sql.ConnectionPool> {
-  if (__sharedPool && __sharedPool.connected) return __sharedPool;
-  if (__sharedPool && !__sharedPool.connected) {
-    try {
-      await __sharedPool.close();
-    } catch {}
-    __sharedPool = null;
-  }
-  const conn = process.env.AZURE_SQL_CONNECTION as string | undefined;
-  if (!conn) throw new Error("AZURE_SQL_CONNECTION env var is not set.");
-  __sharedPool = await new sql.ConnectionPool(conn).connect();
-  return __sharedPool;
-}
-export async function closePool(): Promise<void> {
-  if (__sharedPool) {
-    try {
-      await __sharedPool.close();
-    } finally {
-      __sharedPool = null;
+/* ---------- Bind-safe request helper that does NOT depend on getPool symbol ---------- */
+let __poolPromise: Promise<sql.ConnectionPool> | null = null;
+
+/** Ensure we have a connected pool without assuming a specific helper exists. */
+async function ensurePool(): Promise<sql.ConnectionPool> {
+  // Reuse existing module-level pool if present and connected
+  try {
+    if (
+      typeof pool !== "undefined" &&
+      (pool as any) &&
+      (pool as any).connected
+    ) {
+      return pool as sql.ConnectionPool;
     }
-  }
+  } catch {}
+
+  // If a function named getPool exists (from this module), use it
+  try {
+    // @ts-ignore
+    if (typeof getPool === "function") {
+      // @ts-ignore
+      const p = await getPool();
+      return p;
+    }
+  } catch {}
+
+  // Otherwise connect fresh (idempotent via __poolPromise)
+  if (__poolPromise) return __poolPromise;
+  __poolPromise = (async () => {
+    const cfg = resolveSqlConfig();
+    const p = await sql.connect(cfg as any);
+    try {
+      (p as any).on("error", (err: any) =>
+        console.error("[SQL POOL ERROR]", err),
+      );
+    } catch {}
+    // cache on module-level pool variable if it exists
+    try {
+      (pool as any) = p;
+    } catch {}
+    return p;
+  })();
+  return __poolPromise;
 }
 
+/** Always returns a ready sql.Request, independent of 'this' binding. */
+async function sqlRequest() {
+  const p = await ensurePool();
+  return p.request();
+}
+import * as __db from "./db.js";
+import sql from "mssql";
+// Resolve pool from either named export or default export for compatibility
+const pool: sql.ConnectionPool = (__db as any).pool || (__db as any).default;
+if (!pool) {
+  throw new Error(
+    "[AzureStorage] Database pool not exported from ./db.js. Export `pool` or default ConnectionPool.",
+  );
+}
 // Simplified types for Azure SQL Database compatibility
 export interface User {
   id: number;
@@ -113,68 +146,78 @@ import {
 
 // Azure SQL Database Storage Implementation
 export class AzureStorage implements IStorage {
+  private async getRequest() {
+    await this.ensureConnection();
+    try {
+      if (
+        (pool as any).connected === false &&
+        typeof (pool as any).connect === "function"
+      ) {
+        await (pool as any).connect();
+      }
+    } catch {}
+    return pool.request();
+  }
+
   private async ensureConnection(): Promise<void> {
-    await getPool();
+    if (!pool) {
+      throw new Error("Database pool is undefined. Check ./db.js export.");
+    }
+    try {
+      if (pool.connected) {
+        return;
+      }
+
+      if (pool.connecting) {
+        // Wait for existing connection attempt
+        await new Promise((resolve) => {
+          const checkInterval = setInterval(() => {
+            if (pool.connected || !pool.connecting) {
+              clearInterval(checkInterval);
+              resolve(true);
+            }
+          }, 100);
+        });
+        return;
+      }
+
+      console.log("Establishing Azure SQL Database connection...");
+      await pool.connect();
+      console.log("Azure SQL Database connected successfully");
+    } catch (error) {
+      console.error("Failed to connect to Azure SQL Database:", error);
+
+      // Reset pool on failure
+      try {
+        if (pool && !pool.connected) {
+          await pool.close();
+        }
+      } catch (closeError) {
+        console.error("Error closing failed connection:", closeError);
+      }
+
+      throw new Error(
+        "Database connection failed. Please check your Azure SQL Database configuration.",
+      );
+    }
   }
 
   /**
    * Ensure your SQL connection string (AZURE_SQL_CONNECTION) is set.
    * If you already have a shared pool getter, use that instead.
    */
-  /**
-   * List *all* scam videos with valid video_url, newest first.
-   * Returns the raw *snake_case* columns your React page normalizes.
-   */
-  public async listScamVideos(): Promise<any[]> {
-    const pool = await getPool();
-    const result = await (await getPool()).request().query(`
-      SELECT
-        id,
-        title,
-        description,
-        video_url,
-        thumbnail_url,
-        scam_type,
-        is_featured,
-        view_count,
-        duration,
-        created_by,
-        created_at,
-        updated_at
-      FROM dbo.scam_videos
-      WHERE video_url IS NOT NULL AND LTRIM(RTRIM(video_url)) <> ''
-      ORDER BY created_at DESC
-    `);
-    return result.recordset ?? [];
+  private async getPool(): Promise<sql.ConnectionPool> {
+    // Use existing pool imported from ./db.js; ensure it's connected
+    if (
+      (pool as any) &&
+      (pool as any).connected === false &&
+      typeof (pool as any).connect === "function"
+    ) {
+      await (pool as any).connect();
+    }
+    return pool as sql.ConnectionPool;
   }
 
-  /**
-   * List *featured* scam videos with valid video_url, newest first.
-   */
-  public async listFeaturedScamVideos(): Promise<any[]> {
-    const pool = await getPool();
-    const result = await (await getPool()).request().query(`
-      SELECT
-        id,
-        title,
-        description,
-        video_url,
-        thumbnail_url,
-        scam_type,
-        is_featured,
-        view_count,
-        duration,
-        created_by,
-        created_at,
-        updated_at
-      FROM dbo.scam_videos
-      WHERE is_featured = 1
-        AND video_url IS NOT NULL
-        AND LTRIM(RTRIM(video_url)) <> ''
-      ORDER BY created_at DESC
-    `);
-    return result.recordset ?? [];
-  }
   // User methods
   async getUser(id: number): Promise<User | undefined> {
     try {
@@ -183,7 +226,7 @@ export class AzureStorage implements IStorage {
         return undefined;
       }
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const result = await request.query(
         `SELECT * FROM users WHERE id = ${id}`,
       );
@@ -211,7 +254,7 @@ export class AzureStorage implements IStorage {
   async getUserByEmail(email: string): Promise<User | undefined> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const result = await request.query(
         `SELECT * FROM users WHERE email = '${email.replace(/'/g, "''")}'`,
       );
@@ -239,7 +282,7 @@ export class AzureStorage implements IStorage {
   async getUserByGoogleId(googleId: string): Promise<User | undefined> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const result = await request.query(
         `SELECT * FROM users WHERE google_id = '${googleId.replace(/'/g, "''")}'`,
       );
@@ -267,7 +310,7 @@ export class AzureStorage implements IStorage {
   async getUserByBeawareUsername(username: string): Promise<User | undefined> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const result = await request.query(
         `SELECT * FROM users WHERE beaware_username = '${username.replace(/'/g, "''")}'`,
       );
@@ -295,7 +338,7 @@ export class AzureStorage implements IStorage {
   async createUser(userData: any): Promise<User> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const result = await request.query(`
         INSERT INTO users (email, password, display_name, beaware_username, role, auth_provider, google_id)
         OUTPUT INSERTED.*
@@ -333,7 +376,7 @@ export class AzureStorage implements IStorage {
   async getAllUsers(): Promise<User[]> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const result = await request.query(
         "SELECT * FROM users ORDER BY created_at DESC",
       );
@@ -353,7 +396,7 @@ export class AzureStorage implements IStorage {
       console.log("📅 Type of incident date:", typeof reportData.incidentDate);
 
       // Use parameterized query to avoid date conversion issues
-      const request = (await getPool()).request();
+      const request = pool.request();
 
       // Add parameters to prevent SQL injection and handle dates properly
       request.input("userId", reportData.userId);
@@ -414,7 +457,7 @@ export class AzureStorage implements IStorage {
   async getScamReport(id: number): Promise<ScamReport | undefined> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const result = await request.query(`
         SELECT 
           id,
@@ -457,7 +500,7 @@ export class AzureStorage implements IStorage {
   ): Promise<ScamReport[]> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const offset = (page - 1) * limit;
 
       const result = await request.query(`
@@ -504,7 +547,7 @@ export class AzureStorage implements IStorage {
   ): Promise<ScamReport[]> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const whereClause = includeUnpublished
         ? ""
         : "WHERE is_published = CAST(1 AS BIT)";
@@ -551,7 +594,7 @@ export class AzureStorage implements IStorage {
   ): Promise<ScamReport[]> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const offset = (page - 1) * limit;
       const result = await request.query(`
         SELECT 
@@ -591,7 +634,7 @@ export class AzureStorage implements IStorage {
   ): Promise<ScamReport[]> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const offset = (page - 1) * limit;
       const result = await request.query(`
         SELECT 
@@ -631,7 +674,7 @@ export class AzureStorage implements IStorage {
   ): Promise<ScamReport[]> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const offset = (page - 1) * limit;
       const result = await request.query(`
         SELECT 
@@ -675,7 +718,7 @@ export class AzureStorage implements IStorage {
   async getTotalScamReportsCount(): Promise<number> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const result = await request.query(
         `SELECT COUNT(*) as total FROM scam_reports`,
       );
@@ -689,7 +732,7 @@ export class AzureStorage implements IStorage {
   async getPublishedScamReportsCount(): Promise<number> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const result = await request.query(
         `SELECT COUNT(*) as total FROM scam_reports WHERE is_published = CAST(1 AS BIT)`,
       );
@@ -703,7 +746,7 @@ export class AzureStorage implements IStorage {
   async getVerifiedScamReportsCount(): Promise<number> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const result = await request.query(
         `SELECT COUNT(*) as total FROM scam_reports WHERE is_verified = CAST(1 AS BIT)`,
       );
@@ -717,7 +760,7 @@ export class AzureStorage implements IStorage {
   async getUnverifiedScamReportsCount(): Promise<number> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const result = await request.query(
         `SELECT COUNT(*) as total FROM scam_reports WHERE is_verified = CAST(0 AS BIT)`,
       );
@@ -734,7 +777,7 @@ export class AzureStorage implements IStorage {
   ): Promise<ScamReport[]> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const offset = (page - 1) * limit;
       const result = await request.query(`
         SELECT 
@@ -771,7 +814,7 @@ export class AzureStorage implements IStorage {
   async getConsolidationForScamReport(scamReportId: number): Promise<any> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const result = await request.query(`
         SELECT * FROM scam_report_consolidations 
         WHERE scam_report_id = ${scamReportId}
@@ -786,7 +829,7 @@ export class AzureStorage implements IStorage {
   async getScamReportsByUser(userId: number): Promise<ScamReport[]> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const result = await request.query(
         `SELECT * FROM scam_reports WHERE user_id = ${userId} ORDER BY reported_at DESC`,
       );
@@ -800,7 +843,7 @@ export class AzureStorage implements IStorage {
   async getScamReportsByType(type: string): Promise<ScamReport[]> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const result = await request.query(
         `SELECT * FROM scam_reports WHERE scam_type = '${type.replace(/'/g, "''")}' ORDER BY reported_at DESC`,
       );
@@ -817,7 +860,7 @@ export class AzureStorage implements IStorage {
   ): Promise<ScamReport | undefined> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const result = await request.query(`
         UPDATE scam_reports 
         SET is_verified = CAST(1 AS BIT), verified_by = ${verifiedBy}, verified_at = GETDATE()
@@ -860,7 +903,7 @@ export class AzureStorage implements IStorage {
   ): Promise<ScamReport | undefined> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const result = await request.query(`
         UPDATE scam_reports 
         SET is_published = CAST(1 AS BIT), published_by = ${publishedBy}, published_at = GETDATE()
@@ -903,7 +946,7 @@ export class AzureStorage implements IStorage {
   ): Promise<ScamReport | undefined> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const result = await request.query(`
         UPDATE scam_reports 
         SET is_published = CAST(0 AS BIT), published_by = ${unpublishedBy}, published_at = NULL
@@ -921,7 +964,7 @@ export class AzureStorage implements IStorage {
   async createScamComment(commentData: any): Promise<ScamComment> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const result = await request.query(`
         INSERT INTO scam_comments (scam_report_id, user_id, comment)
         OUTPUT INSERTED.*
@@ -937,7 +980,7 @@ export class AzureStorage implements IStorage {
   async getCommentsForScamReport(reportId: number): Promise<ScamComment[]> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const result = await request.query(
         `SELECT * FROM scam_comments WHERE scam_report_id = ${reportId} ORDER BY created_at ASC`,
       );
@@ -952,7 +995,7 @@ export class AzureStorage implements IStorage {
   async getScamStats(): Promise<any> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const result = await request.query(`
         SELECT 
           COUNT(*) as totalReports,
@@ -1010,7 +1053,7 @@ export class AzureStorage implements IStorage {
   async getAllSecurityChecklistItems(): Promise<SecurityChecklistItem[]> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
 
       // First check which columns exist to handle schema differences
       const columnsCheck = await request.query(`
@@ -1048,7 +1091,7 @@ export class AzureStorage implements IStorage {
           sort_order as sortOrder,
           is_active as isActive,
           created_at as createdAt,
-          updated_at as updatedAt`;
+          updated_at as updated_at`;
 
       const result = await request.query(`
         SELECT ${selectColumns}
@@ -1316,7 +1359,7 @@ export class AzureStorage implements IStorage {
       await this.ensureConnection();
 
       // Check which columns exist to handle schema differences
-      const columnsCheck = await (await getPool()).request().query(`
+      const columnsCheck = await pool.request().query(`
         SELECT COLUMN_NAME 
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_NAME = 'security_checklist_items'
@@ -1328,7 +1371,7 @@ export class AzureStorage implements IStorage {
       const hasToolLaunchUrl = existingColumns.includes("tool_launch_url");
       const hasYoutubeVideoUrl = existingColumns.includes("youtube_video_url");
 
-      const request = (await getPool()).request();
+      const request = pool.request();
       request.input("title", item.title);
       request.input("description", item.description);
       request.input("category", item.category);
@@ -1397,7 +1440,7 @@ export class AzureStorage implements IStorage {
     try {
       await this.ensureConnection();
 
-      const request = (await getPool()).request();
+      const request = pool.request();
       request.input("itemId", itemId);
 
       // Soft delete by setting is_active to false instead of actual deletion
@@ -1473,7 +1516,7 @@ export class AzureStorage implements IStorage {
       // Always update the updated_at field
       updateFields.push("updated_at = GETDATE()");
 
-      const request = (await getPool()).request();
+      const request = pool.request();
 
       // Add parameters to request
       Object.keys(params).forEach((key) => {
@@ -1525,7 +1568,7 @@ export class AzureStorage implements IStorage {
   ): Promise<UserSecurityProgress[]> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       const result = await request.query(`
         SELECT 
           id, user_id as userId, checklist_item_id as checklistItemId,
@@ -1563,7 +1606,7 @@ export class AzureStorage implements IStorage {
   ): Promise<UserSecurityProgress> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
 
       // Check if record exists
       const existingResult = await request.query(`
@@ -1577,19 +1620,19 @@ export class AzureStorage implements IStorage {
 
       if (existingResult.recordset.length > 0) {
         // Update existing record
-        result = await (await getPool()).request().query(`
+        result = await pool.request().query(`
           UPDATE user_security_progress 
           SET 
             is_completed = ${isCompleted ? 1 : 0},
             completed_at = ${completedAt ? `'${completedAt.toISOString()}'` : "NULL"},
             notes = ${notes ? `'${notes.replace(/'/g, "''")}'` : "NULL"},
-            updated_at = '${updatedAt.toISOString()}'
+            updated_at = '${updated_at.toISOString()}'
           OUTPUT INSERTED.*
           WHERE user_id = ${userId} AND checklist_item_id = ${checklistItemId}
         `);
       } else {
         // Insert new record
-        result = await (await getPool()).request().query(`
+        result = await pool.request().query(`
           INSERT INTO user_security_progress (user_id, checklist_item_id, is_completed, completed_at, notes, updated_at)
           OUTPUT INSERTED.*
           VALUES (
@@ -1598,7 +1641,7 @@ export class AzureStorage implements IStorage {
             ${isCompleted ? 1 : 0},
             ${completedAt ? `'${completedAt.toISOString()}'` : "NULL"},
             ${notes ? `'${notes.replace(/'/g, "''")}'` : "NULL"},
-            '${updatedAt.toISOString()}'
+            '${updated_at.toISOString()}'
           )
         `);
       }
@@ -1703,10 +1746,10 @@ export class AzureStorage implements IStorage {
         .input(
           "video_url",
           sql.NVarChar(2048),
-          video.video_url || video.youtubeUrl,
+          video.videoUrl || video.youtubeUrl,
         )
-        .input("scam_type", sql.NVarChar(32), video.scam_type || "business")
-        .input("created_by", sql.Int, video.created_by || video.addedById);
+        .input("scam_type", sql.NVarChar(32), video.scamType || "business")
+        .input("created_by", sql.Int, video.createdBy || video.addedById);
 
       const result = await request.query(`
         INSERT INTO scam_videos (title, description, video_url, scam_type, created_by)
@@ -1721,14 +1764,18 @@ export class AzureStorage implements IStorage {
         id: insertedRow.id,
         title: insertedRow.title,
         videoUrl: insertedRow.video_url,
+        youtubeUrl: insertedRow.video_url,
         thumbnailUrl: insertedRow.thumbnail_url || "",
         scamType: insertedRow.scam_type || "business",
         description: insertedRow.description || "",
         featured: !!insertedRow.is_featured,
-        consolidatedScamId: insertedRow.consolidated_scam_id,
-        createdBy: insertedRow.created_by,
-        createdAt: new Date(insertedRow.created_at).toISOString(),
-        updatedAt: new Date(insertedRow.updated_at).toISOString(),
+        createdBy: insertedRow.created_by ?? null,
+        createdAt: insertedRow.created_at
+          ? new Date(insertedRow.created_at).toISOString()
+          : new Date().toISOString(),
+        updatedAt: insertedRow.updated_at
+          ? new Date(insertedRow.updated_at).toISOString()
+          : undefined,
       };
     } catch (error) {
       console.error("Error in addScamVideo:", error);
@@ -1737,79 +1784,85 @@ export class AzureStorage implements IStorage {
   }
 
   async getScamVideo(id: number): Promise<ScamVideo | undefined> {
-    return undefined;
+    const req = await sqlRequest();
+    req.input("id", sql.Int, id);
+    const result = await req.query(`
+      SELECT id, title, description, video_url, scam_type, is_featured, thumbnail_url, created_by, created_at, updated_at
+      FROM scam_videos WHERE id = @id
+    `);
+    const r = result.recordset[0];
+    if (!r) return undefined;
+    return {
+      id: r.id,
+      title: r.title,
+      description: r.description ?? "",
+      videoUrl: r.video_url,
+      youtubeUrl: r.video_url,
+      scamType: r.scam_type ?? "business",
+      featured: !!r.is_featured,
+      thumbnailUrl: r.thumbnail_url ?? "",
+      createdBy: r.created_by ?? null,
+      createdAt: r.created_at
+        ? new Date(r.created_at).toISOString()
+        : undefined,
+      updatedAt: r.updated_at
+        ? new Date(r.updated_at).toISOString()
+        : undefined,
+    };
   }
 
   async getAllScamVideos(): Promise<ScamVideo[]> {
-    return [];
+    const req = await sqlRequest();
+    const result = await req.query(`
+      SELECT id, title, description, video_url, scam_type, is_featured, thumbnail_url, created_by, created_at, updated_at
+      FROM scam_videos
+      ORDER BY created_at DESC
+    `);
+    return result.recordset.map((r: any) => ({
+      id: r.id,
+      title: r.title,
+      description: r.description ?? "",
+      videoUrl: r.video_url,
+      youtubeUrl: r.video_url,
+      scamType: r.scam_type ?? "business",
+      featured: !!r.is_featured,
+      thumbnailUrl: r.thumbnail_url ?? "",
+      createdBy: r.created_by ?? null,
+      createdAt: r.created_at
+        ? new Date(r.created_at).toISOString()
+        : undefined,
+      updatedAt: r.updated_at
+        ? new Date(r.updated_at).toISOString()
+        : undefined,
+    }));
   }
 
   async getFeaturedScamVideos(): Promise<ScamVideo[]> {
-    return [];
+    const req = await sqlRequest();
+    const result = await req.query(`
+      SELECT id, title, description, video_url, scam_type, is_featured, thumbnail_url, created_by, created_at, updated_at
+      FROM scam_videos
+      WHERE is_featured = 1
+      ORDER BY created_at DESC
+    `);
+    return result.recordset.map((r: any) => ({
+      id: r.id,
+      title: r.title,
+      description: r.description ?? "",
+      videoUrl: r.video_url,
+      youtubeUrl: r.video_url,
+      scamType: r.scam_type ?? "business",
+      featured: !!r.is_featured,
+      thumbnailUrl: r.thumbnail_url ?? "",
+      createdBy: r.created_by ?? null,
+      createdAt: r.created_at
+        ? new Date(r.created_at).toISOString()
+        : undefined,
+      updatedAt: r.updated_at
+        ? new Date(r.updated_at).toISOString()
+        : undefined,
+    }));
   }
-
-  // Password reset methods
-  async createPasswordReset(
-    userId: number,
-    resetToken: string,
-  ): Promise<PasswordReset> {
-    console.log("=== AzureStorage.createPasswordReset called ===");
-    console.log("UserId:", userId, "ResetToken:", resetToken);
-
-    await this.ensureConnection();
-    console.log("Database connection ensured");
-
-    try {
-      // Calculate expiration time (15 minutes from now)
-      const expiresAt = new Date();
-      expiresAt.setMinutes(expiresAt.getMinutes() + 15);
-      console.log("Expiration time calculated:", expiresAt);
-
-      // First, invalidate any existing reset tokens for this user
-      console.log("Invalidating existing reset tokens for user:", userId);
-      await pool
-        .request()
-        .input("userId", sql.Int, userId)
-        .query(
-          "UPDATE password_resets SET used = 1 WHERE user_id = @userId AND used = 0",
-        );
-      console.log("Existing tokens invalidated");
-
-      // Create new reset token
-      console.log("Creating new password reset record...");
-      const result = await pool
-        .request()
-        .input("userId", sql.Int, userId)
-        .input("resetToken", sql.NVarChar, resetToken)
-        .input("expiresAt", sql.DateTime2, expiresAt).query(`
-          INSERT INTO password_resets (user_id, reset_token, expires_at)
-          OUTPUT INSERTED.*
-          VALUES (@userId, @resetToken, @expiresAt)
-        `);
-
-      console.log("Insert query executed, result:", result);
-      console.log("Recordset length:", result.recordset.length);
-
-      const resetRecord = result.recordset[0];
-      console.log("Reset record from database:", resetRecord);
-
-      const passwordResetObject = {
-        id: resetRecord.id,
-        userId: resetRecord.user_id,
-        resetToken: resetRecord.reset_token,
-        expiresAt: resetRecord.expires_at.toISOString(),
-        used: resetRecord.used,
-        createdAt: resetRecord.created_at.toISOString(),
-      };
-
-      console.log("Returning password reset object:", passwordResetObject);
-      return passwordResetObject;
-    } catch (error) {
-      console.error("Error creating password reset:", error);
-      throw error;
-    }
-  }
-
   async getPasswordReset(
     resetToken: string,
   ): Promise<PasswordReset | undefined> {
@@ -1884,7 +1937,7 @@ export class AzureStorage implements IStorage {
   async updateUser(userId: number, updateData: any): Promise<User | undefined> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
 
       // Build dynamic update query based on provided fields
       const updateFields = [];
@@ -1940,7 +1993,7 @@ export class AzureStorage implements IStorage {
   async fixEmptyUsernames(): Promise<number> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
 
       // Update users with null or empty beaware_username
       const result = await request.query(`
@@ -1960,7 +2013,7 @@ export class AzureStorage implements IStorage {
   async removeUsernameUniqueConstraint(): Promise<void> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
 
       // Try multiple approaches to find and drop the constraint
       try {
@@ -2071,7 +2124,7 @@ export class AzureStorage implements IStorage {
   async getApiConfigs(): Promise<ApiConfig[]> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
 
       // First, try to check if api_configs table exists
       const tableCheckResult = await request.query(`
@@ -2118,7 +2171,7 @@ export class AzureStorage implements IStorage {
   async getApiConfigByType(type: string): Promise<ApiConfig | undefined> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
 
       // Check if table exists first
       const tableCheckResult = await request.query(`
@@ -2132,7 +2185,7 @@ export class AzureStorage implements IStorage {
         return undefined;
       }
 
-      const queryRequest = (await getPool()).request();
+      const queryRequest = pool.request();
       queryRequest.input("type", sql.VarChar, type);
 
       const result = await queryRequest.query(`
@@ -2176,7 +2229,7 @@ export class AzureStorage implements IStorage {
       await this.ensureConnection();
 
       // Insert the config directly into the existing table
-      const insertRequest = (await getPool()).request();
+      const insertRequest = pool.request();
       insertRequest.input("name", sql.VarChar, config.name);
       insertRequest.input("type", sql.VarChar, config.type);
       insertRequest.input("url", sql.VarChar, config.url);
@@ -2234,7 +2287,7 @@ export class AzureStorage implements IStorage {
   ): Promise<ApiConfig | undefined> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
 
       const setClauses: string[] = [];
       if (updates.name !== undefined) {
@@ -2329,7 +2382,7 @@ export class AzureStorage implements IStorage {
   async deleteApiConfig(id: number): Promise<boolean> {
     try {
       await this.ensureConnection();
-      const request = (await getPool()).request();
+      const request = pool.request();
       request.input("id", sql.Int, id);
 
       const result = await request.query(`
@@ -2344,15 +2397,12 @@ export class AzureStorage implements IStorage {
   }
 }
 
-// Instantiate and export default instance
-const azureStorage = new AzureStorage();
-export default azureStorage;
-
-// Named exports for routes.ts compatibility
+/* --------------------- Compatibility function exports --------------------- */
+/** Back-compat: routes.ts imports these named functions */
 export async function listScamVideos() {
-  return await azureStorage.listScamVideos();
+  return azureStorage.getAllScamVideos();
 }
 
 export async function listFeaturedScamVideos() {
-  return await azureStorage.listFeaturedScamVideos();
+  return azureStorage.getFeaturedScamVideos();
 }
