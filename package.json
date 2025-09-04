@@ -4,10 +4,8 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "build:client": "vite build",
-    "build:server": "tsc -p tsconfig.json",
-    "build": "npm run build:client && npm run build:server",
-    "start": "node dist/server/index.js",
+    "build": "vite build",
+    "start": "tsx server/index.ts",
     "dev": "export TS_NODE_TRANSPILE_ONLY=true && export NODE_OPTIONS=\"--experimental-modules --es-module-specifier-resolution=node --no-warnings\" && npx tsx server/index.ts",
     "deploy": "npm run build && npm run start"
   },
@@ -88,6 +86,7 @@
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",
     "tedious": "^18.6.1",
+    "tsx": "^4.19.4",
     "vaul": "^1.1.0",
     "wouter": "^3.3.5",
     "ws": "^8.18.0",
@@ -113,7 +112,6 @@
     "esbuild": "^0.25.0",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",
-    "tsx": "^4.19.4",
     "typescript": "5.6.3",
     "vite": "^5.4.14"
   },
