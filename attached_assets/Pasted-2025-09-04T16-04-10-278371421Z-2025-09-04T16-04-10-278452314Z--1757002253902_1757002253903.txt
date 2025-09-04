@@ -1,0 +1,98 @@
+2025-09-04T16:04:10.278371421Z    _____
+2025-09-04T16:04:10.278452314Z   /  _  \ __________ _________   ____
+2025-09-04T16:04:10.278457831Z  /  /_\  \\___   /  |  \_  __ \_/ __ \
+2025-09-04T16:04:10.278461723Z /    |    \/    /|  |  /|  | \/\  ___/
+2025-09-04T16:04:10.278465255Z \____|__  /_____ \____/ |__|    \___  >
+2025-09-04T16:04:10.278468971Z         \/      \/                  \/
+2025-09-04T16:04:10.278472349Z A P P   S E R V I C E   O N   L I N U X
+2025-09-04T16:04:10.278475770Z
+2025-09-04T16:04:10.278479112Z Documentation: http://aka.ms/webapp-linux
+2025-09-04T16:04:10.278482401Z NodeJS quickstart: https://aka.ms/node-qs
+2025-09-04T16:04:10.278485599Z NodeJS Version : v20.19.3
+2025-09-04T16:04:10.278488791Z Note: Any data outside '/home' is not persisted
+2025-09-04T16:04:10.278492449Z
+2025-09-04T16:04:35.206707675Z Starting OpenBSD Secure Shell server: sshd.
+2025-09-04T16:04:35.206779864Z WEBSITES_INCLUDE_CLOUD_CERTS is not set to true.
+2025-09-04T16:04:35.742729426Z Updating certificates in /etc/ssl/certs...
+2025-09-04T16:05:23.118396286Z rehash: warning: skipping ca-certificates.crt,it does not contain exactly one certificate or CRL
+2025-09-04T16:05:23.207881732Z 4 added, 0 removed; done.
+2025-09-04T16:05:23.231223720Z Running hooks in /etc/ca-certificates/update.d...
+2025-09-04T16:05:23.249521319Z done.
+2025-09-04T16:05:23.331614375Z CA certificates copied and updated successfully.
+2025-09-04T16:05:23.671372579Z Starting periodic command scheduler: cron.
+2025-09-04T16:05:24.010611734Z Found build manifest file at '/home/site/wwwroot/oryx-manifest.toml'. Deserializing it...
+2025-09-04T16:05:24.027840579Z Could not find operation ID in manifest. Generating an operation id...
+2025-09-04T16:05:24.037845088Z Build Operation ID: 876a5243-a99d-4704-be52-0a8c4420123a
+2025-09-04T16:05:24.929317731Z Environment Variables for Application Insight's IPA Codeless Configuration exists..
+2025-09-04T16:05:25.011009621Z Writing output script to '/opt/startup/startup.sh'
+2025-09-04T16:05:25.118874052Z Running #!/bin/sh
+2025-09-04T16:05:25.182554903Z
+2025-09-04T16:05:25.182604926Z # Enter the source directory to make sure the script runs where the user expects
+2025-09-04T16:05:25.182615401Z cd "/home/site/wwwroot"
+2025-09-04T16:05:25.182623958Z
+2025-09-04T16:05:25.182631843Z export NODE_PATH=/usr/local/lib/node_modules:$NODE_PATH
+2025-09-04T16:05:25.182640590Z if [ -z "$PORT" ]; then
+2025-09-04T16:05:25.182648789Z 		export PORT=8080
+2025-09-04T16:05:25.182657692Z fi
+2025-09-04T16:05:25.182665346Z
+2025-09-04T16:05:25.182672921Z echo Found tar.gz based node_modules.
+2025-09-04T16:05:25.182706363Z extractionCommand="tar -xzf node_modules.tar.gz -C /node_modules"
+2025-09-04T16:05:25.182713663Z echo "Removing existing modules directory from root..."
+2025-09-04T16:05:25.182719825Z rm -fr /node_modules
+2025-09-04T16:05:25.182725653Z mkdir -p /node_modules
+2025-09-04T16:05:25.182731293Z echo Extracting modules...
+2025-09-04T16:05:25.182737043Z $extractionCommand
+2025-09-04T16:05:25.182743534Z export NODE_PATH="/node_modules":$NODE_PATH
+2025-09-04T16:05:25.182749797Z export PATH=/node_modules/.bin:$PATH
+2025-09-04T16:05:25.182755536Z if [ -d node_modules ]; then
+2025-09-04T16:05:25.182761545Z     mv -f node_modules _del_node_modules || true
+2025-09-04T16:05:25.182767419Z fi
+2025-09-04T16:05:25.182772997Z
+2025-09-04T16:05:25.182778460Z if [ -d /node_modules ]; then
+2025-09-04T16:05:25.182784467Z     ln -sfn /node_modules ./node_modules
+2025-09-04T16:05:25.182790295Z fi
+2025-09-04T16:05:25.182795867Z
+2025-09-04T16:05:25.182801397Z echo "Done."
+2025-09-04T16:05:25.182814335Z PATH="$PATH:/home/site/wwwroot" node index.js
+2025-09-04T16:05:25.182820416Z Found tar.gz based node_modules.
+2025-09-04T16:05:25.182826296Z Removing existing modules directory from root...
+2025-09-04T16:05:25.242799146Z Extracting modules...
+2025-09-04T16:07:18.034237944Z mv: cannot overwrite directory '_del_node_modules/node_modules' with non-directory
+2025-09-04T16:07:18.267850536Z Done.
+2025-09-04T16:07:25.099629808Z === Azure App Service Starting BeAware.fyi ===
+2025-09-04T16:07:25.411753685Z Node version: v20.19.3
+2025-09-04T16:07:25.411805306Z Working directory: /home/site/wwwroot
+2025-09-04T16:07:25.411833397Z Environment: production
+2025-09-04T16:07:25.411843118Z Starting server on port: 8080
+2025-09-04T16:07:25.411851160Z Attempting to start TypeScript server...
+2025-09-04T16:07:25.411859293Z Method 1: Using node with tsx/esm loader
+2025-09-04T16:07:25.774177261Z Entry point setup complete, waiting for server to start...
+2025-09-04T16:07:27.220061862Z node:internal/modules/esm/resolve:873
+2025-09-04T16:07:27.220110672Z   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+2025-09-04T16:07:27.220120237Z         ^
+2025-09-04T16:07:27.220128189Z
+2025-09-04T16:07:27.220135945Z Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'tsx' imported from /home/site/wwwroot/
+2025-09-04T16:07:27.220144479Z     at packageResolve (node:internal/modules/esm/resolve:873:9)
+2025-09-04T16:07:27.220153031Z     at moduleResolve (node:internal/modules/esm/resolve:946:18)
+2025-09-04T16:07:27.220161245Z     at defaultResolve (node:internal/modules/esm/resolve:1188:11)
+2025-09-04T16:07:27.588058340Z     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:642:12)
+2025-09-04T16:07:27.588107394Z     at #cachedDefaultResolve (node:internal/modules/esm/loader:591:25)
+2025-09-04T16:07:27.588119053Z     at ModuleLoader.resolve (node:internal/modules/esm/loader:574:38)
+2025-09-04T16:07:27.588125815Z     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:236:38)
+2025-09-04T16:07:27.588132050Z     at ModuleLoader.import (node:internal/modules/esm/loader:539:34)
+2025-09-04T16:07:27.588138207Z     at asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:112:36)
+2025-09-04T16:07:27.588144702Z     at runEntryPointWithESMLoader (node:internal/modules/run_main:141:19) {
+2025-09-04T16:07:27.588150981Z   code: 'ERR_MODULE_NOT_FOUND'
+2025-09-04T16:07:27.588156872Z }
+2025-09-04T16:07:27.588162636Z
+2025-09-04T16:07:27.588168310Z Node.js v20.19.3
+2025-09-04T16:07:27.588174273Z Method 1 failed, trying Method 2...
+2025-09-04T16:07:27.510637131Z Method 1 exited with code 1 and signal null
+2025-09-04T16:07:27.588192286Z Method 2: Using npx tsx directly
+2025-09-04T16:07:37.388076495Z npm info using npm@10.9.2
+2025-09-04T16:07:37.388258595Z npm info using node@v20.19.3
+2025-09-04T16:08:00.801733159Z npm http fetch GET 200 https://registry.npmjs.org/npm 3752ms
+2025-09-04T16:08:06.814Z ERROR - Container beawareapp_0_8f1ad918 for site beawareapp did not start within expected time limit. Elapsed time = 232.253942 sec
+2025-09-04T16:08:07.113Z ERROR - Container beawareapp_0_8f1ad918 didn't respond to HTTP pings on port: 8080. Failing site start. See container logs for debugging.
+2025-09-04T16:08:07.769Z INFO  - Stopping site beawareapp because it failed during startup.
+2025-09-04T16:09:38  No new trace in the past 1 min(s).
