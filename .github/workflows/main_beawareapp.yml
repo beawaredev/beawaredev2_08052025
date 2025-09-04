@@ -1,13 +1,19 @@
-name: Build & Deploy BeAware to Azure Web App
+name: Build and deploy Node.js app to Azure Web App - Beawareapp
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
-  id-token: write   # required for azure/login (OIDC)
+  id-token: write
   contents: read
+
+env:
+  AZURE_WEBAPP_NAME: Beawareapp
+  AZURE_WEBAPP_PACKAGE_PATH: dist
+  NODE_VERSION: '20.x'
 
 jobs:
   build-and-deploy:
@@ -17,10 +23,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Use Node 20.x
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install deps
@@ -29,25 +35,27 @@ jobs:
       - name: Build (client + server)
         run: npm run build
 
-      # (Optional) quick sanity check – shows what's inside the build output
-      - name: List dist
-        run: |
-          echo "---- dist tree ----"
-          ls -la dist || true
-          find dist -maxdepth 2 -type f | head -n 100 || true
-
-      - name: Azure login (OIDC)
+      # ---- Azure login (OIDC) ----
+      - name: 'Az Login'
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_35E5315EDCBD454A89028DC816115969 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_1215FCCAAF9042179F0D2D36AB844422 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_F0168D1E4AD14FB7A3C0BF8FCECF99E5 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_35E5315EDCBD454A89028DC816115969 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_35E5315EDCBD454A89028DC816115969 }}
+
+      # Minimal infra tweak so the container runs the compiled JS (not TS with tsx)
+      - name: Set startup command (Linux Web App)
+        run: |
+          APP_ID=$(az webapp show --name $AZURE_WEBAPP_NAME --query id -o tsv)
+          az webapp config set --ids "$APP_ID" --startup-file "node dist/server/index.js"
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: Beawareapp
-          slot-name: Production
-          package: dist
-          # IMPORTANT: run compiled JS, not tsx at runtime
-          startup-command: node server/index.js
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          slot-name: 'Production'
+          package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+
+      - name: Logout
+        if: always()
+        run: az logout
