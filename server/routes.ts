@@ -2374,33 +2374,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = (req as any).user;
       
-      // Validate the request body
+      // Validate the request body with snake_case field names
       const videoData = insertScamVideoSchema.parse({
-        ...req.body,
-        addedById: user.id
+        title: req.body.title,
+        description: req.body.description,
+        video_url: req.body.videoUrl || req.body.video_url,
+        thumbnail_url: req.body.thumbnailUrl || req.body.thumbnail_url,
+        scam_type: req.body.scamType || req.body.scam_type,
+        consolidated_scam_id: req.body.consolidatedScamId || req.body.consolidated_scam_id,
+        is_featured: req.body.isFeatured || req.body.is_featured || false,
+        view_count: req.body.viewCount || req.body.view_count || 0,
+        duration: req.body.duration,
+        created_by: user.id
       });
       
-      // Extract the YouTube video ID from the URL if not provided
-      if (!videoData.youtubeVideoId && videoData.youtubeUrl) {
-        const url = new URL(videoData.youtubeUrl);
-        let videoId = '';
-        
-        if (url.hostname.includes('youtube.com')) {
-          videoId = url.searchParams.get('v') || '';
-        } else if (url.hostname.includes('youtu.be')) {
-          videoId = url.pathname.substring(1);
-        }
-        
-        if (videoId) {
-          videoData.youtubeVideoId = videoId;
-        } else {
-          return res.status(400).json({ 
-            message: "Could not extract YouTube video ID from URL. Please provide a valid YouTube URL or specify the video ID directly." 
-          });
-        }
+      // Validate required fields
+      if (!videoData.video_url) {
+        return res.status(400).json({ 
+          message: "Video URL is required" 
+        });
       }
       
-      const video = await storage.createScamVideo(videoData);
+      if (!videoData.title) {
+        return res.status(400).json({ 
+          message: "Title is required" 
+        });
+      }
+      
+      const video = await storage.addScamVideo(videoData);
       res.status(201).json(video);
     } catch (error) {
       console.error("Error creating scam video:", error);

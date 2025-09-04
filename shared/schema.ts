@@ -107,16 +107,16 @@ export const scamVideos = sqliteTable("scam_videos", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   title: text("title").notNull(),
   description: text("description"),
-  videoUrl: text("video_url").notNull(),
-  thumbnailUrl: text("thumbnail_url"),
-  scamType: text("scam_type"),
-  consolidatedScamId: integer("consolidated_scam_id"),
-  isFeatured: integer("is_featured", { mode: "boolean" }).default(false),
-  viewCount: integer("view_count").default(0),
+  video_url: text("video_url").notNull(),
+  thumbnail_url: text("thumbnail_url"),
+  scam_type: text("scam_type"),
+  consolidated_scam_id: integer("consolidated_scam_id"),
+  is_featured: integer("is_featured", { mode: "boolean" }).default(false),
+  view_count: integer("view_count").default(0),
   duration: integer("duration"),
-  createdBy: integer("created_by").notNull(),
-  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
-  updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
+  created_by: integer("created_by").notNull(),
+  created_at: text("created_at").default("CURRENT_TIMESTAMP"),
+  updated_at: text("updated_at").default("CURRENT_TIMESTAMP"),
 });
 
 // Lawyer profiles table
@@ -258,11 +258,11 @@ export const scamReportConsolidationsRelations = relations(scamReportConsolidati
 
 export const scamVideosRelations = relations(scamVideos, ({ one }) => ({
   consolidatedScam: one(consolidatedScams, {
-    fields: [scamVideos.consolidatedScamId],
+    fields: [scamVideos.consolidated_scam_id],
     references: [consolidatedScams.id],
   }),
   creator: one(users, {
-    fields: [scamVideos.createdBy],
+    fields: [scamVideos.created_by],
     references: [users.id],
   }),
 }));
@@ -355,6 +355,8 @@ export const insertConsolidatedScamSchema = createInsertSchema(consolidatedScams
 
 export const insertScamVideoSchema = createInsertSchema(scamVideos).omit({
   id: true,
+  created_at: true,
+  updated_at: true,
 });
 
 export const insertLawyerProfileSchema = createInsertSchema(lawyerProfiles).omit({

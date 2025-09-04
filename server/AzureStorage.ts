@@ -1496,7 +1496,58 @@ export class AzureStorage implements IStorage {
   }
 
   async addScamVideo(video: InsertScamVideo): Promise<ScamVideo> {
-    throw new Error("Not implemented");
+    console.log("=== AzureStorage.addScamVideo called ===");
+    console.log("Video data:", video);
+    
+    await this.ensureConnection();
+    
+    try {
+      const request = pool.request()
+        .input('title', sql.NVarChar, video.title)
+        .input('description', sql.NVarChar, video.description || null)
+        .input('video_url', sql.NVarChar, video.video_url)
+        .input('thumbnail_url', sql.NVarChar, video.thumbnail_url || null)
+        .input('scam_type', sql.NVarChar, video.scam_type || null)
+        .input('consolidated_scam_id', sql.Int, video.consolidated_scam_id || null)
+        .input('is_featured', sql.Bit, video.is_featured || false)
+        .input('view_count', sql.Int, video.view_count || 0)
+        .input('duration', sql.Int, video.duration || null)
+        .input('created_by', sql.Int, video.created_by);
+
+      const result = await request.query(`
+        INSERT INTO scam_videos 
+          (title, description, video_url, thumbnail_url, scam_type, consolidated_scam_id, is_featured, view_count, duration, created_by, created_at, updated_at)
+        OUTPUT INSERTED.*
+        VALUES 
+          (@title, @description, @video_url, @thumbnail_url, @scam_type, @consolidated_scam_id, @is_featured, @view_count, @duration, @created_by, GETDATE(), GETDATE())
+      `);
+
+      if (result.recordset.length === 0) {
+        throw new Error("Failed to insert scam video");
+      }
+
+      const newVideo = result.recordset[0];
+      console.log("Successfully created scam video:", newVideo);
+      
+      return {
+        id: newVideo.id,
+        title: newVideo.title,
+        description: newVideo.description,
+        video_url: newVideo.video_url,
+        thumbnail_url: newVideo.thumbnail_url,
+        scam_type: newVideo.scam_type,
+        consolidated_scam_id: newVideo.consolidated_scam_id,
+        is_featured: newVideo.is_featured,
+        view_count: newVideo.view_count,
+        duration: newVideo.duration,
+        created_by: newVideo.created_by,
+        created_at: newVideo.created_at,
+        updated_at: newVideo.updated_at,
+      };
+    } catch (error) {
+      console.error("Error in addScamVideo:", error);
+      throw error;
+    }
   }
 
   async getScamVideo(id: number): Promise<ScamVideo | undefined> {
