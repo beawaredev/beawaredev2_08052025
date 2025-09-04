@@ -1551,15 +1551,104 @@ export class AzureStorage implements IStorage {
   }
 
   async getScamVideo(id: number): Promise<ScamVideo | undefined> {
-    return undefined;
+    console.log("=== AzureStorage.getScamVideo called ===");
+    console.log("Video ID:", id);
+    
+    await this.ensureConnection();
+    
+    try {
+      const result = await pool.request()
+        .input('id', sql.Int, id)
+        .query('SELECT * FROM scam_videos WHERE id = @id');
+
+      if (result.recordset.length === 0) {
+        return undefined;
+      }
+
+      const video = result.recordset[0];
+      return {
+        id: video.id,
+        title: video.title,
+        description: video.description,
+        video_url: video.video_url,
+        thumbnail_url: video.thumbnail_url,
+        scam_type: video.scam_type,
+        consolidated_scam_id: video.consolidated_scam_id,
+        is_featured: video.is_featured,
+        view_count: video.view_count,
+        duration: video.duration,
+        created_by: video.created_by,
+        created_at: video.created_at,
+        updated_at: video.updated_at,
+      };
+    } catch (error) {
+      console.error("Error in getScamVideo:", error);
+      throw error;
+    }
   }
 
   async getAllScamVideos(): Promise<ScamVideo[]> {
-    return [];
+    console.log("=== AzureStorage.getAllScamVideos called ===");
+    
+    await this.ensureConnection();
+    
+    try {
+      const result = await pool.request()
+        .query('SELECT * FROM scam_videos ORDER BY created_at DESC');
+
+      console.log(`Found ${result.recordset.length} scam videos`);
+      
+      return result.recordset.map(video => ({
+        id: video.id,
+        title: video.title,
+        description: video.description,
+        video_url: video.video_url,
+        thumbnail_url: video.thumbnail_url,
+        scam_type: video.scam_type,
+        consolidated_scam_id: video.consolidated_scam_id,
+        is_featured: video.is_featured,
+        view_count: video.view_count,
+        duration: video.duration,
+        created_by: video.created_by,
+        created_at: video.created_at,
+        updated_at: video.updated_at,
+      }));
+    } catch (error) {
+      console.error("Error in getAllScamVideos:", error);
+      throw error;
+    }
   }
 
   async getFeaturedScamVideos(): Promise<ScamVideo[]> {
-    return [];
+    console.log("=== AzureStorage.getFeaturedScamVideos called ===");
+    
+    await this.ensureConnection();
+    
+    try {
+      const result = await pool.request()
+        .query('SELECT * FROM scam_videos WHERE is_featured = 1 ORDER BY created_at DESC');
+
+      console.log(`Found ${result.recordset.length} featured scam videos`);
+      
+      return result.recordset.map(video => ({
+        id: video.id,
+        title: video.title,
+        description: video.description,
+        video_url: video.video_url,
+        thumbnail_url: video.thumbnail_url,
+        scam_type: video.scam_type,
+        consolidated_scam_id: video.consolidated_scam_id,
+        is_featured: video.is_featured,
+        view_count: video.view_count,
+        duration: video.duration,
+        created_by: video.created_by,
+        created_at: video.created_at,
+        updated_at: video.updated_at,
+      }));
+    } catch (error) {
+      console.error("Error in getFeaturedScamVideos:", error);
+      throw error;
+    }
   }
 
   // Password reset methods
