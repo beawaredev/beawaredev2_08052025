@@ -2374,6 +2374,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = (req as any).user;
       
+      // Debug: Log what the frontend is actually sending
+      console.log("Frontend request body:", JSON.stringify(req.body, null, 2));
+      
       // Validate the request body with snake_case field names
       const videoData = insertScamVideoSchema.parse({
         title: req.body.title,
