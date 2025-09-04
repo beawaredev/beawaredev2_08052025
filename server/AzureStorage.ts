@@ -1651,6 +1651,108 @@ export class AzureStorage implements IStorage {
     }
   }
 
+  async updateScamVideo(id: number, updates: Partial<ScamVideo>): Promise<ScamVideo | undefined> {
+    console.log("=== AzureStorage.updateScamVideo called ===");
+    console.log("Video ID:", id);
+    console.log("Updates:", updates);
+    
+    await this.ensureConnection();
+    
+    try {
+      // First check if the video exists
+      const existingVideo = await this.getScamVideo(id);
+      if (!existingVideo) {
+        console.log("Video not found");
+        return undefined;
+      }
+
+      // Build the SET clause dynamically based on provided updates
+      const setItems: string[] = [];
+      const request = pool.request().input('id', sql.Int, id);
+
+      if (updates.title !== undefined) {
+        setItems.push('title = @title');
+        request.input('title', sql.NVarChar, updates.title);
+      }
+      if (updates.description !== undefined) {
+        setItems.push('description = @description');
+        request.input('description', sql.NVarChar, updates.description);
+      }
+      if (updates.video_url !== undefined) {
+        setItems.push('video_url = @video_url');
+        request.input('video_url', sql.NVarChar, updates.video_url);
+      }
+      if (updates.thumbnail_url !== undefined) {
+        setItems.push('thumbnail_url = @thumbnail_url');
+        request.input('thumbnail_url', sql.NVarChar, updates.thumbnail_url);
+      }
+      if (updates.scam_type !== undefined) {
+        setItems.push('scam_type = @scam_type');
+        request.input('scam_type', sql.NVarChar, updates.scam_type);
+      }
+      if (updates.consolidated_scam_id !== undefined) {
+        setItems.push('consolidated_scam_id = @consolidated_scam_id');
+        request.input('consolidated_scam_id', sql.Int, updates.consolidated_scam_id);
+      }
+      if (updates.is_featured !== undefined) {
+        setItems.push('is_featured = @is_featured');
+        request.input('is_featured', sql.Bit, updates.is_featured);
+      }
+      if (updates.view_count !== undefined) {
+        setItems.push('view_count = @view_count');
+        request.input('view_count', sql.Int, updates.view_count);
+      }
+      if (updates.duration !== undefined) {
+        setItems.push('duration = @duration');
+        request.input('duration', sql.Int, updates.duration);
+      }
+
+      // Always update the updated_at timestamp
+      setItems.push('updated_at = GETDATE()');
+
+      if (setItems.length === 1) { // Only updated_at
+        console.log("No fields to update");
+        return existingVideo;
+      }
+
+      const query = `
+        UPDATE scam_videos 
+        SET ${setItems.join(', ')}
+        OUTPUT INSERTED.*
+        WHERE id = @id
+      `;
+
+      console.log("Executing update query:", query);
+      const result = await request.query(query);
+
+      if (result.recordset.length === 0) {
+        throw new Error("Failed to update scam video");
+      }
+
+      const updatedVideo = result.recordset[0];
+      console.log("Successfully updated scam video:", updatedVideo);
+      
+      return {
+        id: updatedVideo.id,
+        title: updatedVideo.title,
+        description: updatedVideo.description,
+        video_url: updatedVideo.video_url,
+        thumbnail_url: updatedVideo.thumbnail_url,
+        scam_type: updatedVideo.scam_type,
+        consolidated_scam_id: updatedVideo.consolidated_scam_id,
+        is_featured: updatedVideo.is_featured,
+        view_count: updatedVideo.view_count,
+        duration: updatedVideo.duration,
+        created_by: updatedVideo.created_by,
+        created_at: updatedVideo.created_at,
+        updated_at: updatedVideo.updated_at,
+      };
+    } catch (error) {
+      console.error("Error in updateScamVideo:", error);
+      throw error;
+    }
+  }
+
   // Password reset methods
   async createPasswordReset(userId: number, resetToken: string): Promise<PasswordReset> {
     console.log("=== AzureStorage.createPasswordReset called ===");
