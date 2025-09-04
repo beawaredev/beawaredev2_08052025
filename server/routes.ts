@@ -2300,11 +2300,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // SCAM VIDEO ROUTES
+  // Helper function to transform video data for frontend
+  function transformVideoForFrontend(video: any) {
+    // Extract YouTube video ID from URL
+    const extractYouTubeVideoId = (url: string): string => {
+      const youtubeRegex = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/;
+      const match = url.match(youtubeRegex);
+      return match ? match[1] : '';
+    };
+
+    return {
+      id: video.id,
+      title: video.title,
+      description: video.description,
+      youtubeVideoId: extractYouTubeVideoId(video.video_url || ''),
+      youtubeUrl: video.video_url,
+      scamType: video.scam_type,
+      featured: video.is_featured,
+      consolidatedScamId: video.consolidated_scam_id,
+      viewCount: video.view_count,
+      duration: video.duration,
+      addedById: video.created_by,
+      addedAt: video.created_at,
+      updatedAt: video.updated_at,
+    };
+  }
+
   // Get all scam videos
   apiRouter.get("/scam-videos", async (req: Request, res: Response) => {
     try {
       const videos = await storage.getAllScamVideos();
-      res.json(videos);
+      const transformedVideos = videos.map(transformVideoForFrontend);
+      res.json(transformedVideos);
     } catch (error) {
       console.error("Error fetching scam videos:", error);
       res.status(500).json({ message: "Failed to fetch scam videos" });
@@ -2314,10 +2341,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get featured scam videos
   apiRouter.get("/scam-videos/featured", async (req: Request, res: Response) => {
     try {
-      // Get limit from query parameter, default to 5
-      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 5;
-      const videos = await storage.getFeaturedScamVideos(limit);
-      res.json(videos);
+      const videos = await storage.getFeaturedScamVideos();
+      const transformedVideos = videos.map(transformVideoForFrontend);
+      res.json(transformedVideos);
     } catch (error) {
       console.error("Error fetching featured scam videos:", error);
       res.status(500).json({ message: "Failed to fetch featured scam videos" });
@@ -2362,7 +2388,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Scam video not found" });
       }
       
-      res.json(video);
+      const transformedVideo = transformVideoForFrontend(video);
+      res.json(transformedVideo);
     } catch (error) {
       console.error("Error fetching scam video:", error);
       res.status(500).json({ message: "Failed to fetch scam video" });
@@ -2402,7 +2429,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const video = await storage.addScamVideo(videoData);
-      res.status(201).json(video);
+      const transformedVideo = transformVideoForFrontend(video);
+      res.status(201).json(transformedVideo);
     } catch (error) {
       console.error("Error creating scam video:", error);
       
@@ -2433,7 +2461,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Update the video
       const updatedVideo = await storage.updateScamVideo(id, req.body);
-      res.json(updatedVideo);
+      
+      if (!updatedVideo) {
+        return res.status(500).json({ message: "Failed to update scam video" });
+      }
+      
+      const transformedVideo = transformVideoForFrontend(updatedVideo);
+      res.json(transformedVideo);
     } catch (error) {
       console.error("Error updating scam video:", error);
       res.status(500).json({ message: "Failed to update scam video" });
