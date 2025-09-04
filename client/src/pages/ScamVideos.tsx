@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ScamVideoPlayer } from "@/components/ScamVideoPlayer";
@@ -22,122 +22,44 @@ import {
   TrendingUp,
   ArrowRight as ArrowRightIcon,
   Handshake as HandshakeIcon,
-  ImageOff,
 } from "lucide-react";
 
 const CHECKLIST_ROUTE = "/secure-your-digital-presence";
 
-interface VideoItem {
+// Types
+interface ScamVideo {
   id: number;
   title: string;
-  description: string | null;
-  videoUrl: string; // full URL from DB
-  thumbnailUrl?: string | null;
-  scamType?: "phone" | "email" | "business" | null;
-  isFeatured?: boolean | null;
-  createdAt?: string | null;
-}
-
-function normalizeVideo(v: any): VideoItem {
-  return {
-    id: Number(v.id),
-    title: v.title ?? "",
-    description: v.description ?? null,
-    videoUrl: v.video_url ?? v.videoUrl ?? "",
-    thumbnailUrl: v.thumbnail_url ?? v.thumbnailUrl ?? null,
-    scamType: (v.scam_type ?? v.scamType ?? null) as VideoItem["scamType"],
-    isFeatured: v.is_featured ?? v.isFeatured ?? null,
-    createdAt: v.created_at ?? v.createdAt ?? null,
-  };
-}
-
-function extractYouTubeId(input?: string | null): string | null {
-  if (!input) return null;
-  if (/^[a-zA-Z0-9_-]{10,14}$/.test(input)) return input;
-  try {
-    const u = new URL(input);
-    if (u.hostname.includes("youtube.com")) {
-      const v = u.searchParams.get("v");
-      if (v) return v;
-      const parts = u.pathname.split("/");
-      const maybe = parts.pop() || "";
-      if (parts.includes("embed") && maybe) return maybe;
-    }
-    if (u.hostname === "youtu.be") {
-      const id = u.pathname.replace("/", "");
-      if (id) return id;
-    }
-  } catch {}
-  return null;
-}
-
-function getScamTypeIcon(type: string | null | undefined) {
-  switch (type) {
-    case "phone":
-      return <Phone className="h-4 w-4 mr-1" />;
-    case "email":
-      return <Mail className="h-4 w-4 mr-1" />;
-    case "business":
-      return <Building2 className="h-4 w-4 mr-1" />;
-    default:
-      return <AlertTriangle className="h-4 w-4 mr-1" />;
-  }
+  description: string;
+  youtubeVideoId: string;
+  youtubeUrl: string;
+  scamType: "phone" | "email" | "business" | null;
+  featured: boolean | null;
+  addedAt: string;
 }
 
 export default function ScamVideos() {
-  const [selectedVideo, setSelectedVideo] = useState<VideoItem | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<ScamVideo | null>(null);
 
-  const API = import.meta.env.VITE_API_BASE ?? ""; // e.g. http://localhost:5000
-
-  const { data: allVideosRaw, isLoading } = useQuery<any[]>({
+  // Fetch all videos
+  const { data: allVideos, isLoading } = useQuery<ScamVideo[]>({
     queryKey: ["/api/scam-videos"],
-    queryFn: async () => {
-      const res = await fetch(`${API}/api/scam-videos`, {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to fetch videos");
-      return res.json();
-    },
-    staleTime: 30_000,
   });
 
-  const { data: featuredVideosRaw, isLoading: isFeaturedLoading } = useQuery<
-    any[]
+  // Fetch featured videos
+  const { data: featuredVideos, isLoading: isFeaturedLoading } = useQuery<
+    ScamVideo[]
   >({
     queryKey: ["/api/scam-videos/featured"],
-    queryFn: async () => {
-      const res = await fetch(`${API}/api/scam-videos/featured`, {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to fetch featured videos");
-      return res.json();
-    },
-    staleTime: 30_000,
   });
 
-  // Normalize + drop rows without a playable URL
-  const allVideos: VideoItem[] = useMemo(
-    () =>
-      (allVideosRaw || [])
-        .map(normalizeVideo)
-        .filter((v) => !!v.videoUrl?.trim()),
-    [allVideosRaw],
-  );
-  const featuredVideos: VideoItem[] = useMemo(
-    () =>
-      (featuredVideosRaw || [])
-        .map(normalizeVideo)
-        .filter((v) => !!v.videoUrl?.trim()),
-    [featuredVideosRaw],
-  );
-
-  const handleVideoSelect = (video: VideoItem) => {
+  const handleVideoSelect = (video: ScamVideo) => {
     setSelectedVideo(video);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const renderSkeletons = () =>
-    Array(3)
+  const renderSkeletons = () => {
+    return Array(3)
       .fill(0)
       .map((_, i) => (
         <Card key={i} className="mb-4">
@@ -152,8 +74,9 @@ export default function ScamVideos() {
           </CardContent>
         </Card>
       ));
+  };
 
-  const renderVideoCards = (videos: VideoItem[] = []) => {
+  const renderVideoCards = (videos: ScamVideo[] = []) => {
     if (!videos || videos.length === 0) {
       return (
         <div className="text-center py-8">
@@ -166,70 +89,60 @@ export default function ScamVideos() {
       );
     }
 
-    return videos.map((video) => {
-      const ytId = extractYouTubeId(video.videoUrl);
-      const thumb =
-        video.thumbnailUrl ||
-        (ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null);
-
-      return (
-        <Card key={video.id} className="mb-4 hover:shadow-md transition-shadow">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">{video.title}</CardTitle>
-            <CardDescription>
-              {video.createdAt
-                ? `Added ${new Date(video.createdAt).toLocaleDateString()}`
-                : "Recently added"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="mb-3 rounded-md overflow-hidden">
-              <AspectRatio ratio={16 / 9}>
-                <div className="relative w-full h-full">
-                  {thumb ? (
-                    <img
-                      src={thumb}
-                      alt={video.title}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground">
-                      <ImageOff className="h-6 w-6 mr-2" /> No thumbnail
-                    </div>
-                  )}
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/50 transition-colors">
-                    <PlayCircle className="h-16 w-16 text-white opacity-80" />
-                  </div>
+    return videos.map((video) => (
+      <Card key={video.id} className="mb-4 hover:shadow-md transition-shadow">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg">{video.title}</CardTitle>
+          <CardDescription>
+            Added {new Date(video.addedAt).toLocaleDateString()}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="mb-3 rounded-md overflow-hidden">
+            <AspectRatio ratio={16 / 9}>
+              <div className="relative w-full h-full">
+                <img
+                  src={`https://img.youtube.com/vi/${video.youtubeVideoId}/hqdefault.jpg`}
+                  alt={video.title}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/50 transition-colors">
+                  <PlayCircle className="h-16 w-16 text-white opacity-80" />
                 </div>
-              </AspectRatio>
-            </div>
-            <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-              {video.description || "Educational scam awareness video."}
-            </p>
-            <Button
-              onClick={() => handleVideoSelect(video)}
-              className="w-full"
-              variant="secondary"
-            >
-              Watch Video
-            </Button>
-          </CardContent>
-        </Card>
-      );
-    });
+              </div>
+            </AspectRatio>
+          </div>
+          <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+            {video.description}
+          </p>
+          <Button
+            onClick={() => handleVideoSelect(video)}
+            className="w-full"
+            variant="secondary"
+          >
+            Watch Video
+          </Button>
+        </CardContent>
+      </Card>
+    ));
   };
 
-  // Pick hero video: selected → featured[0] → first of allVideos
-  const heroVideo: VideoItem | null = useMemo(() => {
-    if (selectedVideo) return selectedVideo;
-    if (featuredVideos && featuredVideos.length > 0) return featuredVideos[0];
-    if (allVideos && allVideos.length > 0) return allVideos[0];
-    return null;
-  }, [selectedVideo, featuredVideos, allVideos]);
+  const getScamTypeIcon = (type: string | null) => {
+    switch (type) {
+      case "phone":
+        return <Phone className="h-4 w-4 mr-1" />;
+      case "email":
+        return <Mail className="h-4 w-4 mr-1" />;
+      case "business":
+        return <Building2 className="h-4 w-4 mr-1" />;
+      default:
+        return <AlertTriangle className="h-4 w-4 mr-1" />;
+    }
+  };
 
   return (
     <div className="space-y-6">
-      {/* Header — aligned with Dashboard */}
+      {/* Header — mirrored from Dashboard */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Educational Videos</h1>
@@ -242,6 +155,8 @@ export default function ScamVideos() {
             a cheaper price — unlocking your digital confidence.
           </p>
         </div>
+
+        {/* Right-side CTA (same placement as Dashboard) */}
         <div className="mt-4 md:mt-0">
           <Link to={CHECKLIST_ROUTE}>
             <Button className="gap-1">
@@ -256,33 +171,35 @@ export default function ScamVideos() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Player + details */}
         <div className="lg:col-span-2">
-          {heroVideo ? (
+          {selectedVideo ? (
             <div className="bg-card rounded-lg shadow-sm overflow-hidden mb-6">
               <div className="w-full max-w-full">
                 <ScamVideoPlayer
-                  videoUrl={heroVideo.videoUrl}
-                  thumbnailUrl={heroVideo.thumbnailUrl || undefined}
-                  title={heroVideo.title}
+                  videoId={selectedVideo.youtubeVideoId}
+                  title={selectedVideo.title}
                   size="large"
                 />
               </div>
               <div className="p-4">
                 <div className="flex items-center mb-2">
-                  {getScamTypeIcon(heroVideo.scamType)}
+                  {getScamTypeIcon(selectedVideo.scamType)}
                   <span className="text-sm text-muted-foreground">
-                    {heroVideo.scamType
-                      ? `${heroVideo.scamType.charAt(0).toUpperCase()}${heroVideo.scamType.slice(1)} Scam`
+                    {selectedVideo.scamType
+                      ? `${selectedVideo.scamType.charAt(0).toUpperCase()}${selectedVideo.scamType.slice(
+                          1,
+                        )} Scam`
                       : "General Scam Information"}
                   </span>
                 </div>
-                <h2 className="text-xl font-bold mb-2">{heroVideo.title}</h2>
+                <h2 className="text-xl font-bold mb-2">
+                  {selectedVideo.title}
+                </h2>
                 <p className="text-muted-foreground mb-4">
-                  {heroVideo.description || "Educational scam awareness video."}
+                  {selectedVideo.description}
                 </p>
                 <div className="text-sm text-muted-foreground">
-                  {heroVideo.createdAt
-                    ? `Added on ${new Date(heroVideo.createdAt).toLocaleDateString()}`
-                    : "Recently added"}
+                  Added on{" "}
+                  {new Date(selectedVideo.addedAt).toLocaleDateString()}
                 </div>
               </div>
             </div>
@@ -300,10 +217,44 @@ export default function ScamVideos() {
                 <Skeleton className="h-4 w-2/3" />
               </div>
             </div>
+          ) : featuredVideos && featuredVideos.length > 0 ? (
+            <div className="bg-card rounded-lg shadow-sm overflow-hidden mb-6">
+              <div className="w-full max-w-full">
+                <ScamVideoPlayer
+                  videoId={featuredVideos[0].youtubeVideoId}
+                  title={featuredVideos[0].title}
+                  size="large"
+                />
+              </div>
+              <div className="p-4">
+                <div className="flex items-center mb-2">
+                  {getScamTypeIcon(featuredVideos[0].scamType)}
+                  <span className="text-sm text-muted-foreground">
+                    {featuredVideos[0].scamType
+                      ? `${featuredVideos[0].scamType.charAt(0).toUpperCase()}${featuredVideos[0].scamType.slice(
+                          1,
+                        )} Scam`
+                      : "General Scam Information"}
+                  </span>
+                </div>
+                <h2 className="text-xl font-bold mb-2">
+                  {featuredVideos[0].title}
+                </h2>
+                <p className="text-muted-foreground mb-4">
+                  {featuredVideos[0].description}
+                </p>
+                <div className="text-sm text-muted-foreground">
+                  Added on{" "}
+                  {new Date(featuredVideos[0].addedAt).toLocaleDateString()}
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="bg-card rounded-lg shadow-sm overflow-hidden mb-6 p-8 text-center">
               <AlertTriangle className="mx-auto h-16 w-16 text-yellow-500 mb-4" />
-              <h3 className="text-xl font-medium mb-2">No videos available</h3>
+              <h3 className="text-xl font-medium mb-2">
+                No featured videos available
+              </h3>
               <p className="text-muted-foreground mb-4">
                 Our team is working on adding educational content about the
                 latest scams.
