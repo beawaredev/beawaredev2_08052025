@@ -2374,19 +2374,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = (req as any).user;
       
-      // Debug: Log what the frontend is actually sending
-      console.log("Frontend request body:", JSON.stringify(req.body, null, 2));
-      
-      // Validate the request body with snake_case field names
+      // Map frontend camelCase fields to database snake_case fields
       const videoData = insertScamVideoSchema.parse({
         title: req.body.title,
         description: req.body.description,
-        video_url: req.body.videoUrl || req.body.video_url,
-        thumbnail_url: req.body.thumbnailUrl || req.body.thumbnail_url,
-        scam_type: req.body.scamType || req.body.scam_type,
-        consolidated_scam_id: req.body.consolidatedScamId || req.body.consolidated_scam_id,
-        is_featured: req.body.isFeatured || req.body.is_featured || false,
-        view_count: req.body.viewCount || req.body.view_count || 0,
+        video_url: req.body.youtubeUrl, // Frontend sends youtubeUrl
+        thumbnail_url: req.body.thumbnailUrl,
+        scam_type: req.body.scamType, // Frontend sends scamType
+        consolidated_scam_id: req.body.consolidatedScamId, // Frontend sends consolidatedScamId  
+        is_featured: req.body.featured, // Frontend sends featured
+        view_count: req.body.viewCount || 0,
         duration: req.body.duration,
         created_by: user.id
       });
