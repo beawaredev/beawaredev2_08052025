@@ -7,7 +7,7 @@ import * as fs from "fs";
 // Simple logging function
 const log = (message: string) => console.log(message);
 
-// Read and parse deploy-config.js as a module (with safe fallbacks)
+// Global deploy config (kept as-is from your file)
 const configPath = path.join(process.cwd(), "deploy-config.js");
 let config = {
   server: { port: process.env.PORT || 5000, host: "0.0.0.0" },
@@ -49,10 +49,9 @@ let config = {
 const disableReportSubmission =
   process.env.DISABLE_REPORT_SUBMISSION === "true";
 
-// Create a simple validation function
+// Simple validation (kept)
 const validateConfig = () => {
   const issues: string[] = [];
-
   if (!config.database.server) issues.push("AZURE_SQL_SERVER is not defined");
   if (!config.database.database)
     issues.push("AZURE_SQL_DATABASE is not defined");
@@ -72,7 +71,6 @@ const validateConfig = () => {
   } else {
     console.log("✅ Configuration validation passed");
   }
-
   return issues.length === 0;
 };
 
@@ -101,7 +99,7 @@ const logDeploymentInfo = () => {
   }
 };
 
-// Initialize the Express application
+// Initialize Express
 const app = express();
 
 logDeploymentInfo();
@@ -123,7 +121,7 @@ try {
   console.log("📋 Version Information: Development build");
 }
 
-// Ensure HTML is never sent when the client expects JSON
+// Never send HTML on /api routes
 app.use((req, res, next) => {
   if (req.path.startsWith("/api")) {
     res.setHeader("Content-Type", "application/json");
@@ -142,7 +140,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Basic CORS
+// CORS (kept)
 app.use((_, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH");
@@ -155,8 +153,8 @@ app.use((_, res, next) => {
 
 /**
  * *** CRITICAL on Azure ***
- * Make JSON/body parsing permissive so that proxies or clients that send
- * 'text/plain' with JSON are still parsed. This prevents req.body from being {}.
+ * Parse JSON permissively so proxies that send 'text/plain' with JSON
+ * are still accepted (prevents req.body === {}).
  */
 app.use(
   express.json({
@@ -172,7 +170,7 @@ app.use(
   }),
 );
 
-// 🔹 Block report submissions when disabled
+// 🔒 Optional: temporarily disable new report submission
 app.use((req, res, next) => {
   if (
     disableReportSubmission &&
@@ -187,7 +185,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Apply MIME type headers
+// Apply MIME hints
 app.use((req, res, next) => {
   if (req.path.endsWith(".js"))
     res.setHeader("Content-Type", "application/javascript");
@@ -195,7 +193,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Diagnostics route
+// Diagnostics (kept)
 app.get("/api/diagnostics", (req, res) => {
   import("os")
     .then((os) => {
@@ -230,13 +228,13 @@ app.get("/api/diagnostics", (req, res) => {
     });
 });
 
-// Serve uploads
+// Serve uploads (kept)
 const uploadsDir =
   config.uploads.directory || path.join(process.cwd(), "uploads");
 app.use("/uploads", express.static(uploadsDir));
 console.log(`Serving static files from: ${uploadsDir}`);
 
-// API logging (concise)
+// Concise API logging (kept)
 app.use((req, res, next) => {
   const start = Date.now();
   const p = req.path;
@@ -263,55 +261,83 @@ app.use((req, res, next) => {
 });
 
 /**
- * 🔧 Backfill createdBy for scam-videos create/update when UI doesn't send it.
- * Your auth gateway sets headers like x-user-id / userId. This keeps the Zod
- * schema happy on Azure without changing the client.
+ * 🔧 Normalizer for Scam Videos
+ * Bridges UI camelCase and SQL/Zod snake_case (both ways) and
+ * backfills createdBy/created_by from auth headers if missing.
+ *
+ * - Schema uses snake_case: video_url, created_by, etc.  (see shared/schema.ts)  ← cite
+ * - Some codepaths / UI use camelCase: videoUrl, createdBy, etc.                ← cite
  */
 app.use(
   "/api/scam-videos",
   (req: Request, _res: Response, next: NextFunction) => {
     try {
-      if (
-        req.method === "POST" ||
-        req.method === "PUT" ||
-        req.method === "PATCH"
-      ) {
-        const body: any = req.body || {};
-        if (body.createdBy == null) {
+      if (["POST", "PUT", "PATCH"].includes(req.method)) {
+        const b: any = req.body || {};
+        const copyIfMissing = (from: string, to: string) => {
+          if (
+            b[from] !== undefined &&
+            (b[to] === undefined || b[to] === null)
+          ) {
+            b[to] = b[from];
+          }
+        };
+
+        // Two-way map so whichever the client sends, both keys exist
+        copyIfMissing("videoUrl", "video_url");
+        copyIfMissing("video_url", "videoUrl");
+
+        copyIfMissing("thumbnailUrl", "thumbnail_url");
+        copyIfMissing("thumbnail_url", "thumbnailUrl");
+
+        copyIfMissing("createdBy", "created_by");
+        copyIfMissing("created_by", "createdBy");
+
+        copyIfMissing("isFeatured", "is_featured");
+        copyIfMissing("is_featured", "isFeatured");
+
+        copyIfMissing("consolidatedScamId", "consolidated_scam_id");
+        copyIfMissing("consolidated_scam_id", "consolidatedScamId");
+
+        copyIfMissing("scamType", "scam_type");
+        copyIfMissing("scam_type", "scamType");
+
+        // If still missing, backfill from auth headers
+        if (b.createdBy == null && b.created_by == null) {
           const headerId =
             (req.headers["x-user-id"] as string) ||
             (req.headers["userid"] as string) ||
             (req.headers["user-id"] as string) ||
-            // Some frameworks lowercase custom headers differently; also check:
             ((req.headers as any)["userId"] as string);
 
           if (headerId && !Number.isNaN(Number(headerId))) {
-            body.createdBy = Number(headerId);
-            req.body = body;
+            b.createdBy = Number(headerId);
+            b.created_by = Number(headerId);
           }
         }
+
+        req.body = b;
       }
     } catch {
-      // let route-level validation handle any issues
+      // Let route-level validation handle errors
     }
     next();
   },
 );
 
+// ⤵️ Your existing routes (unchanged)
 (async () => {
-  // Register all API routes (kept as in your codebase)
   const server = await registerRoutes(app);
 
-  // Central error handler
+  // Central error handler (kept)
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
     res.status(status).json({ message });
-    // Re-throw to surface in logs/PM2/Azure
     throw err;
   });
 
-  // Dev vs Prod static handling (kept intact)
+  // Dev vs Prod bundling (kept)
   if (app.get("env") === "development") {
     const { setupVite } = await import("./vite.js");
     await setupVite(app, server);
