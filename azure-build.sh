@@ -20,17 +20,7 @@ echo "🔧 Building server files..."
 
 # Copy server files and compile them using the existing compiled versions
 # This ensures Azure deployment works with the existing build structure
-if [ -d "compiled/server" ] && [ "$(ls -A compiled/server)" ]; then
-    echo "✅ Using existing compiled server files"
-else
-    echo "🔨 Compiling server TypeScript files..."
-    npx tsc --project server/tsconfig.json || {
-        echo "⚠️  TypeScript compilation failed, using fallback..."
-        # Fallback: Copy TypeScript files and let Node handle them
-        cp -r server/*.ts compiled/server/ 2>/dev/null || true
-        cp -r shared/*.ts compiled/shared/ 2>/dev/null || true
-    }
-fi
+
 
 # Step 5: Copy package.json and other necessary files
 echo "📋 Copying configuration files..."
