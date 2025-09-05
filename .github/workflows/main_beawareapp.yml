@@ -5,13 +5,12 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-# Global permissions required for OIDC login to Azure
 permissions:
   contents: read
   id-token: write
 
 env:
-  ENV_NAME: dev       # shown in the UI (dev/prod)
+  ENV_NAME: dev
   NODE_VERSION: '20.x'
 
 jobs:
@@ -28,21 +27,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Prefer the repo’s own Azure build script if present; otherwise fall back
       - name: Build app
         run: |
-          echo "Building frontend with Vite..."
-          npx vite build
-
-          echo "Ensuring compiled directory exists..."
-          mkdir -p compiled/server compiled/shared
-
-          echo "Compiling TypeScript files..."
-          npx tsc --project server/tsconfig.json || echo "TypeScript compilation completed with warnings"
-
-          echo "Verifying build output..."
-          ls -la compiled/server/ || true
-          ls -la dist/ || true
-          echo "Build process completed successfully"
+          set -e
+          if [ -f "./build-azure.js" ]; then
+            echo "Running custom build (build-azure.js)"
+            node build-azure.js
+          else
+            echo "Fallback: Vite + TypeScript build"
+            npx vite build
+            npx tsc -p .
+          fi
 
       - name: Inject version.json (from CI)
         run: |
@@ -75,26 +71,26 @@ jobs:
 
       - name: Prepare deploy folder (artifact)
         run: |
-          # Use a clear folder name that will be downloaded in the deploy job
+          set -e
           rm -rf node-app
           mkdir -p node-app
 
-          # Copy compiled server files
+          # If the repo produced a compiled/ dir, include it
           if [ -d "compiled" ]; then
             cp -r compiled node-app/
           fi
 
-          # Copy frontend build (includes version.json)
+          # Include built frontend
           if [ -d "dist" ]; then
             mkdir -p node-app/dist
             cp -r dist/* node-app/dist/
           fi
 
-          # Copy runtime files
+          # Runtime files
           cp package*.json node-app/ || true
-          cp index.js node-app/ 2>/dev/null || echo "index.js not found, skipping"
-          cp server.js node-app/ 2>/dev/null || echo "server.js not found, skipping"
-          cp -r node_modules node-app/
+          [ -f "index.js" ] && cp index.js node-app/
+          [ -f "server.js" ] && cp server.js node-app/
+          [ -d "node_modules" ] && cp -r node_modules node-app/
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -118,14 +114,7 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_1215FCCAAF9042179F0D2D36AB844422 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_F0168D1E4AD14FB7A3C0BF8FCECF99E5 }}
 
-      # --- NEW: keep DB schema in sync before deploying the app ---
-      # Uses your existing SQL script in the repo (no new files).
-      # Add a repo secret AZURE_SQL_CONNECTION with a full connection string.
-      - name: Apply DB schema updates
-        uses: Azure/sql-action@v2.3
-        with:
-          connection-string: ${{ secrets.AZURE_SQL_CONNECTION }}
-          path: update-azure-schema.sql
+      # ⬇️ DB schema step REMOVED on purpose
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
