@@ -2,15 +2,12 @@ import express, { type Request, Response, NextFunction } from "express";
 import * as path from "path";
 import { registerRoutes } from "./routes.js";
 import { getVersionInfo } from "../shared/version.js";
-// Import vite utilities conditionally to avoid production errors
+import * as fs from "fs";
 
 // Simple logging function
 const log = (message: string) => console.log(message);
 
-// Import global deployment configuration
-import * as fs from "fs";
-
-// Read and parse deploy-config.js as a module
+// Read and parse deploy-config.js as a module (with safe fallbacks)
 const configPath = path.join(process.cwd(), "deploy-config.js");
 let config = {
   server: { port: process.env.PORT || 5000, host: "0.0.0.0" },
@@ -54,7 +51,7 @@ const disableReportSubmission =
 
 // Create a simple validation function
 const validateConfig = () => {
-  const issues = [];
+  const issues: string[] = [];
 
   if (!config.database.server) issues.push("AZURE_SQL_SERVER is not defined");
   if (!config.database.database)
@@ -122,7 +119,7 @@ try {
   if (versionInfo.buildNumber) {
     console.log(`  - Build Number: ${versionInfo.buildNumber}`);
   }
-} catch (error) {
+} catch {
   console.log("📋 Version Information: Development build");
 }
 
@@ -151,13 +148,29 @@ app.use((_, res, next) => {
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH");
   res.header(
     "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, x-user-id, x-user-email, x-user-role",
+    "Origin, X-Requested-With, Content-Type, Accept, x-user-id, x-user-email, x-user-role, userId, userEmail, userRole",
   );
   next();
 });
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+/**
+ * *** CRITICAL on Azure ***
+ * Make JSON/body parsing permissive so that proxies or clients that send
+ * 'text/plain' with JSON are still parsed. This prevents req.body from being {}.
+ */
+app.use(
+  express.json({
+    limit: "2mb",
+    strict: true,
+    type: ["application/json", "application/*+json", "text/plain"],
+  }),
+);
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: "2mb",
+  }),
+);
 
 // 🔹 Block report submissions when disabled
 app.use((req, res, next) => {
@@ -223,25 +236,25 @@ const uploadsDir =
 app.use("/uploads", express.static(uploadsDir));
 console.log(`Serving static files from: ${uploadsDir}`);
 
-// API logging
+// API logging (concise)
 app.use((req, res, next) => {
   const start = Date.now();
-  const path = req.path;
+  const p = req.path;
   let capturedJsonResponse: Record<string, any> | undefined;
 
   const originalResJson = res.json;
   res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
+    capturedJsonResponse = bodyJson as Record<string, any>;
     return originalResJson.apply(res, [bodyJson, ...args]);
   };
 
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+    if (p.startsWith("/api")) {
+      let logLine = `${req.method} ${p} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse)
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      if (logLine.length > 80) logLine = logLine.slice(0, 79) + "…";
+      if (logLine.length > 140) logLine = logLine.slice(0, 139) + "…";
       log(logLine);
     }
   });
@@ -249,28 +262,68 @@ app.use((req, res, next) => {
   next();
 });
 
+/**
+ * 🔧 Backfill createdBy for scam-videos create/update when UI doesn't send it.
+ * Your auth gateway sets headers like x-user-id / userId. This keeps the Zod
+ * schema happy on Azure without changing the client.
+ */
+app.use(
+  "/api/scam-videos",
+  (req: Request, _res: Response, next: NextFunction) => {
+    try {
+      if (
+        req.method === "POST" ||
+        req.method === "PUT" ||
+        req.method === "PATCH"
+      ) {
+        const body: any = req.body || {};
+        if (body.createdBy == null) {
+          const headerId =
+            (req.headers["x-user-id"] as string) ||
+            (req.headers["userid"] as string) ||
+            (req.headers["user-id"] as string) ||
+            // Some frameworks lowercase custom headers differently; also check:
+            ((req.headers as any)["userId"] as string);
+
+          if (headerId && !Number.isNaN(Number(headerId))) {
+            body.createdBy = Number(headerId);
+            req.body = body;
+          }
+        }
+      }
+    } catch {
+      // let route-level validation handle any issues
+    }
+    next();
+  },
+);
+
 (async () => {
+  // Register all API routes (kept as in your codebase)
   const server = await registerRoutes(app);
 
+  // Central error handler
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
     res.status(status).json({ message });
+    // Re-throw to surface in logs/PM2/Azure
     throw err;
   });
 
+  // Dev vs Prod static handling (kept intact)
   if (app.get("env") === "development") {
     const { setupVite } = await import("./vite.js");
     await setupVite(app, server);
   } else {
     app.use(express.static(path.join(process.cwd(), "dist/public")));
-    app.get("*", (req, res) => {
+    app.get("*", (_req, res) => {
       res.sendFile(path.join(process.cwd(), "dist/public/index.html"));
     });
   }
 
-  const port = process.env.PORT || config.server.port || 5000;
-  const host = config.server.host || "0.0.0.0";
+  const port = process.env.PORT || (config.server.port as number) || 5000;
+  const host = (config.server.host as string) || "0.0.0.0";
 
   server.listen({ port, host, reusePort: true }, () => {
     log(
