@@ -2535,8 +2535,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Log debugging info (only in non-production)
       if (process.env.NODE_ENV !== 'production') {
-        console.log("🔍 Full request body:", JSON.stringify(req.body, null, 2));
-        console.log("🔍 Schema keys:", Object.keys(insertScamVideoSchema.shape));
+        console.log("🔍 Video creation request received");
+        console.log("🔍 Schema validation starting...");
       }
       
       // Map frontend camelCase fields to database snake_case fields
@@ -2553,21 +2553,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         created_by: createdById
       };
       
-      if (process.env.NODE_ENV !== 'production') {
-        console.log("🔍 Data being validated:", JSON.stringify(videoDataForValidation, null, 2));
-      }
-      
       // Validate with proper error handling
       let videoData;
       try {
         videoData = insertScamVideoSchema.parse(videoDataForValidation);
         console.log("✅ Schema validation successful");
       } catch (validationError) {
-        console.error("❌ Schema validation failed:", {
-          error: validationError.message,
-          issues: validationError.issues || validationError.errors,
-          receivedData: videoDataForValidation
-        });
+        console.error("❌ Schema validation failed:", validationError.message);
         throw validationError;
       }
       
