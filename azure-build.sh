@@ -42,6 +42,26 @@ npx tsc shared/*.ts --outDir compiled/shared --target ES2020 --module NodeNext -
 echo "📋 Copying configuration files..."
 cp package.json compiled/ 2>/dev/null || true
 cp package-lock.json compiled/ 2>/dev/null || true
+cp server.js . 2>/dev/null || true
+
+# Step 5.5: Ensure Azure gets the right files
+echo "🔄 Setting up Azure-specific files..."
+# Copy the entry point server.js to root for Azure IIS
+if [ -f "compiled/server/index.js" ]; then
+    echo "📄 Copying main server file for Azure..."
+    cp compiled/server/index.js server.js
+fi
+
+# Copy dist to public for Azure static assets (web.config expects public/)
+echo "📁 Setting up static assets for Azure..."
+rm -rf public 2>/dev/null || true
+mkdir -p public
+if [ -d "dist" ]; then
+    echo "✅ Copying Vite build (dist/) to public/ for Azure..."
+    cp -r dist/* public/
+else
+    echo "⚠️  Vite dist folder not found - static assets may not work"
+fi
 
 # Step 6: Verify build output
 echo "🔍 Verifying build output..."
