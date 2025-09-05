@@ -2927,158 +2927,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Create a new scam video (admin only)
+  // Create a new scam video (admin only)
   apiRouter.post(
     "/scam-videos",
     enhancedAuth,
     requireAdmin,
-    async (req: Request, res: Response) => {
+    async (req, res) => {
       try {
-        const user = (req as any).user;
-
-        console.log("🎬 Video Creation Debug:", {
-          userExists: !!user,
-          userId: user?.id,
-          userEmail: user?.email,
-          userRole: user?.role,
-          headers: {
-            userId: req.headers["x-user-id"],
-            userEmail: req.headers["x-user-email"],
-            userRole: req.headers["x-user-role"],
-            authorization: req.headers["authorization"] ? "present" : "missing",
-            contentType: req.headers["content-type"],
-            userAgent: req.headers["user-agent"]?.substring(0, 100),
-          },
-          body: {
-            title: req.body.title ? "present" : "missing",
-            youtubeUrl: req.body.youtubeUrl ? "present" : "missing",
-            scamType: req.body.scamType,
-          },
-          environment: {
-            nodeEnv: process.env.NODE_ENV,
-            deployment: process.env.DEPLOYMENT_ENVIRONMENT,
-            hostname: req.headers.host,
-          },
-        });
-
-        // Ensure we have a valid user ID for created_by field
-        let createdById: number;
-        if (user && user.id) {
-          createdById = user.id;
-        } else {
-          console.error("No valid user ID found for video creation");
+        const user = req.user;
+        if (!user?.id) {
           return res.status(401).json({
             message: "Authentication required - user session not found",
           });
         }
 
-        console.log("Video creation - Using created_by ID:", createdById);
+        // Accept BOTH camelCase and snake_case input; normalize to snake_case for DB.
+        const inBody = req.body || {};
+        const toValidate = {
+          // common fields
+          title: inBody.title,
+          description: inBody.description ?? null,
+          duration: inBody.duration ?? null,
 
-        // Log debugging info (only in non-production)
-        if (process.env.NODE_ENV !== "production") {
-          console.log("🔍 Video creation request received");
-          console.log("🔍 Schema validation starting...");
-        }
+          // URL (accept: videoUrl, youtubeUrl, video_url)
+          videoUrl: inBody.videoUrl ?? inBody.youtubeUrl ?? inBody.video_url,
+          video_url: inBody.video_url ?? inBody.videoUrl ?? inBody.youtubeUrl,
 
-        // Create compatibility layer for both old (camelCase) and new (snake_case) schemas
-        // This handles Azure (old schema) and Replit (new schema) deployments
-        const videoDataForValidation = {
-          // Always provide both naming conventions for maximum compatibility
-          title: req.body.title,
-          description: req.body.description,
+          // thumbnail
+          thumbnailUrl: inBody.thumbnailUrl ?? inBody.thumbnail_url ?? null,
+          thumbnail_url: inBody.thumbnail_url ?? inBody.thumbnailUrl ?? null,
 
-          // Snake_case fields (current schema)
-          video_url: req.body.youtubeUrl,
-          thumbnail_url: req.body.thumbnailUrl,
-          scam_type: req.body.scamType,
-          consolidated_scam_id: req.body.consolidatedScamId,
-          is_featured: req.body.featured,
-          view_count: req.body.viewCount || 0,
-          duration: req.body.duration,
-          created_by: createdById,
+          // scam type
+          scamType: inBody.scamType ?? inBody.scam_type ?? null,
+          scam_type: inBody.scam_type ?? inBody.scamType ?? null,
 
-          // CamelCase fields (old Azure schema) - for backward compatibility
-          videoUrl: req.body.youtubeUrl,
-          thumbnailUrl: req.body.thumbnailUrl,
-          scamType: req.body.scamType,
-          consolidatedScamId: req.body.consolidatedScamId,
-          isFeatured: req.body.featured,
-          viewCount: req.body.viewCount || 0,
-          createdBy: createdById,
+          // consolidated scam id
+          consolidatedScamId:
+            inBody.consolidatedScamId ?? inBody.consolidated_scam_id ?? null,
+          consolidated_scam_id:
+            inBody.consolidated_scam_id ?? inBody.consolidatedScamId ?? null,
+
+          // feature/view flags
+          featured: inBody.featured ?? inBody.is_featured ?? false,
+          is_featured: inBody.is_featured ?? inBody.featured ?? false,
+          viewCount: inBody.viewCount ?? inBody.view_count ?? 0,
+          view_count: inBody.view_count ?? inBody.viewCount ?? 0,
+
+          // created by (force from auth)
+          createdBy: user.id,
+          created_by: user.id,
         };
 
-        // Validate with flexible schema handling for Azure/Replit compatibility
-        let videoData;
+        // Use your existing Zod schema; this works whether it expects camelCase or snake_case
+        let validated: any;
         try {
-          // Try validation with the current schema
-          videoData = insertScamVideoSchema.parse(videoDataForValidation);
-          console.log("✅ Schema validation successful");
-        } catch (validationError) {
-          console.error(
-            "❌ Initial schema validation failed, trying compatibility mode...",
-          );
-
-          // Try with minimal required fields for Azure compatibility
-          try {
-            const minimalData = {
-              title: req.body.title,
-              description: req.body.description,
-              video_url: req.body.youtubeUrl,
-              created_by: createdById,
-              // Add Azure-specific fields
-              videoUrl: req.body.youtubeUrl,
-              createdBy: createdById,
-            };
-
-            videoData = insertScamVideoSchema.parse(minimalData);
-            console.log("✅ Compatibility mode validation successful");
-          } catch (compatError) {
-            console.error("❌ All validation attempts failed:", {
-              originalError: validationError.message,
-              compatError: compatError.message,
-              requestData: {
-                title: req.body.title,
-                youtubeUrl: req.body.youtubeUrl,
-                createdById: createdById,
-              },
-            });
-
-            return res.status(400).json({
-              message: "Video validation failed",
-              error: validationError.message,
-              details: "Both standard and compatibility validation failed",
-            });
-          }
-        }
-
-        // Validate required fields
-        if (!videoData.video_url) {
-          return res.status(400).json({
-            message: "Video URL is required",
-          });
-        }
-
-        if (!videoData.title) {
-          return res.status(400).json({
-            message: "Title is required",
-          });
-        }
-
-        const video = await storage.addScamVideo(videoData);
-        const transformedVideo = transformVideoForFrontend(video);
-        res.status(201).json(transformedVideo);
-      } catch (error) {
-        console.error("Error creating scam video:", error);
-
-        if (error instanceof z.ZodError) {
+          validated = insertScamVideoSchema.parse(toValidate);
+        } catch (err: any) {
           return res.status(400).json({
             message: "Invalid scam video data",
-            errors: error.errors,
+            errors: err?.errors || err?.issues || err,
           });
         }
 
-        res.status(500).json({
+        // Normalize → snake_case for DB
+        const toDb = {
+          title: validated.title,
+          description: validated.description ?? null,
+          video_url: validated.video_url ?? validated.videoUrl,
+          thumbnail_url:
+            validated.thumbnail_url ?? validated.thumbnailUrl ?? null,
+          scam_type: validated.scam_type ?? validated.scamType ?? null,
+          consolidated_scam_id:
+            validated.consolidated_scam_id ??
+            validated.consolidatedScamId ??
+            null,
+          is_featured: validated.is_featured ?? validated.featured ?? false,
+          view_count: validated.view_count ?? validated.viewCount ?? 0,
+          duration: validated.duration ?? null,
+          created_by: validated.created_by ?? validated.createdBy,
+        };
+
+        if (!toDb.title)
+          return res.status(400).json({ message: "Title is required" });
+        if (!toDb.video_url)
+          return res.status(400).json({ message: "Video URL is required" });
+
+        const saved = await storage.addScamVideo(toDb);
+
+        // Transform for frontend
+        const extractYouTubeVideoId = (url: string) => {
+          const m = (url || "").match(
+            /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+          );
+          return m ? m[1] : "";
+        };
+        return res.status(201).json({
+          id: saved.id,
+          title: saved.title,
+          description: saved.description,
+          youtubeVideoId: extractYouTubeVideoId(saved.video_url || ""),
+          youtubeUrl: saved.video_url,
+          scamType: saved.scam_type,
+          featured: saved.is_featured,
+          consolidatedScamId: saved.consolidated_scam_id,
+          viewCount: saved.view_count,
+          duration: saved.duration,
+          addedById: saved.created_by,
+          addedAt: saved.created_at,
+          updatedAt: saved.updated_at,
+        });
+      } catch (error: any) {
+        console.error("Error creating scam video:", error);
+        return res.status(500).json({
           message: "Failed to create scam video",
-          error: error instanceof Error ? error.message : "Unknown error",
+          error: error?.message || "Unknown error",
         });
       }
     },
@@ -3086,42 +3048,149 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Update a scam video (admin only)
   // Update a scam video (admin only)
+  // Update a scam video (admin only)
   apiRouter.patch("/scam-videos/:id", requireAdmin, async (req, res) => {
     try {
-      const id = parseInt(req.params.id, 10);
+      const id = Number(req.params.id);
+      if (!id || Number.isNaN(id)) {
+        return res.status(400).json({ message: "Invalid video id" });
+      }
+
       const existing = await storage.getScamVideo(id);
       if (!existing) {
         return res.status(404).json({ message: "Scam video not found" });
       }
 
-      // Map frontend camelCase → DB snake_case
-      const updates: any = {};
-      if (req.body.title !== undefined) updates.title = req.body.title;
-      if (req.body.description !== undefined)
-        updates.description = req.body.description;
-      if (req.body.youtubeUrl !== undefined)
-        updates.video_url = req.body.youtubeUrl;
-      if (req.body.thumbnailUrl !== undefined)
-        updates.thumbnail_url = req.body.thumbnailUrl;
-      if (req.body.scamType !== undefined)
-        updates.scam_type = req.body.scamType;
-      if (req.body.consolidatedScamId !== undefined)
-        updates.consolidated_scam_id = req.body.consolidatedScamId;
-      if (req.body.featured !== undefined)
-        updates.is_featured = !!req.body.featured;
-      if (req.body.viewCount !== undefined)
-        updates.view_count = Number(req.body.viewCount);
-      if (req.body.duration !== undefined) updates.duration = req.body.duration;
+      const b = req.body || {};
+      // Accept both naming styles; pass unified patch to storage.updateScamVideo
+      const patch = {
+        // textual
+        title: typeof b.title === "string" ? b.title : undefined,
+        description:
+          typeof b.description === "string" ? b.description : undefined,
 
-      const updated = await storage.updateScamVideo(id, updates);
-      if (!updated)
-        return res.status(500).json({ message: "Failed to update scam video" });
+        // URLs
+        video_url:
+          typeof b.video_url === "string"
+            ? b.video_url
+            : typeof b.videoUrl === "string"
+              ? b.videoUrl
+              : typeof b.youtubeUrl === "string"
+                ? b.youtubeUrl
+                : undefined,
+        videoUrl:
+          typeof b.videoUrl === "string"
+            ? b.videoUrl
+            : typeof b.youtubeUrl === "string"
+              ? b.youtubeUrl
+              : typeof b.video_url === "string"
+                ? b.video_url
+                : undefined, // kept for schema parity if you validate here
 
-      const transformed = transformVideoForFrontend(updated);
-      res.json(transformed);
+        thumbnail_url:
+          typeof b.thumbnail_url === "string"
+            ? b.thumbnail_url
+            : typeof b.thumbnailUrl === "string"
+              ? b.thumbnailUrl
+              : undefined,
+        thumbnailUrl:
+          typeof b.thumbnailUrl === "string"
+            ? b.thumbnailUrl
+            : typeof b.thumbnail_url === "string"
+              ? b.thumbnail_url
+              : undefined,
+
+        // type & relations
+        scam_type:
+          typeof b.scam_type === "string"
+            ? b.scam_type
+            : typeof b.scamType === "string"
+              ? b.scamType
+              : undefined,
+        scamType:
+          typeof b.scamType === "string"
+            ? b.scamType
+            : typeof b.scam_type === "string"
+              ? b.scam_type
+              : undefined,
+
+        consolidated_scam_id:
+          typeof b.consolidated_scam_id === "number"
+            ? b.consolidated_scam_id
+            : typeof b.consolidatedScamId === "number"
+              ? b.consolidatedScamId
+              : undefined,
+        consolidatedScamId:
+          typeof b.consolidatedScamId === "number"
+            ? b.consolidatedScamId
+            : typeof b.consolidated_scam_id === "number"
+              ? b.consolidated_scam_id
+              : undefined,
+
+        // flags
+        is_featured:
+          typeof b.is_featured === "boolean"
+            ? b.is_featured
+            : typeof b.featured === "boolean"
+              ? b.featured
+              : undefined,
+        featured:
+          typeof b.featured === "boolean"
+            ? b.featured
+            : typeof b.is_featured === "boolean"
+              ? b.is_featured
+              : undefined,
+
+        view_count:
+          typeof b.view_count === "number"
+            ? b.view_count
+            : typeof b.viewCount === "number"
+              ? b.viewCount
+              : undefined,
+        viewCount:
+          typeof b.viewCount === "number"
+            ? b.viewCount
+            : typeof b.view_count === "number"
+              ? b.view_count
+              : undefined,
+
+        duration: typeof b.duration === "number" ? b.duration : undefined,
+      };
+
+      // storage.updateScamVideo already maps camelCase/snake_case → DB columns
+      const updated = await storage.updateScamVideo(id, patch as any);
+
+      // Return the same transformed shape you use elsewhere
+      const extractYouTubeVideoId = (url: string) => {
+        const m = (url || "").match(
+          /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+        );
+        return m ? m[1] : "";
+      };
+
+      const transformed = {
+        id: updated.id,
+        title: updated.title,
+        description: updated.description,
+        youtubeVideoId: extractYouTubeVideoId(
+          updated.video_url || updated.videoUrl || "",
+        ),
+        youtubeUrl: updated.video_url ?? updated.videoUrl,
+        scamType: updated.scam_type ?? updated.scamType,
+        featured: updated.is_featured ?? updated.featured,
+        consolidatedScamId:
+          updated.consolidated_scam_id ?? updated.consolidatedScamId,
+        viewCount: updated.view_count ?? updated.viewCount,
+        duration: updated.duration,
+        addedById: updated.created_by ?? updated.createdBy,
+        addedAt: updated.created_at ?? updated.createdAt,
+        updatedAt: updated.updated_at ?? updated.updatedAt,
+      };
+
+      return res.json(transformed);
     } catch (error) {
       console.error("Error updating scam video:", error);
-      res.status(500).json({ message: "Failed to update scam video" });
+      return res.status(500).json({ message: "Failed to update scam video" });
     }
   });
 
