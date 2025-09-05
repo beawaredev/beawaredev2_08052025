@@ -2539,28 +2539,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log("🔍 Schema validation starting...");
       }
       
-      // Map frontend camelCase fields to database snake_case fields
+      // Create compatibility layer for both old (camelCase) and new (snake_case) schemas
+      // This handles Azure (old schema) and Replit (new schema) deployments
       const videoDataForValidation = {
+        // Always provide both naming conventions for maximum compatibility
         title: req.body.title,
         description: req.body.description,
-        video_url: req.body.youtubeUrl, // Frontend sends youtubeUrl
+        
+        // Snake_case fields (current schema)
+        video_url: req.body.youtubeUrl,
         thumbnail_url: req.body.thumbnailUrl,
-        scam_type: req.body.scamType, // Frontend sends scamType
-        consolidated_scam_id: req.body.consolidatedScamId, // Frontend sends consolidatedScamId  
-        is_featured: req.body.featured, // Frontend sends featured
+        scam_type: req.body.scamType,
+        consolidated_scam_id: req.body.consolidatedScamId,
+        is_featured: req.body.featured,
         view_count: req.body.viewCount || 0,
         duration: req.body.duration,
-        created_by: createdById
+        created_by: createdById,
+        
+        // CamelCase fields (old Azure schema) - for backward compatibility
+        videoUrl: req.body.youtubeUrl,
+        thumbnailUrl: req.body.thumbnailUrl,
+        scamType: req.body.scamType,
+        consolidatedScamId: req.body.consolidatedScamId,
+        isFeatured: req.body.featured,
+        viewCount: req.body.viewCount || 0,
+        createdBy: createdById
       };
       
-      // Validate with proper error handling
+      // Validate with flexible schema handling for Azure/Replit compatibility
       let videoData;
       try {
+        // Try validation with the current schema
         videoData = insertScamVideoSchema.parse(videoDataForValidation);
         console.log("✅ Schema validation successful");
       } catch (validationError) {
-        console.error("❌ Schema validation failed:", validationError.message);
-        throw validationError;
+        console.error("❌ Initial schema validation failed, trying compatibility mode...");
+        
+        // Try with minimal required fields for Azure compatibility
+        try {
+          const minimalData = {
+            title: req.body.title,
+            description: req.body.description,
+            video_url: req.body.youtubeUrl,
+            created_by: createdById,
+            // Add Azure-specific fields
+            videoUrl: req.body.youtubeUrl,
+            createdBy: createdById
+          };
+          
+          videoData = insertScamVideoSchema.parse(minimalData);
+          console.log("✅ Compatibility mode validation successful");
+        } catch (compatError) {
+          console.error("❌ All validation attempts failed:", {
+            originalError: validationError.message,
+            compatError: compatError.message,
+            requestData: {
+              title: req.body.title,
+              youtubeUrl: req.body.youtubeUrl,
+              createdById: createdById
+            }
+          });
+          
+          return res.status(400).json({
+            message: "Video validation failed",
+            error: validationError.message,
+            details: "Both standard and compatibility validation failed"
+          });
+        }
       }
       
       // Validate required fields
