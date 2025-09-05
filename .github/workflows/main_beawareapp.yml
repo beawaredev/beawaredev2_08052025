@@ -2,8 +2,7 @@ name: Build and deploy Node.js app to Azure Web App - Beawareapp
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   workflow_dispatch:
 
 # Global permissions required for OIDC login to Azure
@@ -12,13 +11,12 @@ permissions:
   id-token: write
 
 env:
-  ENV_NAME: dev          # <-- shown in the UI (dev/prod)
+  ENV_NAME: dev       # shown in the UI (dev/prod)
   NODE_VERSION: '20.x'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -28,16 +26,19 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build app
         run: |
           echo "Building frontend with Vite..."
           npx vite build
+
           echo "Ensuring compiled directory exists..."
           mkdir -p compiled/server compiled/shared
+
           echo "Compiling TypeScript files..."
           npx tsc --project server/tsconfig.json || echo "TypeScript compilation completed with warnings"
+
           echo "Verifying build output..."
           ls -la compiled/server/ || true
           ls -la dist/ || true
@@ -50,7 +51,6 @@ jobs:
           BUILD="${GITHUB_RUN_NUMBER}"
           COMMIT="${GITHUB_SHA}"
           BUILT_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-
           mkdir -p dist/public
           cat > dist/public/version.json <<'JSON'
           {
@@ -62,52 +62,54 @@ jobs:
             "builtAt": "__BUILT_AT__"
           }
           JSON
-
-          sed -i "s/__ENV__/${ENV_NAME}/"        dist/public/version.json
-          sed -i "s/__VERSION__/${VERSION}/"     dist/public/version.json
-          sed -i "s/__BUILD__/${BUILD}/"         dist/public/version.json
-          sed -i "s/__COMMIT__/${COMMIT}/"       dist/public/version.json
-          sed -i "s/__BUILT_AT__/${BUILT_AT}/"   dist/public/version.json
-
+          sed -i "s/__ENV__/${ENV_NAME}/" dist/public/version.json
+          sed -i "s/__VERSION__/${VERSION}/" dist/public/version.json
+          sed -i "s/__BUILD__/${BUILD}/" dist/public/version.json
+          sed -i "s/__COMMIT__/${COMMIT}/" dist/public/version.json
+          sed -i "s/__BUILT_AT__/${BUILT_AT}/" dist/public/version.json
           echo "----- dist/public/version.json -----"
           cat dist/public/version.json
 
       - name: Prune dev dependencies
         run: npm prune --production
 
-      - name: Prepare deploy folder
+      - name: Prepare deploy folder (artifact)
         run: |
-          mkdir -p deploy
+          # Use a clear folder name that will be downloaded in the deploy job
+          rm -rf node-app
+          mkdir -p node-app
+
           # Copy compiled server files
           if [ -d "compiled" ]; then
-            cp -r compiled/* deploy/
+            cp -r compiled node-app/
           fi
-          # Copy frontend build files (includes version.json)
+
+          # Copy frontend build (includes version.json)
           if [ -d "dist" ]; then
-            mkdir -p deploy/dist
-            cp -r dist/* deploy/dist/
+            mkdir -p node-app/dist
+            cp -r dist/* node-app/dist/
           fi
-          # Copy necessary configuration files
-          cp package*.json deploy/ || true
-          cp index.js deploy/ 2>/dev/null || echo "index.js not found, skipping"
-          cp server.js deploy/ 2>/dev/null || echo "server.js not found, skipping"
-          # Copy production node_modules
-          cp -r node_modules deploy/
+
+          # Copy runtime files
+          cp package*.json node-app/ || true
+          cp index.js node-app/ 2>/dev/null || echo "index.js not found, skipping"
+          cp server.js node-app/ 2>/dev/null || echo "server.js not found, skipping"
+          cp -r node_modules node-app/
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: deploy/
+          path: node-app/
 
   deploy:
     runs-on: ubuntu-latest
     needs: build
-
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: node-app
+          path: node-app
 
       - name: Azure Login
         uses: azure/login@v2
@@ -116,9 +118,18 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_1215FCCAAF9042179F0D2D36AB844422 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_F0168D1E4AD14FB7A3C0BF8FCECF99E5 }}
 
+      # --- NEW: keep DB schema in sync before deploying the app ---
+      # Uses your existing SQL script in the repo (no new files).
+      # Add a repo secret AZURE_SQL_CONNECTION with a full connection string.
+      - name: Apply DB schema updates
+        uses: Azure/sql-action@v2.3
+        with:
+          connection-string: ${{ secrets.AZURE_SQL_CONNECTION }}
+          path: update-azure-schema.sql
+
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'Beawareapp'
           slot-name: 'Production'
-          package: .
+          package: node-app
