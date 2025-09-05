@@ -341,7 +341,7 @@ export default function AdminPanel() {
       {/* Top heading aligned with Dashboard */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+          <h1 className="text-3xl font-bold">Admin Dashboard-----</h1>
           <p className="text-muted-foreground mt-1">
             Manage videos, security checklist items, and scam API integrations.
           </p>
