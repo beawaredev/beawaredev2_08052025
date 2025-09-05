@@ -155,68 +155,118 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Authorization middleware for admin only routes
   const requireAdmin = async (req: Request, res: Response, next: NextFunction) => {
-    let user = (req as any).user;
+    const user = (req as any).user;
     
     // Check for user identification in headers
     const headerUserId = req.headers['x-user-id'] as string;
     const headerEmail = req.headers['x-user-email'] as string;
+    const headerRole = req.headers['x-user-role'] as string;
     
-    console.log("Authorization check for admin access:", { 
-      userExists: !!user,
-      userRole: user?.role,
-      userEmail: user?.email,
+    console.log("🔐 Admin Authorization Check:", { 
+      sessionUserExists: !!user,
+      sessionUserRole: user?.role,
+      sessionUserEmail: user?.email,
       headerUserId,
       headerEmail,
+      headerRole,
       environment: process.env.NODE_ENV || 'development',
       requestUrl: req.url,
-      method: req.method
+      method: req.method,
+      userAgent: req.headers['user-agent']
     });
     
-    // Case 1: User already authenticated through session
+    // Case 1: Check authentication headers first (primary method)
+    if (headerUserId && headerEmail && headerRole === 'admin') {
+      console.log("✅ Admin access granted via headers:", { id: headerUserId, email: headerEmail, role: headerRole });
+      
+      // Set user object from headers for consistency
+      (req as any).user = {
+        id: parseInt(headerUserId, 10),
+        email: headerEmail,
+        role: headerRole
+      };
+      return next();
+    }
+    
+    // Case 2: User authenticated through session
     if (user && user.role === "admin") {
-      console.log("Admin access granted through session");
+      console.log("✅ Admin access granted via session:", { id: user.id, email: user.email, role: user.role });
       return next();
     } 
     
-    // Case 2: User identified through headers - verify from database
-    try {
-      let verifiedUser;
-      
-      if (headerEmail) {
-        verifiedUser = await storage.getUserByEmail(headerEmail);
-      } else if (headerUserId) {
-        verifiedUser = await storage.getUser(parseInt(headerUserId, 10));
-      }
-      
-      if (verifiedUser && verifiedUser.role === "admin") {
-        console.log("Admin access granted for user:", { id: verifiedUser.id, email: verifiedUser.email, role: verifiedUser.role });
-        (req as any).user = verifiedUser;
-        return next();
-      }
-    } catch (err) {
-      console.error("Error verifying admin access:", err);
-    }
-    
-    // Case 3: Fallback for Azure deployment - try to find admin user
-    if (process.env.NODE_ENV === 'production' || process.env.DEPLOYMENT_ENVIRONMENT) {
+    // Case 3: Try to verify user from database if we have partial info
+    if (headerEmail || headerUserId) {
       try {
-        console.log("Attempting fallback admin authentication for production environment");
-        const adminUser = await storage.getUserByEmail("rishu001@gmail.com") || await storage.getUserByEmail("admin@beaware.fyi");
-        if (adminUser && adminUser.role === "admin") {
-          console.log("Fallback admin access granted for user:", { id: adminUser.id, email: adminUser.email });
-          (req as any).user = adminUser;
+        let verifiedUser;
+        
+        if (headerEmail) {
+          verifiedUser = await storage.getUserByEmail(headerEmail);
+        } else if (headerUserId) {
+          verifiedUser = await storage.getUser(parseInt(headerUserId, 10));
+        }
+        
+        if (verifiedUser && verifiedUser.role === "admin") {
+          console.log("✅ Admin access granted via database verification:", { id: verifiedUser.id, email: verifiedUser.email, role: verifiedUser.role });
+          (req as any).user = verifiedUser;
           return next();
         }
-      } catch (fallbackErr) {
-        console.error("Fallback admin authentication failed:", fallbackErr);
+      } catch (err) {
+        console.error("❌ Database verification failed:", err);
       }
     }
     
-    // If we get here, access is denied
-    console.log("Admin access denied - no valid authentication found");
-    return res.status(403).json({ message: "Forbidden - Admin access required" });
+    // Access denied
+    console.log("❌ Admin access denied - no valid authentication found");
+    return res.status(403).json({ 
+      message: "Forbidden - Admin access required",
+      debug: {
+        hasHeaders: !!(headerUserId && headerEmail && headerRole),
+        hasSession: !!user,
+        headerRole,
+        sessionRole: user?.role
+      }
+    });
   };
   
+  // Debug endpoint to understand authentication state
+  apiRouter.get("/debug/auth", async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    const headers = {
+      userId: req.headers['x-user-id'],
+      userEmail: req.headers['x-user-email'],
+      userRole: req.headers['x-user-role'],
+      authorization: req.headers['authorization'] ? 'present' : 'missing',
+      userAgent: req.headers['user-agent']?.substring(0, 100)
+    };
+    
+    console.log("🔍 Auth Debug Request:", { user, headers });
+    
+    res.json({
+      success: true,
+      debug: {
+        sessionUser: user ? {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          displayName: user.displayName
+        } : null,
+        headers,
+        environment: {
+          nodeEnv: process.env.NODE_ENV,
+          deployment: process.env.DEPLOYMENT_ENVIRONMENT,
+          hostname: req.headers.host,
+          isProduction: process.env.NODE_ENV === 'production',
+          timestamp: new Date().toISOString()
+        },
+        recommendations: [
+          headers.userId && headers.userEmail && headers.userRole ? "✅ Auth headers present" : "❌ Auth headers missing - check localStorage",
+          user ? "✅ Session user exists" : "❌ Session user missing",
+          headers.userRole === 'admin' ? "✅ Admin role detected" : "❌ Admin role missing"
+        ]
+      }
+    });
+  });
+
   // Endpoint to download proof files
   apiRouter.get("/files/:filename", async (req: Request, res: Response) => {
     try {
@@ -2416,38 +2466,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = (req as any).user;
       
-      console.log("Video creation - User object:", user);
-      console.log("Video creation - Request headers:", {
-        userId: req.headers['x-user-id'],
-        userEmail: req.headers['x-user-email'],
-        userRole: req.headers['x-user-role']
+      console.log("🎬 Video Creation Debug:", {
+        userExists: !!user,
+        userId: user?.id,
+        userEmail: user?.email,
+        userRole: user?.role,
+        headers: {
+          userId: req.headers['x-user-id'],
+          userEmail: req.headers['x-user-email'],
+          userRole: req.headers['x-user-role'],
+          authorization: req.headers['authorization'] ? 'present' : 'missing',
+          contentType: req.headers['content-type'],
+          userAgent: req.headers['user-agent']?.substring(0, 100)
+        },
+        body: {
+          title: req.body.title ? 'present' : 'missing',
+          youtubeUrl: req.body.youtubeUrl ? 'present' : 'missing',
+          scamType: req.body.scamType
+        },
+        environment: {
+          nodeEnv: process.env.NODE_ENV,
+          deployment: process.env.DEPLOYMENT_ENVIRONMENT,
+          hostname: req.headers.host
+        }
       });
       
       // Ensure we have a valid user ID for created_by field
       let createdById: number;
       if (user && user.id) {
         createdById = user.id;
-      } else if (req.headers['x-user-id']) {
-        createdById = parseInt(req.headers['x-user-id'] as string, 10);
       } else {
-        // Fallback: try to get admin user from database
-        try {
-          const adminUser = await storage.getUserByEmail("rishu001@gmail.com") || await storage.getUserByEmail("admin@beaware.fyi");
-          if (adminUser) {
-            createdById = adminUser.id;
-            console.log("Using fallback admin user ID:", createdById);
-          } else {
-            console.error("No valid user ID found for video creation");
-            return res.status(400).json({ 
-              message: "User authentication failed - unable to identify creator" 
-            });
-          }
-        } catch (dbError) {
-          console.error("Database error when finding admin user:", dbError);
-          return res.status(500).json({ 
-            message: "Authentication error - unable to verify user" 
-          });
-        }
+        console.error("No valid user ID found for video creation");
+        return res.status(401).json({ 
+          message: "Authentication required - user session not found" 
+        });
       }
       
       console.log("Video creation - Using created_by ID:", createdById);
