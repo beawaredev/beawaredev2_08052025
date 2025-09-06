@@ -19,7 +19,6 @@ import {
   insertConsolidatedScamSchema,
   insertLawyerProfileSchema,
   insertLawyerRequestSchema,
-  insertScamVideoSchema,
   insertUserSecurityProgressSchema,
   type LawyerProfile,
   type LawyerRequest,
@@ -2934,107 +2933,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
     requireAdmin,
     async (req, res) => {
       try {
+        // Auth is enforced by requireAdmin; created_by must come from auth, NOT body
         const user = req.user;
         if (!user?.id) {
-          return res.status(401).json({
-            message: "Authentication required - user session not found",
-          });
+          return res
+            .status(401)
+            .json({
+              message: "Authentication required - user session not found",
+            });
         }
 
-        // Accept BOTH camelCase and snake_case input; normalize to snake_case for DB.
-        const inBody = req.body || {};
-        const toValidate = {
-          // common fields
-          title: inBody.title,
-          description: inBody.description ?? null,
-          duration: inBody.duration ?? null,
+        const b = req.body ?? {};
 
-          // URL (accept: videoUrl, youtubeUrl, video_url)
-          videoUrl: inBody.videoUrl ?? inBody.youtubeUrl ?? inBody.video_url,
-          video_url: inBody.video_url ?? inBody.videoUrl ?? inBody.youtubeUrl,
+        // Accept both camelCase and snake_case; normalize to DB snake_case
+        const toDb = {
+          title: typeof b.title === "string" ? b.title.trim() : "",
+          description: typeof b.description === "string" ? b.description : null,
 
-          // thumbnail
-          thumbnailUrl: inBody.thumbnailUrl ?? inBody.thumbnail_url ?? null,
-          thumbnail_url: inBody.thumbnail_url ?? inBody.thumbnailUrl ?? null,
+          video_url:
+            (typeof b.video_url === "string" && b.video_url) ||
+            (typeof b.videoUrl === "string" && b.videoUrl) ||
+            (typeof b.youtubeUrl === "string" && b.youtubeUrl) ||
+            "",
 
-          // scam type
-          scamType: inBody.scamType ?? inBody.scam_type ?? null,
-          scam_type: inBody.scam_type ?? inBody.scamType ?? null,
+          thumbnail_url:
+            (typeof b.thumbnail_url === "string" && b.thumbnail_url) ||
+            (typeof b.thumbnailUrl === "string" && b.thumbnailUrl) ||
+            null,
 
-          // consolidated scam id
-          consolidatedScamId:
-            inBody.consolidatedScamId ?? inBody.consolidated_scam_id ?? null,
+          scam_type:
+            (typeof b.scam_type === "string" && b.scam_type) ||
+            (typeof b.scamType === "string" && b.scamType) ||
+            null,
+
           consolidated_scam_id:
-            inBody.consolidated_scam_id ?? inBody.consolidatedScamId ?? null,
+            typeof b.consolidated_scam_id === "number"
+              ? b.consolidated_scam_id
+              : typeof b.consolidatedScamId === "number"
+                ? b.consolidatedScamId
+                : null,
 
-          // feature/view flags
-          featured: inBody.featured ?? inBody.is_featured ?? false,
-          is_featured: inBody.is_featured ?? inBody.featured ?? false,
-          viewCount: inBody.viewCount ?? inBody.view_count ?? 0,
-          view_count: inBody.view_count ?? inBody.viewCount ?? 0,
+          is_featured:
+            typeof b.is_featured === "boolean"
+              ? b.is_featured
+              : typeof b.featured === "boolean"
+                ? b.featured
+                : false,
 
-          // created by (force from auth)
-          createdBy: user.id,
+          view_count:
+            typeof b.view_count === "number"
+              ? b.view_count
+              : typeof b.viewCount === "number"
+                ? b.viewCount
+                : 0,
+
+          duration: typeof b.duration === "number" ? b.duration : null,
+
+          // always from auth
           created_by: user.id,
         };
 
-        // Use your existing Zod schema; this works whether it expects camelCase or snake_case
-        let validated: any;
-        try {
-          validated = insertScamVideoSchema.parse(toValidate);
-        } catch (err: any) {
-          return res.status(400).json({
-            message: "Invalid scam video data",
-            errors: err?.errors || err?.issues || err,
-          });
-        }
-
-        // Normalize → snake_case for DB
-        const toDb = {
-          title: validated.title,
-          description: validated.description ?? null,
-          video_url: validated.video_url ?? validated.videoUrl,
-          thumbnail_url:
-            validated.thumbnail_url ?? validated.thumbnailUrl ?? null,
-          scam_type: validated.scam_type ?? validated.scamType ?? null,
-          consolidated_scam_id:
-            validated.consolidated_scam_id ??
-            validated.consolidatedScamId ??
-            null,
-          is_featured: validated.is_featured ?? validated.featured ?? false,
-          view_count: validated.view_count ?? validated.viewCount ?? 0,
-          duration: validated.duration ?? null,
-          created_by: validated.created_by ?? validated.createdBy,
-        };
-
+        // Minimal validation (no Zod)
         if (!toDb.title)
           return res.status(400).json({ message: "Title is required" });
         if (!toDb.video_url)
           return res.status(400).json({ message: "Video URL is required" });
 
-        const saved = await storage.addScamVideo(toDb);
+        const created = await storage.addScamVideo(toDb);
 
-        // Transform for frontend
+        // Shape for frontend (keeps your existing UI expectations)
         const extractYouTubeVideoId = (url: string) => {
           const m = (url || "").match(
             /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
           );
           return m ? m[1] : "";
         };
+
         return res.status(201).json({
-          id: saved.id,
-          title: saved.title,
-          description: saved.description,
-          youtubeVideoId: extractYouTubeVideoId(saved.video_url || ""),
-          youtubeUrl: saved.video_url,
-          scamType: saved.scam_type,
-          featured: saved.is_featured,
-          consolidatedScamId: saved.consolidated_scam_id,
-          viewCount: saved.view_count,
-          duration: saved.duration,
-          addedById: saved.created_by,
-          addedAt: saved.created_at,
-          updatedAt: saved.updated_at,
+          id: created.id,
+          title: created.title,
+          description: created.description,
+          youtubeVideoId: extractYouTubeVideoId(created.video_url || ""),
+          youtubeUrl: created.video_url,
+          scamType: created.scam_type,
+          featured: created.is_featured,
+          consolidatedScamId: created.consolidated_scam_id,
+          viewCount: created.view_count,
+          duration: created.duration,
+          addedById: created.created_by,
+          addedAt: created.created_at,
+          updatedAt: created.updated_at,
         });
       } catch (error: any) {
         console.error("Error creating scam video:", error);
