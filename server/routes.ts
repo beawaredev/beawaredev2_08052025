@@ -2936,13 +2936,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Auth is enforced by requireAdmin; created_by must come from auth, NOT body
         const user = req.user;
         if (!user?.id) {
-          return res
-            .status(401)
-            .json({
-              message: "Authentication required - user session not found",
-            });
+          return res.status(401).json({
+            message: "Authentication required - user session not found",
+          });
         }
-
+        console.log("🆕 addScamVideo route hit");
         const b = req.body ?? {};
 
         // Accept both camelCase and snake_case; normalize to DB snake_case
