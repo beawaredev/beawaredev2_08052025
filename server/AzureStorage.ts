@@ -110,6 +110,12 @@ export class AzureStorage implements IStorage {
       console.log("Establishing Azure SQL Database connection...");
       await pool.connect();
       console.log("Azure SQL Database connected successfully");
+      // 🧭 prove which SQL instance we connected to
+      const cfg = (pool as any).config || {};
+      console.log(
+        `🧭 [SQL CONNECTED] server=${cfg.server} database=${cfg.database} ` +
+          `encrypt=${cfg.options?.encrypt} trustServerCertificate=${cfg.options?.trustServerCertificate}`,
+      );
     } catch (error) {
       console.error("Failed to connect to Azure SQL Database:", error);
 
@@ -1590,11 +1596,28 @@ export class AzureStorage implements IStorage {
   }
 
   async getAllScamVideos(): Promise<ScamVideo[]> {
-    console.log("=== AzureStorage.getAllScamVideos called ===");
+    console.log("=== AzureStorage.getAllScamVideos ######  called ===");
 
     await this.ensureConnection();
 
     try {
+      // 🧭 show which DB we're reading and how many rows exist
+      try {
+        const { server: sqlServer, database } = (pool as any).config || {};
+        console.log(`🧭 [STORAGE] SQL → server=${sqlServer} db=${database}`);
+        const cntRes = await pool
+          .request()
+          .query("SELECT COUNT(*) AS cnt FROM scam_videos");
+        console.log(
+          `🧭 [STORAGE] scam_videos count=${cntRes.recordset?.[0]?.cnt}`,
+        );
+      } catch (e) {
+        console.log(
+          "🧭 [STORAGE] count check failed:",
+          (e as any)?.message || e,
+        );
+      }
+
       const result = await pool
         .request()
         .query("SELECT * FROM scam_videos ORDER BY created_at DESC");
@@ -1628,6 +1651,25 @@ export class AzureStorage implements IStorage {
     await this.ensureConnection();
 
     try {
+      // 🧭 show which DB we're reading and featured rows count
+      try {
+        const { server: sqlServer, database } = (pool as any).config || {};
+        console.log(`🧭 [STORAGE] SQL → server=${sqlServer} db=${database}`);
+        const featCntRes = await pool
+          .request()
+          .query(
+            "SELECT COUNT(*) AS cnt FROM scam_videos WHERE is_featured = 1",
+          );
+        console.log(
+          `🧭 [STORAGE] scam_videos featured count=${featCntRes.recordset?.[0]?.cnt}`,
+        );
+      } catch (e) {
+        console.log(
+          "🧭 [STORAGE] featured count check failed:",
+          (e as any)?.message || e,
+        );
+      }
+
       const result = await pool
         .request()
         .query(

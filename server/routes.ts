@@ -2812,6 +2812,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all scam videos
   apiRouter.get("/scam-videos", async (req: Request, res: Response) => {
     try {
+      res.set(
+        "Cache-Control",
+        "no-store, no-cache, must-revalidate, proxy-revalidate",
+      );
+      res.removeHeader("ETag");
+      console.log("🆕 [ROUTE] GET /api/scam-videos", new Date().toISOString());
+
       const videos = await storage.getAllScamVideos();
       const transformedVideos = videos.map(transformVideoForFrontend);
       res.json(transformedVideos);
@@ -2826,6 +2833,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/scam-videos/featured",
     async (req: Request, res: Response) => {
       try {
+        res.set(
+          "Cache-Control",
+          "no-store, no-cache, must-revalidate, proxy-revalidate",
+        );
+        res.removeHeader("ETag");
+        console.log(
+          "🆕 [ROUTE] GET /api/scam-videos/featured",
+          new Date().toISOString(),
+        );
+
         const videos = await storage.getFeaturedScamVideos();
         const transformedVideos = videos.map(transformVideoForFrontend);
         res.json(transformedVideos);
