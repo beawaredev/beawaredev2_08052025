@@ -36,4 +36,3 @@ localPort = 8080
 externalPort = 8080
 
 [agent]
-integrations = ["javascript_sendgrid==1.0.0", "javascript_websocket==1.0.0", "perplexity_v0==1.0.0", "firebase_barebones_javascript==1.0.0"]

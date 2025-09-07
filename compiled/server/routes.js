@@ -9,6 +9,8 @@ import { getVersionInfo } from "../shared/version.js";
 import crypto from "crypto";
 import { insertUserSchema, insertScamCommentSchema, insertLawyerProfileSchema, insertLawyerRequestSchema, insertScamVideoSchema } from "../shared/schema.js";
 import { z } from "zod";
+import { ScamLookupService } from "./scamLookupService.js";
+import { hashPassword, verifyPassword, validatePasswordStrength } from './utils/passwordUtils.js';
 // Path to the uploads directory
 const uploadDir = path.join(process.cwd(), "uploads");
 // Configure multer for file uploads
@@ -108,35 +110,9 @@ export async function registerRoutes(app) {
                 };
                 return next();
             }
-            // Fallback: try to get admin user from database
-            console.log("Attempting to authenticate admin user from database");
-            try {
-                let user = await storage.getUserByEmail("admin@beaware.fyi");
-                if (!user) {
-                    console.log("Admin user not found, creating admin user");
-                    user = await storage.createUser({
-                        email: "admin@beaware.fyi",
-                        password: "admin123",
-                        displayName: "Administrator",
-                        role: "admin",
-                        authProvider: "local"
-                    });
-                    console.log("Admin user created successfully:", user);
-                }
-                else {
-                    console.log("Admin user found in database:", user);
-                }
-                req.user = user;
-                console.log("Set user object with role:", user.role);
-                next();
-            }
-            catch (dbError) {
-                console.error("Database authentication failed:", dbError);
-                // If database fails, proceed without authentication for now
-                console.log("Proceeding without authentication due to database error");
-                req.user = null;
-                next();
-            }
+            // No authentication headers - return 401
+            console.log("No authentication headers provided");
+            return res.status(401).json({ message: "Authentication required" });
         }
         catch (err) {
             console.error("Error in requireAuth middleware:", err);
@@ -149,39 +125,103 @@ export async function registerRoutes(app) {
         // Check for user identification in headers
         const headerUserId = req.headers['x-user-id'];
         const headerEmail = req.headers['x-user-email'];
-        console.log("Authorization check for admin access:", {
-            userExists: !!user,
-            userRole: user?.role,
+        const headerRole = req.headers['x-user-role'];
+        console.log("🔐 Admin Authorization Check:", {
+            sessionUserExists: !!user,
+            sessionUserRole: user?.role,
+            sessionUserEmail: user?.email,
             headerUserId,
-            headerEmail
+            headerEmail,
+            headerRole,
+            environment: process.env.NODE_ENV || 'development',
+            requestUrl: req.url,
+            method: req.method,
+            userAgent: req.headers['user-agent']
         });
-        // Case 1: User already authenticated through session
-        if (user && user.role === "admin") {
-            console.log("Admin access granted through session");
+        // Case 1: Check authentication headers first (primary method)
+        if (headerUserId && headerEmail && headerRole === 'admin') {
+            console.log("✅ Admin access granted via headers:", { id: headerUserId, email: headerEmail, role: headerRole });
+            // Set user object from headers for consistency
+            req.user = {
+                id: parseInt(headerUserId, 10),
+                email: headerEmail,
+                role: headerRole
+            };
             return next();
         }
-        // Case 2: User identified through headers - verify from database
-        try {
-            let verifiedUser;
-            if (headerEmail) {
-                verifiedUser = await storage.getUserByEmail(headerEmail);
+        // Case 2: User authenticated through session
+        if (user && user.role === "admin") {
+            console.log("✅ Admin access granted via session:", { id: user.id, email: user.email, role: user.role });
+            return next();
+        }
+        // Case 3: Try to verify user from database if we have partial info
+        if (headerEmail || headerUserId) {
+            try {
+                let verifiedUser;
+                if (headerEmail) {
+                    verifiedUser = await storage.getUserByEmail(headerEmail);
+                }
+                else if (headerUserId) {
+                    verifiedUser = await storage.getUser(parseInt(headerUserId, 10));
+                }
+                if (verifiedUser && verifiedUser.role === "admin") {
+                    console.log("✅ Admin access granted via database verification:", { id: verifiedUser.id, email: verifiedUser.email, role: verifiedUser.role });
+                    req.user = verifiedUser;
+                    return next();
+                }
             }
-            else if (headerUserId) {
-                verifiedUser = await storage.getUser(parseInt(headerUserId, 10));
-            }
-            if (verifiedUser && verifiedUser.role === "admin") {
-                console.log("Admin access granted for user:", { id: verifiedUser.id, email: verifiedUser.email, role: verifiedUser.role });
-                req.user = verifiedUser;
-                return next();
+            catch (err) {
+                console.error("❌ Database verification failed:", err);
             }
         }
-        catch (err) {
-            console.error("Error verifying admin access:", err);
-        }
-        // If we get here, access is denied
-        console.log("Admin access denied");
-        return res.status(403).json({ message: "Forbidden - Admin access required" });
+        // Access denied
+        console.log("❌ Admin access denied - no valid authentication found");
+        return res.status(403).json({
+            message: "Forbidden - Admin access required",
+            debug: {
+                hasHeaders: !!(headerUserId && headerEmail && headerRole),
+                hasSession: !!user,
+                headerRole,
+                sessionRole: user?.role
+            }
+        });
     };
+    // Debug endpoint to understand authentication state
+    apiRouter.get("/debug/auth", async (req, res) => {
+        const user = req.user;
+        const headers = {
+            userId: req.headers['x-user-id'],
+            userEmail: req.headers['x-user-email'],
+            userRole: req.headers['x-user-role'],
+            authorization: req.headers['authorization'] ? 'present' : 'missing',
+            userAgent: req.headers['user-agent']?.substring(0, 100)
+        };
+        console.log("🔍 Auth Debug Request:", { user, headers });
+        res.json({
+            success: true,
+            debug: {
+                sessionUser: user ? {
+                    id: user.id,
+                    email: user.email,
+                    role: user.role,
+                    displayName: user.displayName
+                } : null,
+                headers,
+                environment: {
+                    nodeEnv: process.env.NODE_ENV,
+                    deployment: process.env.DEPLOYMENT_ENVIRONMENT,
+                    hostname: req.headers.host,
+                    isProduction: process.env.NODE_ENV === 'production',
+                    timestamp: new Date().toISOString()
+                },
+                recommendations: [
+                    headers.userId && headers.userEmail && headers.userRole ? "✅ Auth headers present" : "❌ Auth headers missing - check localStorage",
+                    user ? "✅ Session user exists" : "❌ Session user missing",
+                    headers.userRole === 'admin' ? "✅ Admin role detected" : "❌ Admin role missing"
+                ]
+            }
+        });
+    });
     // Endpoint to download proof files
     apiRouter.get("/files/:filename", async (req, res) => {
         try {
@@ -263,7 +303,17 @@ export async function registerRoutes(app) {
                         return res.status(400).json({ message: "This BeAware username is already taken. Please choose a different one." });
                     }
                 }
-                console.log("Creating user with data:", JSON.stringify(userData));
+                // Validate password strength if password is provided (local auth)
+                if (userData.password) {
+                    const passwordValidation = validatePasswordStrength(userData.password);
+                    if (!passwordValidation.isValid) {
+                        return res.status(400).json({ message: passwordValidation.message });
+                    }
+                    // Hash the password before storing
+                    console.log("Hashing password for security...");
+                    userData.password = await hashPassword(userData.password);
+                }
+                console.log("Creating user with data:", JSON.stringify({ ...userData, password: "[HASHED]" }));
                 // Create the user
                 const user = await storage.createUser(userData);
                 // Remove password from response
@@ -320,20 +370,28 @@ export async function registerRoutes(app) {
     // Google signup endpoint
     apiRouter.post("/auth/google-signup", async (req, res) => {
         try {
-            const { email, displayName, googleId } = req.body;
+            const { email, displayName, googleId, beawareUsername } = req.body;
             if (!email || !googleId) {
                 return res.status(400).json({ message: "Email and googleId are required" });
             }
-            // Check if user already exists
+            // Check if user already exists by email
             const existingUser = await storage.getUserByEmail(email);
             if (existingUser) {
                 return res.status(400).json({ message: "User with this email already exists" });
             }
-            // Create new user with Google data
+            // Check if user already exists by Google ID
+            const existingGoogleUser = await storage.getUserByGoogleId(googleId);
+            if (existingGoogleUser) {
+                return res.status(400).json({ message: "User with this Google account already exists" });
+            }
+            // Generate a unique random username for signup (synchronous)
+            const generatedUsername = storage.generateUniqueUsername();
+            // Create new user with Google data and generated username
             const newUserData = {
                 email,
                 displayName: displayName || email.split('@')[0],
                 googleId,
+                beawareUsername: generatedUsername,
                 authProvider: 'google',
                 role: 'user'
             };
@@ -344,13 +402,66 @@ export async function registerRoutes(app) {
             res.json({
                 success: true,
                 user: userInfo,
-                message: "Account created successfully"
+                message: "Account created successfully",
+                canChangeUsername: true // User can change their generated username once
             });
         }
         catch (error) {
             console.error("Error creating Google user:", error);
             res.status(500).json({
                 message: "Failed to create account",
+                error: error instanceof Error ? error.message : "Unknown error"
+            });
+        }
+    });
+    // Remove unique constraint on beaware_username for null values
+    apiRouter.post("/auth/remove-username-constraint", async (req, res) => {
+        try {
+            await storage.removeUsernameUniqueConstraint();
+            res.json({
+                success: true,
+                message: "Removed unique constraint on beaware_username to allow multiple null values"
+            });
+        }
+        catch (error) {
+            console.error("Error removing username constraint:", error);
+            res.status(500).json({
+                message: "Failed to remove constraint",
+                error: error instanceof Error ? error.message : "Unknown error"
+            });
+        }
+    });
+    // Change username endpoint (one-time only)
+    apiRouter.post("/auth/change-username", async (req, res) => {
+        try {
+            const { userId, newUsername } = req.body;
+            if (!userId || !newUsername) {
+                return res.status(400).json({ message: "User ID and new username are required" });
+            }
+            // Check if username is already taken
+            const existingUser = await storage.getUserByBeawareUsername(newUsername);
+            if (existingUser && existingUser.id !== userId) {
+                return res.status(400).json({ message: "Username is already taken" });
+            }
+            // Update the user's username
+            const updatedUser = await storage.updateUser(userId, {
+                beawareUsername: newUsername,
+                hasChangedUsername: true
+            });
+            if (!updatedUser) {
+                return res.status(404).json({ message: "User not found" });
+            }
+            const { password, ...userInfo } = updatedUser;
+            res.json({
+                success: true,
+                user: userInfo,
+                message: "Username updated successfully"
+            });
+        }
+        catch (error) {
+            console.error("Error changing username:", error);
+            res.status(500).json({
+                message: "Failed to change username",
                 error: error instanceof Error ? error.message : "Unknown error"
             });
         }
@@ -390,11 +501,93 @@ export async function registerRoutes(app) {
             });
         }
     });
+    // Clear rate limiting endpoint (for debugging)
+    apiRouter.post("/auth/clear-rate-limit", async (req, res) => {
+        try {
+            const { email, googleId } = req.body;
+            if (email && googleId) {
+                const attemptKey = `${email}:${googleId}`;
+                authAttempts.delete(attemptKey);
+                console.log(`Cleared rate limiting for ${email}`);
+                res.json({ success: true, message: "Rate limiting cleared" });
+            }
+            else {
+                res.status(400).json({ message: "Email and googleId required" });
+            }
+        }
+        catch (error) {
+            res.status(500).json({ message: "Failed to clear rate limit" });
+        }
+    });
+    // Fix database constraint issue (temporary endpoint)
+    apiRouter.post("/auth/fix-db-constraints", async (req, res) => {
+        try {
+            console.log("Fixing database constraint issues...");
+            // Update users with null or empty beaware_username
+            const result = await storage.fixEmptyUsernames();
+            res.json({
+                success: true,
+                message: "Database constraints fixed",
+                usersUpdated: result
+            });
+        }
+        catch (error) {
+            console.error("Error fixing database constraints:", error);
+            res.status(500).json({
+                message: "Failed to fix database constraints",
+                error: error instanceof Error ? error.message : "Unknown error"
+            });
+        }
+    });
+    // Quick admin login endpoint for testing
+    apiRouter.post("/auth/admin-login", async (req, res) => {
+        try {
+            console.log("=== ADMIN LOGIN TEST ===");
+            // Try to find or create admin user
+            let adminUser = await storage.getUserByEmail("admin@beaware.com");
+            if (!adminUser) {
+                console.log("Creating admin user for testing...");
+                // Hash the admin password for security
+                const hashedAdminPassword = await hashPassword("password123");
+                adminUser = await storage.createUser({
+                    email: "admin@beaware.com",
+                    password: hashedAdminPassword,
+                    displayName: "Administrator",
+                    beawareUsername: "admin_beaware",
+                    role: "admin",
+                    authProvider: "local"
+                });
+                console.log("Admin user created with hashed password");
+            }
+            else {
+                // Ensure the user has admin role
+                if (adminUser.role !== "admin") {
+                    console.log("Updating user role to admin");
+                    adminUser = await storage.updateUser(adminUser.id, { role: "admin" });
+                }
+            }
+            // Remove password from response  
+            const { password, ...adminWithoutPassword } = adminUser;
+            console.log("Admin login successful:", adminWithoutPassword);
+            res.json({
+                success: true,
+                user: adminWithoutPassword,
+                message: "Admin login successful"
+            });
+        }
+        catch (error) {
+            console.error("Admin login error:", error);
+            res.status(500).json({
+                message: "Failed to authenticate admin",
+                error: error instanceof Error ? error.message : "Unknown error"
+            });
+        }
+    });
     // Rate limiting for Google login to prevent endless loops
     const authAttempts = new Map();
-    const MAX_ATTEMPTS = 3;
-    const BLOCK_DURATION = 30000; // 30 seconds
-    const ATTEMPT_WINDOW = 10000; // 10 seconds
+    const MAX_ATTEMPTS = 1; // Allow only 1 attempt before redirecting to signup
+    const BLOCK_DURATION = 60000; // 1 minute for rate limiting
+    const ATTEMPT_WINDOW = 5000; // 5 seconds
     apiRouter.post("/auth/google-login", async (req, res) => {
         try {
             const { email, displayName, googleId, photoURL } = req.body;
@@ -405,18 +598,20 @@ export async function registerRoutes(app) {
             // Check rate limiting
             const now = Date.now();
             const attemptKey = `${email}:${googleId}`;
-            const attempts = authAttempts.get(attemptKey) || { count: 0, lastAttempt: 0, blocked: false };
+            const attempts = authAttempts.get(attemptKey) || { count: 0, lastAttempt: 0, blocked: false, blockUntil: 0, signupRedirectSent: false };
             // Reset attempts if enough time has passed
             if (now - attempts.lastAttempt > ATTEMPT_WINDOW) {
                 attempts.count = 0;
                 attempts.blocked = false;
+                attempts.blockUntil = 0;
+                attempts.signupRedirectSent = false;
             }
             // Check if user is blocked
-            if (attempts.blocked && now - attempts.lastAttempt < BLOCK_DURATION) {
+            if (attempts.blocked && now < attempts.blockUntil) {
                 console.log(`Authentication blocked for ${email} - too many attempts`);
                 return res.status(429).json({
                     message: "Too many authentication attempts. Please wait before trying again.",
-                    blockedUntil: attempts.lastAttempt + BLOCK_DURATION
+                    blockedUntil: attempts.blockUntil
                 });
             }
             // Update attempts
@@ -449,10 +644,11 @@ export async function registerRoutes(app) {
                         if (attempts.count >= MAX_ATTEMPTS) {
                             console.log(`Blocking authentication for ${email} after ${attempts.count} attempts`);
                             attempts.blocked = true;
+                            attempts.blockUntil = now + BLOCK_DURATION;
                             authAttempts.set(attemptKey, attempts);
                             return res.status(429).json({
                                 message: "Too many authentication attempts. Authentication has been temporarily disabled for this account.",
-                                blockedUntil: now + BLOCK_DURATION
+                                blockedUntil: attempts.blockUntil
                             });
                         }
                         return res.status(400).json({
@@ -470,13 +666,32 @@ export async function registerRoutes(app) {
                 if (!user) {
                     // User doesn't exist - return signup option
                     console.log(`No account found for Google email: ${email}`);
-                    return res.status(404).json({
-                        message: "No account found with this email address.",
-                        requiresSignup: true,
-                        email: email,
-                        displayName: displayName || email.split('@')[0],
-                        googleId: googleId
-                    });
+                    // Only block after first attempt to prevent immediate blocking
+                    if (!attempts.signupRedirectSent) {
+                        attempts.signupRedirectSent = true;
+                        attempts.lastAttempt = now;
+                        authAttempts.set(attemptKey, attempts);
+                        console.log(`Redirecting ${email} to signup - first attempt`);
+                        return res.status(404).json({
+                            message: "No account found with this email address.",
+                            requiresSignup: true,
+                            email: email,
+                            displayName: displayName || email.split('@')[0],
+                            googleId: googleId
+                        });
+                    }
+                    else {
+                        // Block subsequent attempts after redirect was already sent
+                        attempts.blocked = true;
+                        attempts.blockUntil = now + BLOCK_DURATION;
+                        authAttempts.set(attemptKey, attempts);
+                        console.log(`Blocking further authentication attempts for ${email} - signup redirect already sent`);
+                        return res.status(429).json({
+                            message: "Signup redirect already sent. Please complete signup or wait before trying again.",
+                            requiresSignup: true,
+                            retryAfter: Math.ceil(BLOCK_DURATION / 1000)
+                        });
+                    }
                 }
             }
             // Remove sensitive info from response
@@ -529,12 +744,14 @@ export async function registerRoutes(app) {
                 });
                 return;
             }
-            // For non-admin users or incorrect admin password
-            // Check password - simplified version to handle both hashed and non-hashed
-            if (user.password !== password &&
-                !(email === "admin@beaware.com" && password === "password123")) {
+            // For non-admin users - verify password with bcrypt
+            console.log("Verifying password for user:", email);
+            const isPasswordValid = await verifyPassword(password, user.password);
+            if (!isPasswordValid) {
+                console.log("Password verification failed for user:", email);
                 return res.status(401).json({ message: "Invalid credentials" });
             }
+            console.log("Password verification successful for user:", email);
             // Remove password from response
             const { password: _, ...userWithoutPassword } = user;
             res.json({
@@ -604,16 +821,21 @@ export async function registerRoutes(app) {
             if (!token || !newPassword) {
                 return res.status(400).json({ message: "Token and new password are required" });
             }
-            if (newPassword.length < 6) {
-                return res.status(400).json({ message: "Password must be at least 6 characters long" });
+            // Validate password strength
+            const passwordValidation = validatePasswordStrength(newPassword);
+            if (!passwordValidation.isValid) {
+                return res.status(400).json({ message: passwordValidation.message });
             }
             // Validate reset token
             const resetRecord = await storage.getPasswordReset(token);
             if (!resetRecord) {
                 return res.status(400).json({ message: "Invalid or expired reset token" });
             }
-            // Update user password
-            const passwordUpdated = await storage.updateUserPassword(resetRecord.userId, newPassword);
+            // Hash the new password
+            console.log("Hashing new password for security...");
+            const hashedPassword = await hashPassword(newPassword);
+            // Update user password with hashed password
+            const passwordUpdated = await storage.updateUserPassword(resetRecord.userId, hashedPassword);
             if (!passwordUpdated) {
                 return res.status(500).json({ message: "Failed to update password" });
             }
@@ -1831,11 +2053,36 @@ export async function registerRoutes(app) {
         }
     });
     // SCAM VIDEO ROUTES
+    // Helper function to transform video data for frontend
+    function transformVideoForFrontend(video) {
+        // Extract YouTube video ID from URL
+        const extractYouTubeVideoId = (url) => {
+            const youtubeRegex = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/;
+            const match = url.match(youtubeRegex);
+            return match ? match[1] : '';
+        };
+        return {
+            id: video.id,
+            title: video.title,
+            description: video.description,
+            youtubeVideoId: extractYouTubeVideoId(video.video_url || ''),
+            youtubeUrl: video.video_url,
+            scamType: video.scam_type,
+            featured: video.is_featured,
+            consolidatedScamId: video.consolidated_scam_id,
+            viewCount: video.view_count,
+            duration: video.duration,
+            addedById: video.created_by,
+            addedAt: video.created_at,
+            updatedAt: video.updated_at,
+        };
+    }
     // Get all scam videos
     apiRouter.get("/scam-videos", async (req, res) => {
         try {
             const videos = await storage.getAllScamVideos();
-            res.json(videos);
+            const transformedVideos = videos.map(transformVideoForFrontend);
+            res.json(transformedVideos);
         }
         catch (error) {
             console.error("Error fetching scam videos:", error);
@@ -1845,10 +2092,9 @@ export async function registerRoutes(app) {
     // Get featured scam videos
     apiRouter.get("/scam-videos/featured", async (req, res) => {
         try {
-            // Get limit from query parameter, default to 5
-            const limit = req.query.limit ? parseInt(req.query.limit, 10) : 5;
-            const videos = await storage.getFeaturedScamVideos(limit);
-            res.json(videos);
+            const videos = await storage.getFeaturedScamVideos();
+            const transformedVideos = videos.map(transformVideoForFrontend);
+            res.json(transformedVideos);
         }
         catch (error) {
             console.error("Error fetching featured scam videos:", error);
@@ -1890,43 +2136,128 @@ export async function registerRoutes(app) {
             if (!video) {
                 return res.status(404).json({ message: "Scam video not found" });
             }
-            res.json(video);
+            const transformedVideo = transformVideoForFrontend(video);
+            res.json(transformedVideo);
         }
         catch (error) {
             console.error("Error fetching scam video:", error);
             res.status(500).json({ message: "Failed to fetch scam video" });
         }
     });
+    // Enhanced authentication middleware specifically for video creation
+    const enhancedAuth = async (req, res, next) => {
+        const user = req.user;
+        const headerUserId = req.headers['x-user-id'];
+        const headerEmail = req.headers['x-user-email'];
+        const headerRole = req.headers['x-user-role'];
+        console.log("🔐 Enhanced Auth Check for Video Creation:", {
+            hasSessionUser: !!user,
+            sessionUser: user ? { id: user.id, email: user.email, role: user.role } : null,
+            hasHeaders: !!(headerUserId && headerEmail && headerRole),
+            headers: { userId: headerUserId, email: headerEmail, role: headerRole },
+            environment: process.env.NODE_ENV,
+            hostname: req.headers.host
+        });
+        // If user isn't set from requireAdmin, try to set it from headers
+        if (!user && headerUserId && headerEmail && headerRole) {
+            console.log("🔧 Setting user from headers since session user is missing");
+            req.user = {
+                id: parseInt(headerUserId, 10),
+                email: headerEmail,
+                role: headerRole
+            };
+        }
+        next();
+    };
     // Create a new scam video (admin only)
-    apiRouter.post("/scam-videos", requireAdmin, async (req, res) => {
+    apiRouter.post("/scam-videos", enhancedAuth, requireAdmin, async (req, res) => {
         try {
             const user = req.user;
-            // Validate the request body
-            const videoData = insertScamVideoSchema.parse({
-                ...req.body,
-                addedById: user.id
+            console.log("🎬 Video Creation Debug:", {
+                userExists: !!user,
+                userId: user?.id,
+                userEmail: user?.email,
+                userRole: user?.role,
+                headers: {
+                    userId: req.headers['x-user-id'],
+                    userEmail: req.headers['x-user-email'],
+                    userRole: req.headers['x-user-role'],
+                    authorization: req.headers['authorization'] ? 'present' : 'missing',
+                    contentType: req.headers['content-type'],
+                    userAgent: req.headers['user-agent']?.substring(0, 100)
+                },
+                body: {
+                    title: req.body.title ? 'present' : 'missing',
+                    youtubeUrl: req.body.youtubeUrl ? 'present' : 'missing',
+                    scamType: req.body.scamType
+                },
+                environment: {
+                    nodeEnv: process.env.NODE_ENV,
+                    deployment: process.env.DEPLOYMENT_ENVIRONMENT,
+                    hostname: req.headers.host
+                }
             });
-            // Extract the YouTube video ID from the URL if not provided
-            if (!videoData.youtubeVideoId && videoData.youtubeUrl) {
-                const url = new URL(videoData.youtubeUrl);
-                let videoId = '';
-                if (url.hostname.includes('youtube.com')) {
-                    videoId = url.searchParams.get('v') || '';
-                }
-                else if (url.hostname.includes('youtu.be')) {
-                    videoId = url.pathname.substring(1);
-                }
-                if (videoId) {
-                    videoData.youtubeVideoId = videoId;
-                }
-                else {
-                    return res.status(400).json({
-                        message: "Could not extract YouTube video ID from URL. Please provide a valid YouTube URL or specify the video ID directly."
-                    });
-                }
+            // Ensure we have a valid user ID for created_by field
+            let createdById;
+            if (user && user.id) {
+                createdById = user.id;
             }
-            const video = await storage.createScamVideo(videoData);
-            res.status(201).json(video);
+            else {
+                console.error("No valid user ID found for video creation");
+                return res.status(401).json({
+                    message: "Authentication required - user session not found"
+                });
+            }
+            console.log("Video creation - Using created_by ID:", createdById);
+            // Log debugging info (only in non-production)
+            if (process.env.NODE_ENV !== 'production') {
+                console.log("🔍 Full request body:", JSON.stringify(req.body, null, 2));
+                console.log("🔍 Schema keys:", Object.keys(insertScamVideoSchema.shape));
+            }
+            // Map frontend camelCase fields to database snake_case fields
+            const videoDataForValidation = {
+                title: req.body.title,
+                description: req.body.description,
+                video_url: req.body.youtubeUrl, // Frontend sends youtubeUrl
+                thumbnail_url: req.body.thumbnailUrl,
+                scam_type: req.body.scamType, // Frontend sends scamType
+                consolidated_scam_id: req.body.consolidatedScamId, // Frontend sends consolidatedScamId  
+                is_featured: req.body.featured, // Frontend sends featured
+                view_count: req.body.viewCount || 0,
+                duration: req.body.duration,
+                created_by: createdById
+            };
+            if (process.env.NODE_ENV !== 'production') {
+                console.log("🔍 Data being validated:", JSON.stringify(videoDataForValidation, null, 2));
+            }
+            // Validate with proper error handling
+            let videoData;
+            try {
+                videoData = insertScamVideoSchema.parse(videoDataForValidation);
+                console.log("✅ Schema validation successful");
+            }
+            catch (validationError) {
+                console.error("❌ Schema validation failed:", {
+                    error: validationError.message,
+                    issues: validationError.issues || validationError.errors,
+                    receivedData: videoDataForValidation
+                });
+                throw validationError;
+            }
+            // Validate required fields
+            if (!videoData.video_url) {
+                return res.status(400).json({
+                    message: "Video URL is required"
+                });
+            }
+            if (!videoData.title) {
+                return res.status(400).json({
+                    message: "Title is required"
+                });
+            }
+            const video = await storage.addScamVideo(videoData);
+            const transformedVideo = transformVideoForFrontend(video);
+            res.status(201).json(transformedVideo);
         }
         catch (error) {
             console.error("Error creating scam video:", error);
@@ -1953,7 +2284,11 @@ export async function registerRoutes(app) {
             }
             // Update the video
             const updatedVideo = await storage.updateScamVideo(id, req.body);
-            res.json(updatedVideo);
+            if (!updatedVideo) {
+                return res.status(500).json({ message: "Failed to update scam video" });
+            }
+            const transformedVideo = transformVideoForFrontend(updatedVideo);
+            res.json(transformedVideo);
         }
         catch (error) {
             console.error("Error updating scam video:", error);
@@ -2152,20 +2487,106 @@ ${message}
                 return res.status(400).json({ message: "Invalid item ID" });
             }
             const { isCompleted, notes } = req.body;
-            if (typeof isCompleted !== 'boolean') {
-                return res.status(400).json({ message: "isCompleted must be a boolean" });
+            // Log the request body for debugging
+            console.log("Security checklist progress update request:", {
+                itemId,
+                isCompleted,
+                isCompletedType: typeof isCompleted,
+                notes,
+                body: req.body
+            });
+            // More flexible boolean validation
+            let completedStatus;
+            if (typeof isCompleted === 'boolean') {
+                completedStatus = isCompleted;
+            }
+            else if (typeof isCompleted === 'string') {
+                completedStatus = isCompleted.toLowerCase() === 'true';
+            }
+            else if (typeof isCompleted === 'number') {
+                completedStatus = isCompleted === 1;
+            }
+            else {
+                return res.status(400).json({ message: "isCompleted must be a boolean value" });
             }
             // Verify the checklist item exists
             const item = await storage.getSecurityChecklistItem(itemId);
             if (!item) {
                 return res.status(404).json({ message: "Security checklist item not found" });
             }
-            const progress = await storage.updateUserSecurityProgress(user.id, itemId, isCompleted, notes);
+            const progress = await storage.updateUserSecurityProgress(user.id, itemId, completedStatus, notes);
             res.json(progress);
         }
         catch (error) {
             console.error("Error updating user security progress:", error);
             res.status(500).json({ message: "Failed to update security progress" });
+        }
+    });
+    // Create security checklist item (admin only)
+    apiRouter.post("/security-checklist", requireAuth, async (req, res) => {
+        try {
+            const user = req.user;
+            if (!user || user.role !== "admin") {
+                return res.status(403).json({ message: "Admin access required" });
+            }
+            const itemData = req.body;
+            console.log(`Admin ${user.id} creating security checklist item:`, itemData);
+            const newItem = await storage.createSecurityChecklistItem(itemData);
+            if (!newItem) {
+                return res.status(500).json({ message: "Failed to create security checklist item" });
+            }
+            res.status(201).json(newItem);
+        }
+        catch (error) {
+            console.error("Error creating security checklist item:", error);
+            res.status(500).json({ message: "Failed to create security checklist item" });
+        }
+    });
+    // Update security checklist item (admin only)
+    apiRouter.put("/security-checklist/:itemId", requireAuth, async (req, res) => {
+        try {
+            const user = req.user;
+            if (!user || user.role !== "admin") {
+                return res.status(403).json({ message: "Admin access required" });
+            }
+            const itemId = parseInt(req.params.itemId);
+            if (isNaN(itemId)) {
+                return res.status(400).json({ message: "Invalid item ID" });
+            }
+            const updates = req.body;
+            console.log(`Admin ${user.id} updating security checklist item ${itemId}:`, updates);
+            const updatedItem = await storage.updateSecurityChecklistItem(itemId, updates);
+            if (!updatedItem) {
+                return res.status(404).json({ message: "Security checklist item not found" });
+            }
+            res.json(updatedItem);
+        }
+        catch (error) {
+            console.error("Error updating security checklist item:", error);
+            res.status(500).json({ message: "Failed to update security checklist item" });
+        }
+    });
+    // Delete security checklist item (admin only)
+    apiRouter.delete("/security-checklist/:itemId", requireAuth, async (req, res) => {
+        try {
+            const user = req.user;
+            if (!user || user.role !== "admin") {
+                return res.status(403).json({ message: "Admin access required" });
+            }
+            const itemId = parseInt(req.params.itemId);
+            if (isNaN(itemId)) {
+                return res.status(400).json({ message: "Invalid item ID" });
+            }
+            console.log(`Admin ${user.id} deleting security checklist item ${itemId}`);
+            const deleted = await storage.deleteSecurityChecklistItem(itemId);
+            if (!deleted) {
+                return res.status(404).json({ message: "Security checklist item not found" });
+            }
+            res.json({ success: true, message: "Security checklist item deleted successfully" });
+        }
+        catch (error) {
+            console.error("Error deleting security checklist item:", error);
+            res.status(500).json({ message: "Failed to delete security checklist item" });
         }
     });
     // VERSION AND HEALTH CHECK ROUTES
@@ -2194,6 +2615,399 @@ ${message}
                 status: "unhealthy",
                 timestamp: new Date().toISOString(),
                 error: "Health check failed"
+            });
+        }
+    });
+    // Serve version.json at root level for frontend consumption
+    app.get("/version.json", async (req, res) => {
+        try {
+            const versionInfo = getVersionInfo();
+            res.json(versionInfo);
+        }
+        catch (error) {
+            console.error("Error getting version info for /version.json:", error);
+            res.status(500).json({ error: "Failed to get version information" });
+        }
+    });
+    // SCAM LOOKUP API ENDPOINTS
+    // Check if input is a scam (phone, email, URL, etc.)
+    apiRouter.post("/scam-check", requireAuth, async (req, res) => {
+        try {
+            const { type, input } = req.body;
+            if (!type || !input) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Type and input are required"
+                });
+            }
+            console.log(`🔍 Scam lookup request - Type: ${type}, Input: ${input}`);
+            // Get API configuration for this type
+            const apiConfig = await storage.getApiConfigByType(type);
+            if (!apiConfig) {
+                return res.status(404).json({
+                    success: false,
+                    message: `No API configuration found for type: ${type}`,
+                    availableTypes: ['phone', 'email', 'url', 'ip', 'domain']
+                });
+            }
+            console.log(`📡 Using API config: ${apiConfig.name} for ${type} lookup`);
+            // Perform scam lookup
+            const scamLookupService = ScamLookupService.getInstance();
+            const result = await scamLookupService.lookupScamData(type, input, apiConfig);
+            console.log(`✅ Scam lookup result: ${result.status} (Risk: ${result.riskScore})`);
+            return res.json({
+                success: true,
+                result
+            });
+        }
+        catch (error) {
+            console.error("Error in scam lookup:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Scam lookup failed",
+                error: error instanceof Error ? error.message : "Unknown error"
+            });
+        }
+    });
+    // Batch scam check for multiple inputs
+    apiRouter.post("/scam-check/batch", requireAuth, async (req, res) => {
+        try {
+            const { checks } = req.body; // Array of { type, input }
+            if (!Array.isArray(checks) || checks.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Checks array is required and must not be empty"
+                });
+            }
+            if (checks.length > 10) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Maximum 10 checks per batch request"
+                });
+            }
+            console.log(`🔍 Batch scam lookup request - ${checks.length} items`);
+            const scamLookupService = ScamLookupService.getInstance();
+            const results = [];
+            for (const check of checks) {
+                try {
+                    const apiConfig = await storage.getApiConfigByType(check.type);
+                    if (apiConfig) {
+                        const result = await scamLookupService.lookupScamData(check.type, check.input, apiConfig);
+                        results.push(result);
+                    }
+                    else {
+                        results.push({
+                            type: check.type,
+                            input: check.input,
+                            provider: 'none',
+                            riskScore: 0,
+                            reputation: 'no config',
+                            status: 'unknown',
+                            details: { error: `No API configuration found for type: ${check.type}` },
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+                }
+                catch (error) {
+                    results.push({
+                        type: check.type,
+                        input: check.input,
+                        provider: 'error',
+                        riskScore: 0,
+                        reputation: 'error',
+                        status: 'unknown',
+                        details: { error: error instanceof Error ? error.message : 'Unknown error' },
+                        timestamp: new Date().toISOString()
+                    });
+                }
+            }
+            return res.json({
+                success: true,
+                results
+            });
+        }
+        catch (error) {
+            console.error("Error in batch scam lookup:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Batch scam lookup failed",
+                error: error instanceof Error ? error.message : "Unknown error"
+            });
+        }
+    });
+    // User-facing scam lookup endpoint (requires authentication)
+    apiRouter.post("/scam-lookup", requireAuth, async (req, res) => {
+        try {
+            console.log('🔍 Scam lookup request received:', {
+                body: req.body,
+                type: typeof req.body?.type,
+                value: typeof req.body?.value,
+                bodyString: JSON.stringify(req.body)
+            });
+            const { type, value } = req.body;
+            if (!type || !value) {
+                console.log('❌ Missing type or value:', { type, value });
+                return res.status(400).json({
+                    success: false,
+                    error: "Type and value are required"
+                });
+            }
+            console.log(`Scam lookup request: ${type} = ${value}`);
+            // Get all enabled API configurations for this type
+            const allConfigs = await storage.getApiConfigs();
+            const configs = allConfigs.filter(config => config.enabled && config.type === type);
+            if (configs.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    error: `No enabled API configurations found for type: ${type}`
+                });
+            }
+            console.log(`Found ${configs.length} enabled configs for type ${type}`);
+            const results = [];
+            // Query all available APIs for this type
+            for (const config of configs) {
+                const startTime = Date.now();
+                try {
+                    // Use the existing scam lookup service
+                    const { ScamLookupService } = await import('./scamLookupService.js');
+                    const lookupService = ScamLookupService.getInstance();
+                    const result = await lookupService.lookupScamData(type, value, config);
+                    const responseTime = Date.now() - startTime;
+                    // Sanitize the result for user consumption - remove sensitive data
+                    const sanitizedResult = {
+                        type: result.type,
+                        input: result.input,
+                        provider: result.provider,
+                        riskScore: result.riskScore || 0,
+                        reputation: result.reputation,
+                        status: result.status,
+                        details: {
+                            // Only include user-friendly details
+                            valid: result.details?.valid,
+                            country: result.details?.country,
+                            region: result.details?.region,
+                            carrier: result.details?.carrier,
+                            lineType: result.details?.lineType || result.details?.line_type,
+                            mobile: result.details?.mobile,
+                            riskFactors: result.details?.riskFactors,
+                            lastSeen: result.details?.lastSeen,
+                            reportCount: result.details?.reportCount,
+                            recent_abuse: result.details?.recent_abuse,
+                            bot_status: result.details?.bot_status,
+                            proxy: result.details?.proxy,
+                            // For raw response, only include non-sensitive fields
+                            risk_score: result.details?.risk_score,
+                            fraud_score: result.details?.fraud_score,
+                            // Exclude API keys, URLs, and internal system data
+                        },
+                        timestamp: result.timestamp
+                        // Completely exclude: rawResponse, apiCallDetails
+                    };
+                    results.push({
+                        success: true,
+                        data: sanitizedResult,
+                        apiName: config.name,
+                        responseTime,
+                        // Don't include apiId to avoid exposing internal IDs
+                    });
+                }
+                catch (lookupError) {
+                    const responseTime = Date.now() - startTime;
+                    console.error(`Lookup error for ${config.name} (${type}:${value}):`, lookupError);
+                    results.push({
+                        success: false,
+                        error: lookupError instanceof Error ? lookupError.message : "Lookup failed",
+                        apiName: config.name,
+                        responseTime,
+                        apiId: config.id
+                    });
+                }
+            }
+            res.json({
+                success: true,
+                results,
+                totalApis: configs.length,
+                type,
+                value
+            });
+        }
+        catch (error) {
+            console.error("Error in scam lookup:", error);
+            res.status(500).json({
+                success: false,
+                error: "Internal server error",
+                apiName: "System"
+            });
+        }
+    });
+    // API CONFIG ROUTES (Authenticated endpoint for user-facing scam lookup)
+    apiRouter.get("/api-configs/public", requireAuth, async (req, res) => {
+        try {
+            console.log("Fetching public API configurations");
+            const apiConfigs = await storage.getApiConfigs();
+            // Filter to only return enabled configs with minimal information for public use
+            const publicConfigs = apiConfigs
+                .filter(config => config.enabled)
+                .map(config => ({
+                id: config.id,
+                name: config.name,
+                type: config.type,
+                description: config.description,
+                enabled: config.enabled
+            }));
+            console.log(`Returning ${publicConfigs.length} public API configurations`);
+            res.json(publicConfigs);
+        }
+        catch (error) {
+            console.error("Error fetching public API configurations:", error);
+            res.status(500).json({ message: "Failed to fetch API configurations" });
+        }
+    });
+    // API Configuration Management (Admin only)
+    apiRouter.get("/api-configs", requireAuth, requireAdmin, async (req, res) => {
+        try {
+            const configs = await storage.getApiConfigs();
+            // Hide API keys in the response for security
+            const sanitizedConfigs = configs.map(config => ({
+                ...config,
+                apiKey: config.apiKey ? '***' + config.apiKey.slice(-4) : ''
+            }));
+            res.json(sanitizedConfigs);
+        }
+        catch (error) {
+            console.error("Error fetching API configs:", error);
+            res.status(500).json({ message: "Failed to fetch API configurations" });
+        }
+    });
+    apiRouter.post("/api-configs", requireAuth, requireAdmin, async (req, res) => {
+        try {
+            const configData = req.body;
+            console.log('Received API config data:', configData);
+            console.log('Request headers:', req.headers);
+            // Validate required fields
+            if (!configData.name || !configData.type || !configData.url || !configData.apiKey) {
+                console.log('Validation failed - missing fields:', {
+                    name: !!configData.name,
+                    type: !!configData.type,
+                    url: !!configData.url,
+                    apiKey: !!configData.apiKey
+                });
+                return res.status(400).json({
+                    message: "Name, type, url, and apiKey are required"
+                });
+            }
+            // Set defaults
+            configData.enabled = configData.enabled !== false;
+            configData.rateLimit = configData.rateLimit || 100;
+            configData.timeout = configData.timeout || 30;
+            const newConfig = await storage.createApiConfig(configData);
+            // Hide API key in response
+            const sanitizedConfig = {
+                ...newConfig,
+                apiKey: newConfig.apiKey ? '***' + newConfig.apiKey.slice(-4) : ''
+            };
+            res.status(201).json(sanitizedConfig);
+        }
+        catch (error) {
+            console.error("Error creating API config:", error);
+            res.status(500).json({ message: "Failed to create API configuration" });
+        }
+    });
+    apiRouter.put("/api-configs/:id", requireAuth, requireAdmin, async (req, res) => {
+        try {
+            const id = parseInt(req.params.id);
+            const updates = req.body;
+            const updatedConfig = await storage.updateApiConfig(id, updates);
+            if (!updatedConfig) {
+                return res.status(404).json({ message: "API configuration not found" });
+            }
+            // Hide API key in response
+            const sanitizedConfig = {
+                ...updatedConfig,
+                apiKey: updatedConfig.apiKey ? '***' + updatedConfig.apiKey.slice(-4) : ''
+            };
+            res.json(sanitizedConfig);
+        }
+        catch (error) {
+            console.error("Error updating API config:", error);
+            res.status(500).json({ message: "Failed to update API configuration" });
+        }
+    });
+    apiRouter.delete("/api-configs/:id", requireAuth, requireAdmin, async (req, res) => {
+        try {
+            const id = parseInt(req.params.id);
+            const success = await storage.deleteApiConfig(id);
+            if (!success) {
+                return res.status(404).json({ message: "API configuration not found" });
+            }
+            res.json({ message: "API configuration deleted successfully" });
+        }
+        catch (error) {
+            console.error("Error deleting API config:", error);
+            res.status(500).json({ message: "Failed to delete API configuration" });
+        }
+    });
+    // Test API configuration (Admin only)
+    apiRouter.post("/api-configs/:id/test", requireAuth, requireAdmin, async (req, res) => {
+        try {
+            const id = parseInt(req.params.id);
+            const { type, testInput } = req.body;
+            console.log(`🧪 API Test Request - ID: ${id}, Type: ${type}, Input: ${testInput}`);
+            if (!type) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Test type is required"
+                });
+            }
+            // Get the API config
+            const configs = await storage.getApiConfigs();
+            const config = configs.find(c => c.id === id);
+            if (!config) {
+                return res.status(404).json({
+                    success: false,
+                    message: "API configuration not found"
+                });
+            }
+            console.log(`🔧 Testing API config: ${config.name}`);
+            console.log(`   - Type: ${type}`);
+            console.log(`   - URL: ${config.url}`);
+            console.log(`   - Enabled: ${config.enabled}`);
+            if (!config.enabled) {
+                return res.json({
+                    success: true,
+                    testResult: {
+                        type,
+                        input: testInput || 'test',
+                        provider: config.name,
+                        riskScore: 0,
+                        reputation: 'disabled',
+                        status: 'unknown',
+                        details: { message: 'API configuration is disabled' },
+                        timestamp: new Date().toISOString(),
+                    }
+                });
+            }
+            // Test the API
+            const scamLookupService = ScamLookupService.getInstance();
+            const testResult = await scamLookupService.testApiConfig(type, config, testInput);
+            console.log(`✅ API test completed:`, {
+                provider: testResult.provider,
+                status: testResult.status,
+                reputation: testResult.reputation
+            });
+            return res.json({
+                success: true,
+                testResult,
+                message: `Test completed for ${config.name}`
+            });
+        }
+        catch (error) {
+            console.error("❌ Error testing API config:", error);
+            return res.status(500).json({
+                success: false,
+                message: "API test failed",
+                error: error instanceof Error ? error.message : "Unknown error",
+                details: error instanceof Error ? error.stack : undefined
             });
         }
     });

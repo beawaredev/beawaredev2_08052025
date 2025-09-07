@@ -24,16 +24,32 @@ export class MemStorage {
         this.scamVideoId = 1;
         this.securityChecklistItemId = 1;
         this.userSecurityProgressId = 1;
-        // Seed an admin user
-        this.createUser({
-            email: "admin@beaware.fyi",
-            password: "adminpassword",
-            displayName: "Admin User",
-            role: "admin",
-            authProvider: "local"
-        });
-        // Initialize security checklist items
+        // Initialize security checklist items first
         this.seedSecurityChecklistItems();
+        // Seed an admin user with hashed password
+        this.seedAdminUser();
+    }
+    async seedAdminUser() {
+        try {
+            // Only create admin user if it doesn't exist
+            const existingAdmin = await this.getUserByEmail("admin@beaware.fyi");
+            if (!existingAdmin) {
+                // Import bcrypt dynamically to avoid circular dependency
+                const bcrypt = await import('bcrypt');
+                const hashedPassword = await bcrypt.hash("adminpassword", 12);
+                this.createUser({
+                    email: "admin@beaware.fyi",
+                    password: hashedPassword,
+                    displayName: "Admin User",
+                    role: "admin",
+                    authProvider: "local"
+                });
+                console.log("Admin user seeded with hashed password");
+            }
+        }
+        catch (error) {
+            console.error("Error seeding admin user:", error);
+        }
     }
     async getUser(id) {
         return this.users.get(id);
@@ -385,6 +401,20 @@ export class MemStorage {
         return Array.from(this.scamVideos.values())
             .filter(video => video.featured);
     }
+    async updateScamVideo(id, updates) {
+        const existingVideo = this.scamVideos.get(id);
+        if (!existingVideo) {
+            return undefined;
+        }
+        const updatedVideo = {
+            ...existingVideo,
+            ...updates,
+            id, // Preserve the original ID
+            updatedAt: new Date() // Update the timestamp
+        };
+        this.scamVideos.set(id, updatedVideo);
+        return updatedVideo;
+    }
     async getScamStats() {
         const allReports = await this.getAllScamReports();
         return {
@@ -425,6 +455,18 @@ export class MemStorage {
         };
         this.securityChecklistItems.set(id, item);
         return item;
+    }
+    async updateSecurityChecklistItem(itemId, updates) {
+        const item = this.securityChecklistItems.get(itemId);
+        if (!item) {
+            return null;
+        }
+        const updatedItem = { ...item, ...updates };
+        this.securityChecklistItems.set(itemId, updatedItem);
+        return updatedItem;
+    }
+    async deleteSecurityChecklistItem(itemId) {
+        return this.securityChecklistItems.delete(itemId);
     }
     async getUserSecurityProgress(userId) {
         return Array.from(this.userSecurityProgress.values())

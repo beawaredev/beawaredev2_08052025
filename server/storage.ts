@@ -45,6 +45,7 @@ export interface IStorage {
   getScamVideo(id: number): Promise<ScamVideo | undefined>;
   getAllScamVideos(): Promise<ScamVideo[]>;
   getFeaturedScamVideos(): Promise<ScamVideo[]>;
+  updateScamVideo(id: number, updates: Partial<ScamVideo>): Promise<ScamVideo | undefined>;
   
   getScamStats(): Promise<ScamStat>;
   
@@ -548,6 +549,23 @@ export class MemStorage implements IStorage {
   async getFeaturedScamVideos(): Promise<ScamVideo[]> {
     return Array.from(this.scamVideos.values())
       .filter(video => video.featured);
+  }
+
+  async updateScamVideo(id: number, updates: Partial<ScamVideo>): Promise<ScamVideo | undefined> {
+    const existingVideo = this.scamVideos.get(id);
+    if (!existingVideo) {
+      return undefined;
+    }
+
+    const updatedVideo: ScamVideo = {
+      ...existingVideo,
+      ...updates,
+      id, // Preserve the original ID
+      updatedAt: new Date() // Update the timestamp
+    };
+
+    this.scamVideos.set(id, updatedVideo);
+    return updatedVideo;
   }
   
   async getScamStats(): Promise<ScamStat> {

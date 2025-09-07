@@ -2,15 +2,12 @@ import express, { type Request, Response, NextFunction } from "express";
 import * as path from "path";
 import { registerRoutes } from "./routes.js";
 import { getVersionInfo } from "../shared/version.js";
-// Import vite utilities conditionally to avoid production errors
+import * as fs from "fs";
 
 // Simple logging function
 const log = (message: string) => console.log(message);
 
-// Import global deployment configuration
-import * as fs from "fs";
-
-// Read and parse deploy-config.js as a module
+// Global deploy config (kept as-is from your file)
 const configPath = path.join(process.cwd(), "deploy-config.js");
 let config = {
   server: { port: process.env.PORT || 5000, host: "0.0.0.0" },
@@ -52,10 +49,9 @@ let config = {
 const disableReportSubmission =
   process.env.DISABLE_REPORT_SUBMISSION === "true";
 
-// Create a simple validation function
+// Simple validation (kept)
 const validateConfig = () => {
-  const issues = [];
-
+  const issues: string[] = [];
   if (!config.database.server) issues.push("AZURE_SQL_SERVER is not defined");
   if (!config.database.database)
     issues.push("AZURE_SQL_DATABASE is not defined");
@@ -75,7 +71,6 @@ const validateConfig = () => {
   } else {
     console.log("✅ Configuration validation passed");
   }
-
   return issues.length === 0;
 };
 
@@ -104,8 +99,17 @@ const logDeploymentInfo = () => {
   }
 };
 
-// Initialize the Express application
+// Initialize Express
 const app = express();
+app.set('etag', false);
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+  }
+  next();
+});
 
 logDeploymentInfo();
 
@@ -122,11 +126,11 @@ try {
   if (versionInfo.buildNumber) {
     console.log(`  - Build Number: ${versionInfo.buildNumber}`);
   }
-} catch (error) {
+} catch {
   console.log("📋 Version Information: Development build");
 }
 
-// Ensure HTML is never sent when the client expects JSON
+// Never send HTML on /api routes
 app.use((req, res, next) => {
   if (req.path.startsWith("/api")) {
     res.setHeader("Content-Type", "application/json");
@@ -145,21 +149,37 @@ app.use((req, res, next) => {
   next();
 });
 
-// Basic CORS
+// CORS (kept)
 app.use((_, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH");
   res.header(
     "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, x-user-id, x-user-email, x-user-role",
+    "Origin, X-Requested-With, Content-Type, Accept, x-user-id, x-user-email, x-user-role, userId, userEmail, userRole",
   );
   next();
 });
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+/**
+ * *** CRITICAL on Azure ***
+ * Parse JSON permissively so proxies that send 'text/plain' with JSON
+ * are still accepted (prevents req.body === {}).
+ */
+app.use(
+  express.json({
+    limit: "2mb",
+    strict: true,
+    type: ["application/json", "application/*+json", "text/plain"],
+  }),
+);
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: "2mb",
+  }),
+);
 
-// 🔹 Block report submissions when disabled
+// 🔒 Optional: temporarily disable new report submission
 app.use((req, res, next) => {
   if (
     disableReportSubmission &&
@@ -174,7 +194,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Apply MIME type headers
+// Apply MIME hints
 app.use((req, res, next) => {
   if (req.path.endsWith(".js"))
     res.setHeader("Content-Type", "application/javascript");
@@ -182,7 +202,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Diagnostics route
+// Diagnostics (kept)
 app.get("/api/diagnostics", (req, res) => {
   import("os")
     .then((os) => {
@@ -217,31 +237,31 @@ app.get("/api/diagnostics", (req, res) => {
     });
 });
 
-// Serve uploads
+// Serve uploads (kept)
 const uploadsDir =
   config.uploads.directory || path.join(process.cwd(), "uploads");
 app.use("/uploads", express.static(uploadsDir));
 console.log(`Serving static files from: ${uploadsDir}`);
 
-// API logging
+// Concise API logging (kept)
 app.use((req, res, next) => {
   const start = Date.now();
-  const path = req.path;
+  const p = req.path;
   let capturedJsonResponse: Record<string, any> | undefined;
 
   const originalResJson = res.json;
   res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
+    capturedJsonResponse = bodyJson as Record<string, any>;
     return originalResJson.apply(res, [bodyJson, ...args]);
   };
 
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+    if (p.startsWith("/api")) {
+      let logLine = `${req.method} ${p} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse)
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      if (logLine.length > 80) logLine = logLine.slice(0, 79) + "…";
+      if (logLine.length > 140) logLine = logLine.slice(0, 139) + "…";
       log(logLine);
     }
   });
@@ -249,9 +269,76 @@ app.use((req, res, next) => {
   next();
 });
 
+/**
+ * 🔧 Normalizer for Scam Videos
+ * Bridges UI camelCase and SQL/Zod snake_case (both ways) and
+ * backfills createdBy/created_by from auth headers if missing.
+ *
+ * - Schema uses snake_case: video_url, created_by, etc.  (see shared/schema.ts)  ← cite
+ * - Some codepaths / UI use camelCase: videoUrl, createdBy, etc.                ← cite
+ */
+app.use(
+  "/api/scam-videos",
+  (req: Request, _res: Response, next: NextFunction) => {
+    try {
+      if (["POST", "PUT", "PATCH"].includes(req.method)) {
+        const b: any = req.body || {};
+        const copyIfMissing = (from: string, to: string) => {
+          if (
+            b[from] !== undefined &&
+            (b[to] === undefined || b[to] === null)
+          ) {
+            b[to] = b[from];
+          }
+        };
+
+        // Two-way map so whichever the client sends, both keys exist
+        copyIfMissing("videoUrl", "video_url");
+        copyIfMissing("video_url", "videoUrl");
+
+        copyIfMissing("thumbnailUrl", "thumbnail_url");
+        copyIfMissing("thumbnail_url", "thumbnailUrl");
+
+        copyIfMissing("createdBy", "created_by");
+        copyIfMissing("created_by", "createdBy");
+
+        copyIfMissing("isFeatured", "is_featured");
+        copyIfMissing("is_featured", "isFeatured");
+
+        copyIfMissing("consolidatedScamId", "consolidated_scam_id");
+        copyIfMissing("consolidated_scam_id", "consolidatedScamId");
+
+        copyIfMissing("scamType", "scam_type");
+        copyIfMissing("scam_type", "scamType");
+
+        // If still missing, backfill from auth headers
+        if (b.createdBy == null && b.created_by == null) {
+          const headerId =
+            (req.headers["x-user-id"] as string) ||
+            (req.headers["userid"] as string) ||
+            (req.headers["user-id"] as string) ||
+            ((req.headers as any)["userId"] as string);
+
+          if (headerId && !Number.isNaN(Number(headerId))) {
+            b.createdBy = Number(headerId);
+            b.created_by = Number(headerId);
+          }
+        }
+
+        req.body = b;
+      }
+    } catch {
+      // Let route-level validation handle errors
+    }
+    next();
+  },
+);
+
+// ⤵️ Your existing routes (unchanged)
 (async () => {
   const server = await registerRoutes(app);
 
+  // Central error handler (kept)
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
@@ -259,18 +346,19 @@ app.use((req, res, next) => {
     throw err;
   });
 
+  // Dev vs Prod bundling (kept)
   if (app.get("env") === "development") {
     const { setupVite } = await import("./vite.js");
     await setupVite(app, server);
   } else {
     app.use(express.static(path.join(process.cwd(), "dist/public")));
-    app.get("*", (req, res) => {
+    app.get("*", (_req, res) => {
       res.sendFile(path.join(process.cwd(), "dist/public/index.html"));
     });
   }
 
-  const port = process.env.PORT || config.server.port || 5000;
-  const host = config.server.host || "0.0.0.0";
+  const port = process.env.PORT || (config.server.port as number) || 5000;
+  const host = (config.server.host as string) || "0.0.0.0";
 
   server.listen({ port, host, reusePort: true }, () => {
     log(

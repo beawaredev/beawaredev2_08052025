@@ -7,13 +7,30 @@ import { relations } from "drizzle-orm";
 export type ScamType = "phone" | "email" | "business";
 export type Role = "admin" | "user" | "lawyer";
 export type AuthProvider = "local" | "google";
-export type LawyerSpecialization = "consumer_fraud" | "identity_theft" | "financial_recovery" | "general_practice" | "cyber_crime";
+export type LawyerSpecialization =
+  | "consumer_fraud"
+  | "identity_theft"
+  | "financial_recovery"
+  | "general_practice"
+  | "cyber_crime";
 export type VerificationStatus = "pending" | "verified" | "rejected";
 export type RequestStatus = "pending" | "accepted" | "rejected" | "completed";
 export type UrgencyLevel = "low" | "medium" | "high";
 export type ContactMethod = "email" | "phone" | "either";
-export type SecurityChecklistCategory = "identity_protection" | "password_security" | "account_security" | "device_security" | "network_security" | "financial_security";
-export type ScamCheckType = "phone" | "email" | "url" | "darkweb" | "ip" | "domain";
+export type SecurityChecklistCategory =
+  | "identity_protection"
+  | "password_security"
+  | "account_security"
+  | "device_security"
+  | "network_security"
+  | "financial_security";
+export type ScamCheckType =
+  | "phone"
+  | "email"
+  | "url"
+  | "darkweb"
+  | "ip"
+  | "domain";
 
 // Users table
 export const users = sqliteTable("users", {
@@ -42,7 +59,9 @@ export const scamReports = sqliteTable("scam_reports", {
   state: text("state"),
   zipCode: text("zip_code"),
   description: text("description").notNull(),
-  hasProofDocument: integer("has_proof_document", { mode: "boolean" }).default(false),
+  hasProofDocument: integer("has_proof_document", { mode: "boolean" }).default(
+    false,
+  ),
   proofFilePath: text("proof_file_path"),
   proofFileName: text("proof_file_name"),
   proofFileType: text("proof_file_type"),
@@ -84,12 +103,15 @@ export const consolidatedScams = sqliteTable("consolidated_scams", {
 });
 
 // Scam report consolidations table
-export const scamReportConsolidations = sqliteTable("scam_report_consolidations", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  scamReportId: integer("scam_report_id").notNull(),
-  consolidatedScamId: integer("consolidated_scam_id").notNull(),
-  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
-});
+export const scamReportConsolidations = sqliteTable(
+  "scam_report_consolidations",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    scamReportId: integer("scam_report_id").notNull(),
+    consolidatedScamId: integer("consolidated_scam_id").notNull(),
+    createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+  },
+);
 
 // Scam statistics table
 export const scamStats = sqliteTable("scam_stats", {
@@ -107,16 +129,16 @@ export const scamVideos = sqliteTable("scam_videos", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   title: text("title").notNull(),
   description: text("description"),
-  videoUrl: text("video_url").notNull(),
-  thumbnailUrl: text("thumbnail_url"),
-  scamType: text("scam_type"),
-  consolidatedScamId: integer("consolidated_scam_id"),
-  isFeatured: integer("is_featured", { mode: "boolean" }).default(false),
-  viewCount: integer("view_count").default(0),
+  video_url: text("video_url").notNull(),
+  thumbnail_url: text("thumbnail_url"),
+  scam_type: text("scam_type"),
+  consolidated_scam_id: integer("consolidated_scam_id"),
+  is_featured: integer("is_featured", { mode: "boolean" }).default(false),
+  view_count: integer("view_count").default(0),
   duration: integer("duration"),
-  createdBy: integer("created_by").notNull(),
-  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
-  updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
+  created_by: integer("created_by").notNull(),
+  created_at: text("created_at").default("CURRENT_TIMESTAMP"),
+  updated_at: text("updated_at").default("CURRENT_TIMESTAMP"),
 });
 
 // Lawyer profiles table
@@ -150,7 +172,9 @@ export const lawyerRequests = sqliteTable("lawyer_requests", {
   requestType: text("request_type").notNull(),
   description: text("description").notNull(),
   urgencyLevel: text("urgency_level").notNull().default("medium"),
-  preferredContactMethod: text("preferred_contact_method").notNull().default("email"),
+  preferredContactMethod: text("preferred_contact_method")
+    .notNull()
+    .default("email"),
   contactInfo: text("contact_info").notNull(),
   estimatedLoss: integer("estimated_loss"),
   status: text("status").notNull().default("pending"),
@@ -240,40 +264,49 @@ export const scamCommentsRelations = relations(scamComments, ({ one }) => ({
   }),
 }));
 
-export const consolidatedScamsRelations = relations(consolidatedScams, ({ many }) => ({
-  consolidations: many(scamReportConsolidations),
-  videos: many(scamVideos),
-}));
+export const consolidatedScamsRelations = relations(
+  consolidatedScams,
+  ({ many }) => ({
+    consolidations: many(scamReportConsolidations),
+    videos: many(scamVideos),
+  }),
+);
 
-export const scamReportConsolidationsRelations = relations(scamReportConsolidations, ({ one }) => ({
-  scamReport: one(scamReports, {
-    fields: [scamReportConsolidations.scamReportId],
-    references: [scamReports.id],
+export const scamReportConsolidationsRelations = relations(
+  scamReportConsolidations,
+  ({ one }) => ({
+    scamReport: one(scamReports, {
+      fields: [scamReportConsolidations.scamReportId],
+      references: [scamReports.id],
+    }),
+    consolidatedScam: one(consolidatedScams, {
+      fields: [scamReportConsolidations.consolidatedScamId],
+      references: [consolidatedScams.id],
+    }),
   }),
-  consolidatedScam: one(consolidatedScams, {
-    fields: [scamReportConsolidations.consolidatedScamId],
-    references: [consolidatedScams.id],
-  }),
-}));
+);
 
 export const scamVideosRelations = relations(scamVideos, ({ one }) => ({
   consolidatedScam: one(consolidatedScams, {
-    fields: [scamVideos.consolidatedScamId],
+    fields: [scamVideos.consolidated_scam_id],
     references: [consolidatedScams.id],
   }),
   creator: one(users, {
-    fields: [scamVideos.createdBy],
+    fields: [scamVideos.created_by],
     references: [users.id],
   }),
 }));
 
-export const lawyerProfilesRelations = relations(lawyerProfiles, ({ one, many }) => ({
-  user: one(users, {
-    fields: [lawyerProfiles.userId],
-    references: [users.id],
+export const lawyerProfilesRelations = relations(
+  lawyerProfiles,
+  ({ one, many }) => ({
+    user: one(users, {
+      fields: [lawyerProfiles.userId],
+      references: [users.id],
+    }),
+    requests: many(lawyerRequests),
   }),
-  requests: many(lawyerRequests),
-}));
+);
 
 export const lawyerRequestsRelations = relations(lawyerRequests, ({ one }) => ({
   user: one(users, {
@@ -290,20 +323,26 @@ export const lawyerRequestsRelations = relations(lawyerRequests, ({ one }) => ({
   }),
 }));
 
-export const userSecurityProgressRelations = relations(userSecurityProgress, ({ one }) => ({
-  user: one(users, {
-    fields: [userSecurityProgress.userId],
-    references: [users.id],
+export const userSecurityProgressRelations = relations(
+  userSecurityProgress,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [userSecurityProgress.userId],
+      references: [users.id],
+    }),
+    checklistItem: one(securityChecklistItems, {
+      fields: [userSecurityProgress.checklistItemId],
+      references: [securityChecklistItems.id],
+    }),
   }),
-  checklistItem: one(securityChecklistItems, {
-    fields: [userSecurityProgress.checklistItemId],
-    references: [securityChecklistItems.id],
-  }),
-}));
+);
 
-export const securityChecklistItemsRelations = relations(securityChecklistItems, ({ many }) => ({
-  userProgress: many(userSecurityProgress),
-}));
+export const securityChecklistItemsRelations = relations(
+  securityChecklistItems,
+  ({ many }) => ({
+    userProgress: many(userSecurityProgress),
+  }),
+);
 
 // Type exports
 export type User = typeof users.$inferSelect;
@@ -314,8 +353,10 @@ export type ScamComment = typeof scamComments.$inferSelect;
 export type InsertScamComment = typeof scamComments.$inferInsert;
 export type ConsolidatedScam = typeof consolidatedScams.$inferSelect;
 export type InsertConsolidatedScam = typeof consolidatedScams.$inferInsert;
-export type ScamReportConsolidation = typeof scamReportConsolidations.$inferSelect;
-export type InsertScamReportConsolidation = typeof scamReportConsolidations.$inferInsert;
+export type ScamReportConsolidation =
+  typeof scamReportConsolidations.$inferSelect;
+export type InsertScamReportConsolidation =
+  typeof scamReportConsolidations.$inferInsert;
 export type ScamStat = typeof scamStats.$inferSelect;
 export type InsertScamStat = typeof scamStats.$inferInsert;
 export type ScamVideo = typeof scamVideos.$inferSelect;
@@ -325,9 +366,11 @@ export type InsertLawyerProfile = typeof lawyerProfiles.$inferInsert;
 export type LawyerRequest = typeof lawyerRequests.$inferSelect;
 export type InsertLawyerRequest = typeof lawyerRequests.$inferInsert;
 export type SecurityChecklistItem = typeof securityChecklistItems.$inferSelect;
-export type InsertSecurityChecklistItem = typeof securityChecklistItems.$inferInsert;
+export type InsertSecurityChecklistItem =
+  typeof securityChecklistItems.$inferInsert;
 export type UserSecurityProgress = typeof userSecurityProgress.$inferSelect;
-export type InsertUserSecurityProgress = typeof userSecurityProgress.$inferInsert;
+export type InsertUserSecurityProgress =
+  typeof userSecurityProgress.$inferInsert;
 export type ApiConfig = typeof apiConfigs.$inferSelect;
 export type InsertApiConfig = typeof apiConfigs.$inferInsert;
 
@@ -349,31 +392,89 @@ export const insertScamCommentSchema = createInsertSchema(scamComments).omit({
   id: true,
 });
 
-export const insertConsolidatedScamSchema = createInsertSchema(consolidatedScams).omit({
+export const insertConsolidatedScamSchema = createInsertSchema(
+  consolidatedScams,
+).omit({
   id: true,
 });
 
-export const insertScamVideoSchema = createInsertSchema(scamVideos).omit({
-  id: true,
-});
+export const insertScamVideoSchema = (() => {
+  // Accept BOTH snake_case (DB) and camelCase (older client) and normalize to snake_case
+  const ScamTypeEnum = z.enum(["phone", "email", "business"]);
 
-export const insertLawyerProfileSchema = createInsertSchema(lawyerProfiles).omit({
+  // Snake-case shape (matches DB column names and your Replit schema)
+  const snake = z.object({
+    title: z.string().min(1),
+    description: z.string().optional().nullable(),
+    video_url: z.string().url(),
+    thumbnail_url: z.string().url().optional().nullable(),
+    scam_type: ScamTypeEnum.optional().nullable(),
+    consolidated_scam_id: z.number().int().optional().nullable(),
+    is_featured: z.boolean().optional().default(false),
+    view_count: z.number().int().nonnegative().optional().default(0),
+    duration: z.number().int().positive().optional().nullable(),
+    created_by: z.number().int(),
+  });
+
+  // CamelCase shape (what the Azure-deployed schema is enforcing right now)
+  const camel = z
+    .object({
+      title: z.string().min(1),
+      description: z.string().optional().nullable(),
+      videoUrl: z.string().url(),
+      thumbnailUrl: z.string().url().optional().nullable(),
+      scamType: ScamTypeEnum.optional().nullable(),
+      consolidatedScamId: z.number().int().optional().nullable(),
+      isFeatured: z.boolean().optional().default(false),
+      viewCount: z.number().int().nonnegative().optional().default(0),
+      duration: z.number().int().positive().optional().nullable(),
+      createdBy: z.number().int(),
+    })
+    // Normalize camelCase → snake_case so the rest of the code & DB stay unchanged
+    .transform((v) => ({
+      title: v.title,
+      description: v.description ?? null,
+      video_url: v.videoUrl,
+      thumbnail_url: v.thumbnailUrl ?? null,
+      scam_type: v.scamType ?? null,
+      consolidated_scam_id: v.consolidatedScamId ?? null,
+      is_featured: v.isFeatured ?? false,
+      view_count: v.viewCount ?? 0,
+      duration: v.duration ?? null,
+      created_by: v.createdBy,
+    }));
+
+  // Accept either; always output snake_case
+  return z
+    .union([snake, camel])
+    .transform((v: any) => ("video_url" in v ? v : v));
+})();
+
+export const insertLawyerProfileSchema = createInsertSchema(
+  lawyerProfiles,
+).omit({
   id: true,
   verifiedBy: true,
   verifiedAt: true,
 });
 
-export const insertLawyerRequestSchema = createInsertSchema(lawyerRequests).omit({
+export const insertLawyerRequestSchema = createInsertSchema(
+  lawyerRequests,
+).omit({
   id: true,
   assignedAt: true,
 });
 
-export const insertSecurityChecklistItemSchema = createInsertSchema(securityChecklistItems).omit({
+export const insertSecurityChecklistItemSchema = createInsertSchema(
+  securityChecklistItems,
+).omit({
   id: true,
   createdAt: true,
 });
 
-export const insertUserSecurityProgressSchema = createInsertSchema(userSecurityProgress).omit({
+export const insertUserSecurityProgressSchema = createInsertSchema(
+  userSecurityProgress,
+).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
