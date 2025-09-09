@@ -2,6 +2,8 @@ import * as React from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import DashboardWorries from "@/components/DashboardWorries";
+
 import {
   Card,
   CardContent,
@@ -414,6 +416,7 @@ export default function Dashboard() {
             a cheaper price — unlocking your digital confidence.
           </p>
         </div>
+
         <div className="mt-4 md:mt-0 flex flex-col items-center gap-1">
           {showArrowHelper && (
             <div className="flex items-center gap-1 text-xs text-red-600 animate-pulse font-medium">
@@ -428,6 +431,10 @@ export default function Dashboard() {
             </Button>
           </Link>
         </div>
+      </div>
+      {/* Worry → Recommendations */}
+      <div className="mb-6">
+        <DashboardWorries />
       </div>
 
       {/* Top row: Score donut + Sector-wise */}

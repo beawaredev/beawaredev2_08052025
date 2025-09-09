@@ -1,3 +1,4 @@
+// client/src/pages/Home.tsx
 import React, { useState, useRef } from "react";
 import { motion, useInView } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -23,11 +24,22 @@ import {
   ListChecks,
   Gauge,
   CheckCircle2,
+  ShieldAlert,
+  Mail,
+  CreditCard,
+  KeyRound,
+  Wifi as WifiIconLucide,
 } from "lucide-react";
 
 /**
- * Home.tsx — Public landing page with strong focus-highlight sections
- * + Per-card fade-in animations (whileInView) with staggered delays
+ * Home.tsx — Public landing page
+ * - Hero (no primary/secondary CTAs here)
+ * - "What are you worried about?" (directly below Hero) → /dashboard
+ * - Slim Quick-Check strip (Phone + URL)
+ * - Compact CTA row (Get started free + How it works) — moved out of Hero
+ * - Why the checklist matters
+ * - Checklist preview & score
+ * - Features, Partners, Difference, Final CTA
  */
 export default function Home() {
   const [phoneQuery, setPhoneQuery] = useState("");
@@ -57,12 +69,11 @@ export default function Home() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(56,189,248,0.15),transparent_40%),radial-gradient(circle_at_80%_30%,rgba(217,70,239,0.15),transparent_35%),radial-gradient(circle_at_50%_80%,rgba(16,185,129,0.12),transparent_35%)]" />
       </motion.div>
 
-      {/* HERO */}
-      <section className="px-4 pt-10 md:pt-16 pb-12">
+      {/* HERO (no "Get started"/"How it works" buttons here) */}
+      <section className="px-4 pt-10 md:pt-16 pb-10">
         <div className="mx-auto max-w-7xl text-center">
           <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600">
-            <CheckCircle className="h-3.5 w-3.5" /> Your guided path to safer
-            digital life
+            <CheckCircle className="h-3.5 w-3.5" /> Unlocking Digital Confidence
           </div>
 
           <h1 className="mt-5 text-4xl md:text-6xl font-extrabold tracking-tight flex items-center justify-center gap-3">
@@ -79,33 +90,88 @@ export default function Home() {
           </h1>
 
           <p className="mx-auto mt-4 max-w-3xl text-lg text-slate-600">
-            Raising awareness and making protection easy with clear checklists
-            and expert tools.
+            Check suspicious numbers & links, follow a guided Security
+            Checklist, and unlock trusted tools at better prices — all in one
+            place.
           </p>
+        </div>
+      </section>
 
-          <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
-            <Button size="lg" asChild>
-              <a href="/register" className="flex items-center gap-2">
-                Get started free <ArrowRight className="h-4 w-4" />
-              </a>
-            </Button>
-            <Button size="lg" variant="outline" asChild>
-              <a href="#checklist">See the checklist</a>
-            </Button>
-          </div>
+      {/* WHAT ARE YOU WORRIED ABOUT — directly under Hero (→ /dashboard) */}
+      <Section
+        title="What are you worried about?"
+        subtitle="Online threats are everywhere. Tell us — what keeps you up at night?"
+        focusTone="slate"
+      >
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <WorryCard
+            icon={<Phone className="h-5 w-5 text-indigo-600" />}
+            title="Getting scammed by calls or texts?"
+            desc="Check before you trust. See next steps that protect you."
+            href="/dashboard"
+            delay={0}
+          />
+          <WorryCard
+            icon={<WifiIconLucide className="h-5 w-5 text-indigo-600" />}
+            title="Someone eavesdropping on your internet?"
+            desc="Lock down your Wi-Fi & browsing in a few simple steps."
+            href="/dashboard"
+            delay={0.05}
+          />
+          <WorryCard
+            icon={<Mail className="h-5 w-5 text-indigo-600" />}
+            title="Drowning in spam & phishing emails?"
+            desc="Spot fakes fast, reduce junk, and protect your accounts."
+            href="/dashboard"
+            delay={0.1}
+          />
+          <WorryCard
+            icon={<CreditCard className="h-5 w-5 text-indigo-600" />}
+            title="Identity theft hurting your credit?"
+            desc="Freeze credit, add alerts, and stop new lines in your name."
+            href="/dashboard"
+            delay={0.15}
+          />
+          <WorryCard
+            icon={<KeyRound className="h-5 w-5 text-indigo-600" />}
+            title="Too many accounts, weak passwords?"
+            desc="Use a manager + 2FA. We’ll walk you through it."
+            href="/dashboard"
+            delay={0.2}
+          />
+          <WorryCard
+            icon={<ShieldAlert className="h-5 w-5 text-indigo-600" />}
+            title="Just want to stay safe online?"
+            desc="Get your Security Score and fix the biggest risks first."
+            href="/dashboard"
+            delay={0.25}
+          />
+        </div>
 
-          {/* quick checks */}
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 max-w-3xl mx-auto">
+        <div className="mt-8 text-center">
+          <Button size="lg" asChild>
+            <a href="/dashboard" className="inline-flex items-center gap-2">
+              Go to Dashboard <ArrowRight className="h-4 w-4" />
+            </a>
+          </Button>
+        </div>
+      </Section>
+
+      {/* SLIM QUICK-CHECK STRIP (below worries) */}
+      <section className="px-4 py-6 bg-slate-50 border-y">
+        <div className="mx-auto max-w-5xl">
+          <div className="grid gap-4 sm:grid-cols-2">
+            {/* Phone quick check */}
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.25 }}
-              transition={{ duration: 0.35, ease: "easeOut", delay: 0 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
             >
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center gap-2">
-                    <Phone className="h-4 w-4" /> Check a phone number
+                    <Phone className="h-4 w-4" /> Quick check: phone number
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -128,16 +194,17 @@ export default function Home() {
               </Card>
             </motion.div>
 
+            {/* URL quick check */}
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.25 }}
-              transition={{ duration: 0.35, ease: "easeOut", delay: 0.05 }}
+              transition={{ duration: 0.3, ease: "easeOut", delay: 0.05 }}
             >
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center gap-2">
-                    <LinkIcon className="h-4 w-4" /> Check a link
+                    <LinkIcon className="h-4 w-4" /> Quick check: link / URL
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -163,6 +230,20 @@ export default function Home() {
         </div>
       </section>
 
+      {/* COMPACT CTA ROW (moved from Hero) */}
+      <section className="px-4 py-6 bg-white">
+        <div className="mx-auto max-w-5xl flex flex-wrap items-center justify-center gap-3">
+          <Button size="lg" asChild>
+            <a href="/register" className="flex items-center gap-2">
+              Get started free <ArrowRight className="h-4 w-4" />
+            </a>
+          </Button>
+          <Button size="lg" variant="outline" asChild>
+            <a href="#checklist">How it works</a>
+          </Button>
+        </div>
+      </section>
+
       {/* WHY THIS MATTERS */}
       <Section
         title="Why the checklist matters"
@@ -179,13 +260,13 @@ export default function Home() {
           <ProblemCard
             icon={<ListChecks className="h-5 w-5 text-emerald-600" />}
             title="Steps are scattered"
-            desc="Credit freeze, 2FA, passwords, device & Wi‑Fi—your checklist brings it together, step by step."
+            desc="Credit freeze, 2FA, passwords, device & Wi-Fi—your checklist brings it together, step by step."
             delay={0.05}
           />
           <ProblemCard
             icon={<Gauge className="h-5 w-5 text-indigo-600" />}
             title="No sense of progress"
-            desc="See the payoff as you complete high‑impact actions and lock down your identity."
+            desc="See the payoff as you complete high-impact actions and lock down your identity."
             delay={0.1}
           />
         </div>
@@ -233,7 +314,7 @@ export default function Home() {
                   <li className="flex items-start gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5" />
                     <span>
-                      <b>Real‑time feedback:</b> See progress as you finish
+                      <b>Real-time feedback:</b> See progress as you finish
                       steps.
                     </span>
                   </li>
@@ -267,9 +348,9 @@ export default function Home() {
             />
             <MiniTask
               icon={<Shield className="h-4 w-4 text-slate-700" />}
-              title="Enable 2‑Factor Authentication"
+              title="Enable 2-Factor Authentication"
               points="+18 pts • 10–15 min"
-              desc="Add a one‑time code from an authenticator app on key accounts."
+              desc="Add a one-time code from an authenticator app on key accounts."
               delay={0.05}
             />
             <MiniTask
@@ -280,8 +361,12 @@ export default function Home() {
               delay={0.1}
             />
             <MiniTask
-              icon={<WifiIcon />}
-              title="Secure your Wi‑Fi & devices"
+              icon={
+                <span className="inline-block text-slate-700 text-lg leading-none">
+                  📶
+                </span>
+              }
+              title="Secure your Wi-Fi & devices"
               points="+12 pts • 10–15 min"
               desc="Strong router password, auto updates, and screen locks across devices."
               delay={0.15}
@@ -314,7 +399,7 @@ export default function Home() {
           <FeatureCard
             icon={<BarChart className="h-5 w-5" />}
             title="AI help when targeted"
-            desc="Plain‑English guidance on what to do next if you think you’ve been hit."
+            desc="Plain-English guidance on what to do next if you think you’ve been hit."
             href="/scam-videos"
             delay={0.1}
           />
@@ -336,8 +421,8 @@ export default function Home() {
           />
           <PerkCard
             icon={<Shield className="h-5 w-5 text-slate-700" />}
-            title="Expert‑approved"
-            desc="We vet tools for security, privacy, and value—no pay‑to‑play listings."
+            title="Expert-approved"
+            desc="We vet tools for security, privacy, and value—no pay-to-play listings."
             delay={0.05}
           />
           <PerkCard
@@ -373,13 +458,13 @@ export default function Home() {
             <PerkCard
               icon={<Users className="h-5 w-5 text-slate-700" />}
               title="Built for everyone"
-              desc="Clear, step‑by‑step guidance in plain English—so anyone can protect themselves."
+              desc="Clear, step-by-step guidance in plain English—so anyone can protect themselves."
               delay={0.05}
             />
             <PerkCard
               icon={<Lock className="h-5 w-5 text-slate-700" />}
               title="Privacy first"
-              desc="Your safety comes first. We never sell your data or allow pay‑to‑play placements."
+              desc="Your safety comes first. We never sell your data or allow pay-to-play placements."
               delay={0.1}
             />
           </div>
@@ -395,7 +480,7 @@ export default function Home() {
           Start your guided protection today
         </h2>
         <p className="mt-3 text-lg text-slate-600 max-w-2xl mx-auto">
-          Open your checklist, complete high‑impact steps, and unlock trusted
+          Open your checklist, complete high-impact steps, and unlock trusted
           tools at better prices.
         </p>
         <div className="mt-6 flex justify-center gap-3">
@@ -411,7 +496,8 @@ export default function Home() {
   );
 }
 
-/* --- Strong focus-aware Section helper (tinted bg + left bar + ring + micro-scale) --- */
+/* ---------- Helpers ---------- */
+
 function Section({
   id,
   title,
@@ -507,7 +593,45 @@ function Section({
   );
 }
 
-/* --- Cards & helpers (now animated with optional delay) --- */
+function WorryCard({
+  icon,
+  title,
+  desc,
+  href = "/dashboard",
+  delay = 0,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+  href?: string;
+  delay?: number;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.25 }}
+      transition={{ duration: 0.35, ease: "easeOut", delay }}
+    >
+      <a
+        href={href}
+        className="block h-full rounded-2xl border bg-white p-6 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition"
+      >
+        <div className="flex items-center gap-2 text-slate-800">
+          {icon}
+          <div className="font-semibold">{title}</div>
+        </div>
+        <p className="mt-2 text-sm text-slate-600">{desc}</p>
+        <div className="mt-4">
+          <Button variant="ghost" className="px-0">
+            Go to Dashboard <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+        </div>
+      </a>
+    </motion.div>
+  );
+}
+
 function ProblemCard({
   icon,
   title,
@@ -570,13 +694,6 @@ function MiniTask({
         <p className="mt-2 text-sm text-slate-600">{desc}</p>
       </div>
     </motion.div>
-  );
-}
-
-// simple inline to avoid extra import clash
-function WifiIcon() {
-  return (
-    <span className="inline-block text-slate-700 text-lg leading-none">📶</span>
   );
 }
 
