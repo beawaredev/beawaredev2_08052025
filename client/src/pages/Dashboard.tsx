@@ -1,3 +1,4 @@
+// client/src/pages/Dashboard.tsx
 import * as React from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -43,6 +44,7 @@ import {
 } from "lucide-react";
 import { Handshake as HandshakeIcon } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import { motion } from "framer-motion";
 
 /* =========================
    Types & Config
@@ -128,6 +130,9 @@ const TIER_TEXT = {
   caution: { textClass: "text-yellow-600", slice: "#ca8a04" },
   risk: { textClass: "text-red-600", slice: "#dc2626" },
 } as const;
+
+/* Hover spring used across cards/buttons to match Worries card feel */
+const hoverSpring = { type: "spring", stiffness: 260, damping: 20 } as const;
 
 /* =========================
    Fallback (safe if API empty)
@@ -229,123 +234,142 @@ export default function Dashboard() {
 
     return (
       <div className="space-y-6">
-        {/* Welcome / CTA */}
-        <Card className="border-primary/30">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ClipboardCheckIcon className="h-5 w-5 text-primary" />
-              Welcome! Let’s set up your Security Score
-            </CardTitle>
-            <CardDescription>
-              We’ll ask a few quick questions to calculate your score and unlock
-              a personalized checklist. It takes about 10–15 minutes.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm text-muted-foreground flex-1">
-              <div>• Your answers stay private to your account.</div>
-              <div>• You can stop anytime—your progress is saved.</div>
-              <div className="mt-2 flex items-center gap-2">
-                <HandshakeIcon className="h-4 w-4 text-primary" />
-                <span>
-                  We research and partner with industry leaders to provide
-                  security at a cheaper price — unlocking your digital
-                  confidence.
-                </span>
-              </div>
-            </div>
-
-            <div className="flex flex-col items-center gap-1">
-              {showArrowHelper && (
-                <div className="flex items-center gap-1 text-xs text-red-600 animate-pulse font-medium">
-                  <span>Click here to feed me with your current security</span>
-                  <ArrowBigLeft className="h-4 w-4" />
+        {/* Welcome / CTA (pop-out hover) */}
+        <motion.div
+          className="transform-gpu"
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.997 }}
+          transition={hoverSpring}
+        >
+          <Card className="border-primary/30 overflow-hidden shadow-sm hover:shadow-xl transition-shadow">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ClipboardCheckIcon className="h-5 w-5 text-primary" />
+                Welcome! Let’s set up your Security Score
+              </CardTitle>
+              <CardDescription>
+                We’ll ask a few quick questions to calculate your score and
+                unlock a personalized checklist. It takes about 10–15 minutes.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-muted-foreground flex-1">
+                <div>• Your answers stay private to your account.</div>
+                <div>• You can stop anytime—your progress is saved.</div>
+                <div className="mt-2 flex items-center gap-2">
+                  <HandshakeIcon className="h-4 w-4 text-primary" />
+                  <span>
+                    We research and partner with industry leaders to provide
+                    security at a cheaper price — unlocking your digital
+                    confidence.
+                  </span>
                 </div>
-              )}
-              <Link to={CHECKLIST_ROUTE}>
-                <Button size="lg" className={`gap-2 ${attentionBtnClass}`}>
-                  Start your Security Setup
-                  <ArrowRightIcon className="h-4 w-4" />
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+              </div>
 
-        {/* How it works */}
+              <div className="flex flex-col items-center gap-1">
+                {showArrowHelper && (
+                  <div className="flex items-center gap-1 text-xs text-red-600 animate-pulse font-medium">
+                    <span>
+                      Click here to feed me with your current security
+                    </span>
+                    <ArrowBigLeft className="h-4 w-4" />
+                  </div>
+                )}
+                <Link to={CHECKLIST_ROUTE}>
+                  <motion.div
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <Button size="lg" className={`gap-2 ${attentionBtnClass}`}>
+                      Start your Security Setup
+                      <ArrowRightIcon className="h-4 w-4" />
+                    </Button>
+                  </motion.div>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* How it works (each card pops on hover) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <InfoIcon className="h-4 w-4 text-primary" />
-                Answer a few questions
-              </CardTitle>
-              <CardDescription>
-                Tell us about passwords, devices, and key accounts.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
-              We only ask what’s needed to calculate an accurate starting point.
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <GaugeIcon className="h-4 w-4 text-primary" />
-                Get your Security Score
-              </CardTitle>
-              <CardDescription>
-                See where you stand—no math, just a clear %.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
-              Your score updates automatically as you complete steps.
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <ShieldCheckIcon className="h-4 w-4 text-primary" />
-                Follow high-impact steps
-              </CardTitle>
-              <CardDescription>
-                We’ll prioritize actions that reduce risk fastest.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
-              Things like enabling 2FA, freezing credit, and fixing weak
-              passwords.
-            </CardContent>
-          </Card>
+          {[
+            {
+              title: "Answer a few questions",
+              Icon: InfoIcon,
+              desc: "Tell us about passwords, devices, and key accounts.",
+              body: "We only ask what’s needed to calculate an accurate starting point.",
+            },
+            {
+              title: "Get your Security Score",
+              Icon: GaugeIcon,
+              desc: "See where you stand—no math, just a clear %.",
+              body: "Your score updates automatically as you complete steps.",
+            },
+            {
+              title: "Follow high-impact steps",
+              Icon: ShieldCheckIcon,
+              desc: "We’ll prioritize actions that reduce risk fastest.",
+              body: "Things like enabling 2FA, freezing credit, and fixing weak passwords.",
+            },
+          ].map(({ title, Icon, desc, body }) => (
+            <motion.div
+              key={title}
+              className="transform-gpu"
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.997 }}
+              transition={hoverSpring}
+            >
+              <Card className="overflow-hidden shadow-sm hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Icon className="h-4 w-4 text-primary" />
+                    {title}
+                  </CardTitle>
+                  <CardDescription>{desc}</CardDescription>
+                </CardHeader>
+                <CardContent className="text-sm text-muted-foreground">
+                  {body}
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
         </div>
 
-        {/* What you’ll need */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ClockIcon className="h-5 w-5 text-primary" />
-              What you might need handy
-            </CardTitle>
-            <CardDescription>
-              Not required, but these speed things up.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground grid gap-2">
-            <div>• Access to your email and bank logins (for 2FA checks)</div>
-            <div>• Phone nearby (to install an authenticator app)</div>
-            <div>• Credit bureau links if you want to freeze today</div>
-          </CardContent>
-        </Card>
+        {/* What you’ll need (pop-out hover) */}
+        <motion.div
+          className="transform-gpu"
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.997 }}
+          transition={hoverSpring}
+        >
+          <Card className="overflow-hidden shadow-sm hover:shadow-xl transition-shadow">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ClockIcon className="h-5 w-5 text-primary" />
+                What you might need handy
+              </CardTitle>
+              <CardDescription>
+                Not required, but these speed things up.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground grid gap-2">
+              <div>• Access to your email and bank logins (for 2FA checks)</div>
+              <div>• Phone nearby (to install an authenticator app)</div>
+              <div>• Credit bureau links if you want to freeze today</div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-        {/* Secondary CTA */}
+        {/* Secondary CTA (button pops) */}
         <div className="flex justify-center">
           <Link to={CHECKLIST_ROUTE}>
-            <Button size="lg" className={`gap-2 ${attentionBtnClass}`}>
-              Go to Digital Security setup
-              <ArrowRightIcon className="h-4 w-4" />
-            </Button>
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }}>
+              <Button size="lg" className={`gap-2 ${attentionBtnClass}`}>
+                Go to Digital Security setup
+                <ArrowRightIcon className="h-4 w-4" />
+              </Button>
+            </motion.div>
           </Link>
         </div>
       </div>
@@ -425,218 +449,259 @@ export default function Dashboard() {
             </div>
           )}
           <Link to={CHECKLIST_ROUTE}>
-            <Button className={`gap-1 ${attentionBtnClass}`}>
-              Open Security Checklist
-              <ArrowRightIcon className="h-4 w-4" />
-            </Button>
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }}>
+              <Button className={`gap-1 ${attentionBtnClass}`}>
+                Open Security Checklist
+                <ArrowRightIcon className="h-4 w-4" />
+              </Button>
+            </motion.div>
           </Link>
         </div>
       </div>
+
       {/* Worry → Recommendations */}
       <div className="mb-6">
         <DashboardWorries />
       </div>
 
-      {/* Top row: Score donut + Sector-wise */}
+      {/* Top row: Score donut + Sector-wise (both pop-out on hover) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Security Score */}
-        <Card className="lg:col-span-1 overflow-hidden">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <GaugeIcon className="h-5 w-5 text-primary" />
-              Security Score{" "}
-              <span className={`text-3xl font-bold ${tierClasses.textClass}`}>
-                {formatPct(scorePctDisplay)}
-              </span>
-            </CardTitle>
-            <CardDescription>My protection score</CardDescription>
-            <div className="text-xs text-muted-foreground mt-1">
-              {tier === "good"
-                ? `Great job—${hiDone}/${hi.length} high-impact steps complete. Keep going for full coverage.`
-                : tier === "caution"
-                  ? `You're on your way—${hi.length - hiDone} high-impact step(s) left. Tackle these next.`
-                  : `Act now — ${hi.length - hiDone} high-impact step(s) pending. Address these first for the biggest risk reduction.`}{" "}
-              <Link to={`${CHECKLIST_ROUTE}?priority=high`}>
-                <a className="underline underline-offset-2">
-                  See high-impact steps →
-                </a>
-              </Link>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={[
-                      { name: "Completed", value: scorePctDisplay },
-                      {
-                        name: "Remaining",
-                        value: clampPct(100 - scorePctDisplay),
-                      },
-                    ]}
-                    innerRadius={70}
-                    outerRadius={100}
-                    paddingAngle={2}
-                    dataKey="value"
-                  >
-                    <Cell fill={tierClasses.slice} />
-                    <Cell fill="#9ca3af" />
-                  </Pie>
-                  <Tooltip formatter={(val: number) => formatPct(val)} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+        <motion.div
+          className="transform-gpu lg:col-span-1"
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.997 }}
+          transition={hoverSpring}
+        >
+          <Card className="overflow-hidden shadow-sm hover:shadow-xl transition-shadow">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <GaugeIcon className="h-5 w-5 text-primary" />
+                Security Score{" "}
+                <span className={`text-3xl font-bold ${tierClasses.textClass}`}>
+                  {formatPct(scorePctDisplay)}
+                </span>
+              </CardTitle>
+              <CardDescription>My protection score</CardDescription>
+              <div className="text-xs text-muted-foreground mt-1">
+                {tier === "good"
+                  ? `Great job—${hiDone}/${hi.length} high-impact steps complete. Keep going for full coverage.`
+                  : tier === "caution"
+                    ? `You're on your way—${hi.length - hiDone} high-impact step(s) left. Tackle these next.`
+                    : `Act now — ${hi.length - hiDone} high-impact step(s) pending. Address these first for the biggest risk reduction.`}{" "}
+                <Link to={`${CHECKLIST_ROUTE}?priority=high`}>
+                  <a className="underline underline-offset-2">
+                    See high-impact steps →
+                  </a>
+                </Link>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: "Completed", value: scorePctDisplay },
+                        {
+                          name: "Remaining",
+                          value: clampPct(100 - scorePctDisplay),
+                        },
+                      ]}
+                      innerRadius={70}
+                      outerRadius={100}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      <Cell fill={tierClasses.slice} />
+                      <Cell fill="#9ca3af" />
+                    </Pie>
+                    <Tooltip formatter={(val: number) => formatPct(val)} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
 
-            {/* High/Low impact compliance */}
-            <div className="flex items-center justify-center gap-2 mt-2">
-              <Badge variant="outline" className="text-xs">
-                High-impact: {formatPct(hiPct)}
-              </Badge>
-              <Badge variant="outline" className="text-xs">
-                Low-impact: {formatPct(loPct)}
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
+              {/* High/Low impact compliance */}
+              <div className="flex items-center justify-center gap-2 mt-2">
+                <Badge variant="outline" className="text-xs">
+                  High-impact: {formatPct(hiPct)}
+                </Badge>
+                <Badge variant="outline" className="text-xs">
+                  Low-impact: {formatPct(loPct)}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
         {/* Sector-wise Protection */}
-        <Card className="lg:col-span-2 overflow-hidden">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ShieldCheckIcon className="h-5 w-5 text-primary" />
-              Sector-wise Protection
-            </CardTitle>
-            <CardDescription>
-              Completion by category (higher is better).
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="h-64">
-              {sectorData.length ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={sectorData}
-                    margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis
-                      domain={[0, 100]}
-                      tickFormatter={(v) => formatPct(v)}
-                    />
-                    <Tooltip formatter={(v: number) => formatPct(v)} />
-                    <Bar
-                      dataKey="completion"
-                      fill="#3b82f6"
-                      radius={[4, 4, 0, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex items-center justify-center text-muted-foreground">
-                  No checklist data yet.
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <motion.div
+          className="transform-gpu lg:col-span-2"
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.997 }}
+          transition={hoverSpring}
+        >
+          <Card className="overflow-hidden shadow-sm hover:shadow-xl transition-shadow">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ShieldCheckIcon className="h-5 w-5 text-primary" />
+                Sector-wise Protection
+              </CardTitle>
+              <CardDescription>
+                Completion by category (higher is better).
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="h-64">
+                {sectorData.length ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={sectorData}
+                      margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis
+                        domain={[0, 100]}
+                        tickFormatter={(v) => formatPct(v)}
+                      />
+                      <Tooltip formatter={(v: number) => formatPct(v)} />
+                      <Bar
+                        dataKey="completion"
+                        fill="#3b82f6"
+                        radius={[4, 4, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-muted-foreground">
+                    No checklist data yet.
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
 
-      {/* High-priority recommendations */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <InfoIcon className="h-5 w-5 text-primary" />
-            Most Impactful Next Steps
-          </CardTitle>
-          <CardDescription>
-            Complete these to quickly boost your protection and score.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {nextSteps.length ? (
-            nextSteps.map((item) => {
-              const Icon = CATEGORY_ICONS[item.category] ?? InfoIcon;
-              return (
-                <div
-                  key={item.id}
-                  className="flex items-start gap-3 rounded-lg border p-3"
-                >
-                  <div className="mt-0.5 rounded-md bg-muted p-2">
-                    <Icon className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium leading-tight">
-                        {item.title}
-                      </span>
-                      <Badge
-                        variant={
-                          item.priority === "high"
-                            ? "destructive"
-                            : item.priority === "medium"
-                              ? "default"
-                              : "secondary"
-                        }
-                        className="text-xs"
-                      >
-                        {item.priority}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs">
-                        {CATEGORY_LABELS[item.category]}
-                      </Badge>
-                      {item.estimatedTimeMinutes ? (
-                        <Badge variant="outline" className="text-xs">
-                          {item.estimatedTimeMinutes}m
-                        </Badge>
-                      ) : null}
+      {/* High-priority recommendations (card pops on hover) */}
+      <motion.div
+        className="transform-gpu"
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.997 }}
+        transition={hoverSpring}
+      >
+        <Card className="overflow-hidden shadow-sm hover:shadow-xl transition-shadow">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <InfoIcon className="h-5 w-5 text-primary" />
+              Most Impactful Next Steps
+            </CardTitle>
+            <CardDescription>
+              Complete these to quickly boost your protection and score.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {nextSteps.length ? (
+              nextSteps.map((item) => {
+                const Icon = CATEGORY_ICONS[item.category] ?? InfoIcon;
+                return (
+                  <div
+                    key={item.id}
+                    className="flex items-start gap-3 rounded-lg border p-3"
+                  >
+                    <div className="mt-0.5 rounded-md bg-muted p-2">
+                      <Icon className="h-4 w-4 text-muted-foreground" />
                     </div>
-
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {item.recommendationText}
-                    </p>
-
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {item.toolLaunchUrl && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            window.open(item.toolLaunchUrl!, "_blank")
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium leading-tight">
+                          {item.title}
+                        </span>
+                        <Badge
+                          variant={
+                            item.priority === "high"
+                              ? "destructive"
+                              : item.priority === "medium"
+                                ? "default"
+                                : "secondary"
                           }
-                          className="gap-1"
+                          className="text-xs"
                         >
-                          <LinkIcon className="h-4 w-4" />
-                          Launch Tool
-                        </Button>
-                      )}
-                      <Link to={`${CHECKLIST_ROUTE}?focus=${item.id}`}>
-                        <Button size="sm">View step</Button>
-                      </Link>
-                      {item.helpUrl && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => window.open(item.helpUrl!, "_blank")}
-                        >
-                          Learn more
-                        </Button>
-                      )}
+                          {item.priority}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {CATEGORY_LABELS[item.category]}
+                        </Badge>
+                        {item.estimatedTimeMinutes ? (
+                          <Badge variant="outline" className="text-xs">
+                            {item.estimatedTimeMinutes}m
+                          </Badge>
+                        ) : null}
+                      </div>
+
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {item.recommendationText}
+                      </p>
+
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {item.toolLaunchUrl && (
+                          <motion.div
+                            whileHover={{ scale: 1.03 }}
+                            whileTap={{ scale: 0.98 }}
+                          >
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                window.open(item.toolLaunchUrl!, "_blank")
+                              }
+                              className="gap-1"
+                            >
+                              <LinkIcon className="h-4 w-4" />
+                              Launch Tool
+                            </Button>
+                          </motion.div>
+                        )}
+                        <Link to={`${CHECKLIST_ROUTE}?focus=${item.id}`}>
+                          <motion.div
+                            whileHover={{ scale: 1.03 }}
+                            whileTap={{ scale: 0.98 }}
+                          >
+                            <Button size="sm">View step</Button>
+                          </motion.div>
+                        </Link>
+                        {item.helpUrl && (
+                          <motion.div
+                            whileHover={{ scale: 1.03 }}
+                            whileTap={{ scale: 0.98 }}
+                          >
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                window.open(item.helpUrl!, "_blank")
+                              }
+                            >
+                              Learn more
+                            </Button>
+                          </motion.div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })
-          ) : (
-            <div className="text-muted-foreground">
-              🎉 You’ve completed the high-impact items! Explore the full
-              checklist for more.
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                );
+              })
+            ) : (
+              <div className="text-muted-foreground">
+                🎉 You’ve completed the high-impact items! Explore the full
+                checklist for more.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
     </div>
   );
 }
