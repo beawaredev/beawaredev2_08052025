@@ -5,7 +5,7 @@ import * as fs from "fs";
 
 import { registerRoutes } from "./routes.js";
 import { getVersionInfo } from "../shared/version.js";
-import registerWorryRoutes from "./routes.worries";
+import registerWorryRoutes from "./routes.worries.js";
 
 // ✅ Reuse the same global SQL pool the rest of the app uses
 // (Your storage code also uses this pool via ./db.js)
