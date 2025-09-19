@@ -1,10 +1,13 @@
-// /src/pages/AdminPanel.tsx (aligned to Dashboard, full width)
-import React, { useState } from "react";
+// /src/pages/AdminPanel.tsx (aligned to Dashboard, full width) - UPDATED with Worries Manager
+import React, { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+// Inject worries admin via lazy loading (code split)
+const WorriesManager = lazy(() => import("@/components/admin/WorriesManager"));
+
 import { Badge } from "@/components/ui/badge";
 import {
   AlertCircleIcon,
@@ -14,6 +17,11 @@ import {
   EditIcon,
   TrashIcon,
   XIcon,
+  ListChecks,
+  MessageSquare,
+  KeyRound,
+  Sparkles,
+  LayoutGrid,
 } from "lucide-react";
 import { queryClient as globalQueryClient } from "@/lib/queryClient";
 import { toast } from "@/hooks/use-toast";
@@ -35,10 +43,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 
 /**
  * Admin Panel (reports removed)
- * Tabs: Videos, Security Checklist, Scam APIs
+ * Tabs: Videos, Security Checklist, Worries, Scam APIs
  */
 export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState("security");
@@ -343,7 +352,8 @@ export default function AdminPanel() {
         <div>
           <h1 className="text-3xl font-bold">Admin Dashboard</h1>
           <p className="text-muted-foreground mt-1">
-            Manage videos, security checklist items, and scam API integrations.
+            Manage videos, security checklist, worries, and scam API
+            integrations.
           </p>
         </div>
       </div>
@@ -358,6 +368,11 @@ export default function AdminPanel() {
           <TabsTrigger value="security">
             <span className="flex items-center">
               <ShieldCheckIcon className="h-4 w-4 mr-1" /> Security Checklist
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="worries">
+            <span className="flex items-center">
+              <LayoutGrid className="h-4 w-4 mr-1" /> Worries Manager
             </span>
           </TabsTrigger>
           <TabsTrigger value="api-configs">
@@ -375,6 +390,19 @@ export default function AdminPanel() {
         {/* Security Checklist */}
         <TabsContent value="security" className="mt-6">
           <AdminSecurityChecklistPanel />
+        </TabsContent>
+
+        {/* Worries Manager */}
+        <TabsContent value="worries" className="mt-6">
+          <Suspense
+            fallback={
+              <div className="text-sm text-muted-foreground">
+                Loading Worries Manager...
+              </div>
+            }
+          >
+            <WorriesManager />
+          </Suspense>
         </TabsContent>
 
         {/* Scam API Configs */}
@@ -1771,6 +1799,518 @@ function AdminSecurityChecklistPanel() {
           </form>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ===== Admin Worries Panel (CRUD for worries + response lines + recommendations + keywords) =====
+
+// Worries Manager moved to separate file and lazy-loaded above.
+
+// === Child: Response Lines ===
+function WorryResponseLines({ worryId }: { worryId: number }) {
+  const qc = useQueryClient();
+  const { data: lines = [] } = useQuery<any[]>({
+    queryKey: ["/api/worries", worryId, "response-lines"],
+    queryFn: async () => {
+      const res = await apiRequest(`/api/worries/${worryId}/response-lines`);
+      if (!res.ok) throw new Error("Failed to fetch response lines");
+      return res.json();
+    },
+  });
+
+  const [text, setText] = useState("");
+
+  const addMutation = useMutation({
+    mutationFn: async (line_text: string) => {
+      const res = await apiRequest(`/api/worries/${worryId}/response-lines`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ line_text }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json?.() ?? res;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: ["/api/worries", worryId, "response-lines"],
+      });
+      setText("");
+      toast({ title: "Added response line" });
+    },
+    onError: (e: any) =>
+      toast({
+        title: "Failed",
+        description: e?.message || String(e),
+        variant: "destructive",
+      }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest(`/api/worry-response-lines/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json?.() ?? res;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: ["/api/worries", worryId, "response-lines"],
+      });
+      toast({ title: "Deleted response line" });
+    },
+    onError: (e: any) =>
+      toast({
+        title: "Failed",
+        description: e?.message || String(e),
+        variant: "destructive",
+      }),
+  });
+
+  return (
+    <div className="border rounded-lg p-3 bg-slate-50 dark:bg-slate-900/30">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <MessageSquare className="h-4 w-4" /> Engaging Response Lines
+        </div>
+      </div>
+      <div className="space-y-2">
+        {lines.length === 0 && (
+          <div className="text-xs text-muted-foreground">No lines yet.</div>
+        )}
+        {lines.map((l: any) => (
+          <div
+            key={l.id}
+            className="flex items-start justify-between gap-2 bg-white dark:bg-slate-800 border rounded p-2"
+          >
+            <div className="text-sm">{l.line_text}</div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0 text-red-600"
+              onClick={() => deleteMutation.mutate(l.id)}
+            >
+              <TrashIcon className="h-3 w-3" />
+            </Button>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex gap-2">
+        <Input
+          placeholder='Add a new line, e.g., "Let’s tackle this together!"'
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+        <Button
+          onClick={() => text.trim() && addMutation.mutate(text.trim())}
+          disabled={addMutation.isPending}
+        >
+          <PlusIcon className="h-4 w-4 mr-1" /> Add
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// === Child: Recommendations & Keywords ===
+function WorryRecommendations({ worryId }: { worryId: number }) {
+  const qc = useQueryClient();
+  const { data: recs = [] } = useQuery<any[]>({
+    queryKey: ["/api/worries", worryId, "recommendations"],
+    queryFn: async () => {
+      const res = await apiRequest(`/api/worries/${worryId}/recommendations`);
+      if (!res.ok) throw new Error("Failed to fetch recommendations");
+      return res.json();
+    },
+  });
+
+  const [isOpen, setIsOpen] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+
+  const form = useForm<any>({
+    defaultValues: {
+      slug: "",
+      title: "",
+      rationale: "",
+      points_text: "",
+      est_text: "",
+      sort_order: 0,
+      is_active: true,
+    },
+  });
+
+  useEffect(() => {
+    if (editing) {
+      form.reset({
+        slug: editing.slug,
+        title: editing.title,
+        rationale: editing.rationale,
+        points_text: editing.points_text,
+        est_text: editing.est_text,
+        sort_order: editing.sort_order ?? 0,
+        is_active: !!editing.is_active,
+      });
+    } else {
+      form.reset({
+        slug: "",
+        title: "",
+        rationale: "",
+        points_text: "",
+        est_text: "",
+        sort_order: (recs?.length || 0) + 1,
+        is_active: true,
+      });
+    }
+  }, [editing]);
+
+  const createMutation = useMutation({
+    mutationFn: async (vals: any) => {
+      const res = await apiRequest(`/api/worries/${worryId}/recommendations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(vals),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json?.() ?? res;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: ["/api/worries", worryId, "recommendations"],
+      });
+      setIsOpen(false);
+      setEditing(null);
+      toast({ title: "Recommendation created" });
+    },
+    onError: (e: any) =>
+      toast({
+        title: "Failed",
+        description: e?.message || String(e),
+        variant: "destructive",
+      }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (vals: any) => {
+      const res = await apiRequest(`/api/worry-recommendations/${editing.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(vals),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json?.() ?? res;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: ["/api/worries", worryId, "recommendations"],
+      });
+      setIsOpen(false);
+      setEditing(null);
+      toast({ title: "Recommendation updated" });
+    },
+    onError: (e: any) =>
+      toast({
+        title: "Failed",
+        description: e?.message || String(e),
+        variant: "destructive",
+      }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest(`/api/worry-recommendations/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json?.() ?? res;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: ["/api/worries", worryId, "recommendations"],
+      });
+      toast({ title: "Recommendation deleted" });
+    },
+    onError: (e: any) =>
+      toast({
+        title: "Failed",
+        description: e?.message || String(e),
+        variant: "destructive",
+      }),
+  });
+
+  return (
+    <div className="border rounded-lg p-3 bg-slate-50 dark:bg-slate-900/30">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <Sparkles className="h-4 w-4" /> Recommended Actions
+        </div>
+        <Button
+          size="sm"
+          onClick={() => {
+            setEditing(null);
+            setIsOpen(true);
+          }}
+        >
+          <PlusIcon className="h-4 w-4 mr-1" /> Add Action
+        </Button>
+      </div>
+
+      <div className="space-y-2">
+        {recs.length === 0 && (
+          <div className="text-xs text-muted-foreground">No actions yet.</div>
+        )}
+        {recs
+          .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+          .map((r: any) => (
+            <div
+              key={r.id}
+              className="border rounded p-2 bg-white dark:bg-slate-800"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="text-sm font-medium">
+                    {r.title}{" "}
+                    <span className="text-xs text-muted-foreground">
+                      ({r.slug})
+                    </span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {r.points_text || ""} {r.est_text ? `• ${r.est_text}` : ""}
+                  </div>
+                  <p className="text-sm mt-1 line-clamp-3">{r.rationale}</p>
+                  <RecommendationKeywords recommendationId={r.id} />
+                </div>
+                <div className="flex items-center gap-1">
+                  <Badge
+                    variant={r.is_active ? "default" : "secondary"}
+                    className="text-xs"
+                  >
+                    {r.is_active ? "Active" : "Inactive"}
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                    onClick={() => {
+                      setEditing(r);
+                      setIsOpen(true);
+                    }}
+                  >
+                    <EditIcon className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-red-600"
+                    onClick={() => {
+                      if (confirm("Delete this recommendation?"))
+                        deleteMutation.mutate(r.id);
+                    }}
+                  >
+                    <TrashIcon className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+      </div>
+
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit" : "Add"} Recommendation</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={form.handleSubmit((vals) =>
+              editing
+                ? updateMutation.mutate(vals)
+                : createMutation.mutate(vals),
+            )}
+            className="space-y-4"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="slug">Slug *</Label>
+                <Input
+                  id="slug"
+                  {...form.register("slug", { required: true })}
+                  placeholder="enable_2fa"
+                />
+              </div>
+              <div>
+                <Label htmlFor="title">Title *</Label>
+                <Input
+                  id="title"
+                  {...form.register("title", { required: true })}
+                  placeholder="Enable Two-Factor Authentication"
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="rationale">Rationale *</Label>
+              <Textarea
+                id="rationale"
+                {...form.register("rationale", { required: true })}
+                rows={4}
+              />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="points">Points Text</Label>
+                <Input
+                  id="points"
+                  {...form.register("points_text")}
+                  placeholder="+18 pts"
+                />
+              </div>
+              <div>
+                <Label htmlFor="est">Estimate</Label>
+                <Input
+                  id="est"
+                  {...form.register("est_text")}
+                  placeholder="10–15 min"
+                />
+              </div>
+              <div>
+                <Label htmlFor="sort-order">Sort Order</Label>
+                <Input
+                  id="sort-order"
+                  type="number"
+                  {...form.register("sort_order", { valueAsNumber: true })}
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={!!form.watch("is_active")}
+                onCheckedChange={(v) => form.setValue("is_active", v)}
+                id="rec-active"
+              />
+              <Label htmlFor="rec-active">Active</Label>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit">{editing ? "Save" : "Create"}</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function RecommendationKeywords({
+  recommendationId,
+}: {
+  recommendationId: number;
+}) {
+  const qc = useQueryClient();
+  const { data: kws = [] } = useQuery<any[]>({
+    queryKey: ["/api/worry-recommendations", recommendationId, "keywords"],
+    queryFn: async () => {
+      const res = await apiRequest(
+        `/api/worry-recommendations/${recommendationId}/keywords`,
+      );
+      if (!res.ok) throw new Error("Failed to fetch keywords");
+      return res.json();
+    },
+  });
+
+  const [kw, setKw] = useState("");
+
+  const addMutation = useMutation({
+    mutationFn: async (keyword: string) => {
+      const res = await apiRequest(
+        `/api/worry-recommendations/${recommendationId}/keywords`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ keyword }),
+        },
+      );
+      if (!res.ok) throw new Error(await res.text());
+      return res.json?.() ?? res;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: ["/api/worry-recommendations", recommendationId, "keywords"],
+      });
+      setKw("");
+      toast({ title: "Keyword added" });
+    },
+    onError: (e: any) =>
+      toast({
+        title: "Failed",
+        description: e?.message || String(e),
+        variant: "destructive",
+      }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest(`/api/worry-recommendation-keywords/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json?.() ?? res;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: ["/api/worry-recommendations", recommendationId, "keywords"],
+      });
+      toast({ title: "Keyword deleted" });
+    },
+    onError: (e: any) =>
+      toast({
+        title: "Failed",
+        description: e?.message || String(e),
+        variant: "destructive",
+      }),
+  });
+
+  return (
+    <div className="mt-2 p-2 rounded border bg-slate-50 dark:bg-slate-900/30">
+      <div className="text-xs font-semibold mb-1">Keywords</div>
+      <div className="flex flex-wrap gap-2">
+        {kws.length === 0 && (
+          <div className="text-xs text-muted-foreground">No keywords</div>
+        )}
+        {kws.map((k: any) => (
+          <Badge
+            key={k.id}
+            variant="outline"
+            className="text-[10px] flex items-center gap-1"
+          >
+            {k.keyword}
+            <button
+              className="ml-1 text-red-500"
+              onClick={() => deleteMutation.mutate(k.id)}
+            >
+              ✕
+            </button>
+          </Badge>
+        ))}
+      </div>
+      <div className="mt-2 flex gap-2">
+        <Input
+          placeholder="Add keyword (e.g., 2FA)"
+          value={kw}
+          onChange={(e) => setKw(e.target.value)}
+        />
+        <Button
+          size="sm"
+          onClick={() => kw.trim() && addMutation.mutate(kw.trim())}
+        >
+          <PlusIcon className="h-4 w-4 mr-1" /> Add
+        </Button>
+      </div>
     </div>
   );
 }

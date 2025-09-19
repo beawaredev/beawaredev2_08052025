@@ -1,8 +1,15 @@
+// server/index.ts
 import express, { type Request, Response, NextFunction } from "express";
 import * as path from "path";
+import * as fs from "fs";
+
 import { registerRoutes } from "./routes.js";
 import { getVersionInfo } from "../shared/version.js";
-import * as fs from "fs";
+import registerWorryRoutes from "./routes.worries.js";
+
+// ✅ Reuse the same global SQL pool the rest of the app uses
+// (Your storage code also uses this pool via ./db.js)
+import { pool } from "./db.js";
 
 // Simple logging function
 const log = (message: string) => console.log(message);
@@ -74,61 +81,8 @@ const validateConfig = () => {
   return issues.length === 0;
 };
 
-const logDeploymentInfo = () => {
-  console.log("🚀 Deployment environment detected:");
-  if (config.environment.isReplit) console.log("  - Running on Replit");
-  if (config.environment.isProduction)
-    console.log("  - Running in production mode");
-  if (config.environment.isDocker)
-    console.log("  - Running in Docker container");
-  if (config.environment.isAzure) console.log("  - Running on Azure");
-  if (
-    !config.environment.isReplit &&
-    !config.environment.isDocker &&
-    !config.environment.isAzure
-  )
-    console.log("  - Running locally");
-
-  if (!fs.existsSync(config.uploads.directory)) {
-    try {
-      fs.mkdirSync(config.uploads.directory, { recursive: true });
-      console.log(`Created uploads directory at ${config.uploads.directory}`);
-    } catch (err: any) {
-      console.error(`Failed to create uploads directory: ${err.message}`);
-    }
-  }
-};
-
-// Initialize Express
+// App + basic middleware
 const app = express();
-app.set('etag', false);
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api/')) {
-    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.set('Pragma', 'no-cache');
-    res.set('Expires', '0');
-  }
-  next();
-});
-
-logDeploymentInfo();
-
-try {
-  const versionInfo = getVersionInfo();
-  console.log("📋 Version Information:");
-  console.log(`  - Version: ${versionInfo.version}`);
-  console.log(`  - Build Hash: ${versionInfo.hash}`);
-  console.log(`  - Environment: ${versionInfo.environment}`);
-  console.log(`  - Branch: ${versionInfo.branch}`);
-  console.log(
-    `  - Build Time: ${new Date(versionInfo.timestamp).toLocaleString()}`,
-  );
-  if (versionInfo.buildNumber) {
-    console.log(`  - Build Number: ${versionInfo.buildNumber}`);
-  }
-} catch {
-  console.log("📋 Version Information: Development build");
-}
 
 // Never send HTML on /api routes
 app.use((req, res, next) => {
@@ -273,9 +227,6 @@ app.use((req, res, next) => {
  * 🔧 Normalizer for Scam Videos
  * Bridges UI camelCase and SQL/Zod snake_case (both ways) and
  * backfills createdBy/created_by from auth headers if missing.
- *
- * - Schema uses snake_case: video_url, created_by, etc.  (see shared/schema.ts)  ← cite
- * - Some codepaths / UI use camelCase: videoUrl, createdBy, etc.                ← cite
  */
 app.use(
   "/api/scam-videos",
@@ -334,16 +285,72 @@ app.use(
   },
 );
 
-// ⤵️ Your existing routes (unchanged)
+/* ------------------------------------------------
+   ✅ Reuse the existing global SQL pool for worries
+-------------------------------------------------- */
+const getMainPool = async () => {
+  // (mssql) ConnectionPool has .connected and .connecting flags
+  if (!(pool as any).connected) {
+    if ((pool as any).connecting) {
+      await new Promise((resolve) => {
+        const t = setInterval(() => {
+          if ((pool as any).connected || !(pool as any).connecting) {
+            clearInterval(t);
+            resolve(true);
+          }
+        }, 100);
+      });
+    } else {
+      console.log("Establishing Azure SQL Database connection...");
+      await (pool as any).connect();
+      const cfg = (pool as any).config || {};
+      console.log(
+        `🧭 [SQL CONNECTED] server=${cfg.server} database=${cfg.database} ` +
+          `encrypt=${cfg.options?.encrypt} trustServerCertificate=${cfg.options?.trustServerCertificate}`,
+      );
+    }
+  }
+  return pool as any;
+};
+
+/* ---------------------------------
+   Version / deployment info (kept)
+---------------------------------- */
+function logDeploymentInfo() {
+  try {
+    const versionInfo = getVersionInfo();
+    console.log("📋 Version Information:");
+    console.log(`  - Version: ${versionInfo.version}`);
+    console.log(`  - Build Hash: ${versionInfo.hash}`);
+    console.log(`  - Environment: ${versionInfo.environment}`);
+    console.log(`  - Branch: ${versionInfo.branch}`);
+    console.log(
+      `  - Build Time: ${new Date(versionInfo.timestamp).toLocaleString()}`,
+    );
+    if (versionInfo.buildNumber)
+      console.log(`  - Build Number: ${versionInfo.buildNumber}`);
+  } catch {
+    console.log("📋 Version Information: Development build");
+  }
+}
+logDeploymentInfo();
+
+/* ---------------------------------
+   Mount routes & start server
+---------------------------------- */
 (async () => {
+  // Your existing routes (kept)
   const server = await registerRoutes(app);
 
-  // Central error handler (kept)
+  // ✅ Single, injected mount — use the shared pool
+  registerWorryRoutes(app, { getPool: getMainPool });
+
+  // Central error handler (do NOT rethrow)
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
     res.status(status).json({ message });
-    throw err;
+    // ⛔️ Do not throw here; Azure restarts on unhandled throws (causes timeouts)
   });
 
   // Dev vs Prod bundling (kept)
@@ -357,10 +364,13 @@ app.use(
     });
   }
 
-  const port = process.env.PORT || (config.server.port as number) || 5000;
+  const port = Number(
+    process.env.PORT || (config.server.port as number) || 5000,
+  );
   const host = (config.server.host as string) || "0.0.0.0";
 
-  server.listen({ port, host, reusePort: true }, () => {
+  // ✅ Bind the Express app, not server.listen (Azure expects this)
+  app.listen(port, host, () => {
     log(
       `🚀 Server running at http://${host === "0.0.0.0" ? "localhost" : host}:${port}`,
     );
