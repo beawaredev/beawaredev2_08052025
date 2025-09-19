@@ -20,48 +20,157 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 
 /* =========================
-   Types from API
+   Types (normalized to UI)
 ========================= */
-type Worry = {
+type WorryUI = {
   id: number;
   key: string;
   label: string;
   blurb: string | null;
   iconName: string | null;
-  sort_order?: number;
+  sortOrder: number;
+  isActive: boolean;
 };
 
-type WorryDetail = {
-  worry: Worry;
+type RecUI = {
+  id: number; // link id (new) or recommendation id (legacy)
+  slug: string; // for anchor on checklist page
+  title: string;
+  rationale: string;
+  points?: string | null; // e.g., "+10 pts"
+  est?: string | null; // e.g., "5 min"
+  embedVideoUrl?: string | null;
+  sortOrder?: number | null;
+  isActive?: boolean | null;
+};
+
+type DetailUI = {
   headline: string;
-  recommendations: Array<{
-    id: number;
-    slug: string;
-    title: string;
-    rationale: string;
-    points?: string | null;
-    est?: string | null;
-    embedVideoUrl?: string;
-  }>;
+  recommendations: RecUI[];
 };
 
 /* =========================
-   API helpers
+   Helpers
 ========================= */
-async function fetchWorries(): Promise<Worry[]> {
+function toSlug(text?: string | null): string {
+  if (!text) return "";
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[\s\-]+/g, "_")
+    .replace(/[^a-z0-9_]/g, "");
+}
+
+function toEmbedUrl(url?: string | null): string | null {
+  if (!url) return null;
+  // YouTube normal or share link -> embed
+  const yt =
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_\-]{6,})/i.exec(url);
+  if (yt?.[1]) return `https://www.youtube.com/embed/${yt[1]}`;
+  // Vimeo
+  const vm = /vimeo\.com\/(\d+)/.exec(url);
+  if (vm?.[1]) return `https://player.vimeo.com/video/${vm[1]}`;
+  return url; // already embed or direct
+}
+
+function minutesText(min?: number | null): string | null {
+  if (min == null) return null;
+  return `${min} min`;
+}
+
+/* Map backend worry (snake or camel) -> UI */
+function mapWorry(raw: any): WorryUI {
+  return {
+    id: raw.id,
+    key: raw.key ?? raw.worry_key ?? "",
+    label: raw.label,
+    blurb: raw.blurb ?? null,
+    iconName: raw.iconName ?? raw.icon_name ?? null,
+    sortOrder: raw.sort_order ?? 0,
+    isActive: raw.is_active ?? raw.isActive ?? true,
+  };
+}
+
+/* Map recommendation row (new link view or legacy) -> UI */
+function mapRec(raw: any): RecUI {
+  // New link-expanded view fields
+  const title = raw.title ?? "";
+  const rationale =
+    raw.rationale_override ??
+    raw.rationale ??
+    raw.recommendation_text ??
+    raw.description ??
+    "";
+
+  const points =
+    raw.points_text_override ?? raw.points_text ?? raw.points ?? null;
+
+  const est =
+    raw.est_text_override ??
+    raw.est_text ??
+    (raw.estimated_time_minutes != null
+      ? minutesText(raw.estimated_time_minutes)
+      : null);
+
+  const slug = raw.slug ?? toSlug(title);
+
+  const embed =
+    raw.embedVideoUrl ?? raw.youtube_video_url ?? raw.youtubeVideoUrl ?? null;
+
+  return {
+    id: raw.id,
+    slug,
+    title,
+    rationale,
+    points,
+    est,
+    embedVideoUrl: toEmbedUrl(embed),
+    sortOrder: raw.sort_order ?? raw.sortOrder ?? null,
+    isActive: raw.is_active ?? raw.isActive ?? null,
+  };
+}
+
+/* =========================
+   API calls
+========================= */
+async function fetchWorries(): Promise<WorryUI[]> {
   const res = await apiRequest("/api/worries");
   if (!res.ok) throw new Error(`Failed to load worries (${res.status})`);
-  return res.json();
+  const data = await res.json();
+  const list = Array.isArray(data) ? data : [];
+  return list
+    .map(mapWorry)
+    .filter((w) => w.isActive)
+    .sort(
+      (a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label),
+    );
 }
 
-async function fetchWorryDetail(key: string): Promise<WorryDetail> {
-  const res = await apiRequest(`/api/worries/${encodeURIComponent(key)}`);
-  if (!res.ok) throw new Error(`Failed to load worry detail (${res.status})`);
-  return res.json();
+async function fetchResponseLines(worryId: number): Promise<string[]> {
+  const res = await apiRequest(`/api/worries/${worryId}/response-lines`);
+  if (!res.ok) return [];
+  const data = await res.json();
+  // Expecting rows with { id, line_text }
+  return (Array.isArray(data) ? data : [])
+    .map((r: any) => r.line_text)
+    .filter(Boolean);
+}
+
+async function fetchRecommendations(worryId: number): Promise<RecUI[]> {
+  const res = await apiRequest(`/api/worries/${worryId}/recommendations`);
+  if (!res.ok) return [];
+  const data = await res.json();
+  const rows = Array.isArray(data) ? data : [];
+  const mapped = rows.map(mapRec);
+  // Prefer active only when flag exists; otherwise include all
+  const filtered = mapped.filter(
+    (r) => r.isActive === null || r.isActive === true,
+  );
+  return filtered.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 }
 
 /* =========================
-   Icon chooser from DB string
+   Icons
 ========================= */
 function renderIcon(name?: string | null) {
   switch ((name || "").toLowerCase()) {
@@ -72,10 +181,13 @@ function renderIcon(name?: string | null) {
     case "mail":
       return <Mail className="h-4 w-4" />;
     case "creditcard":
+    case "credit_card":
       return <CreditCard className="h-4 w-4" />;
     case "keyround":
+    case "key":
       return <KeyRound className="h-4 w-4" />;
     case "shieldalert":
+    case "shield_alert":
       return <ShieldAlert className="h-4 w-4" />;
     default:
       return <ShieldAlert className="h-4 w-4" />;
@@ -100,16 +212,32 @@ export default function DashboardWorries() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: detail, isFetching: detailLoading } = useQuery<WorryDetail>({
-    queryKey: ["worry-detail", selectedKey],
-    queryFn: () => fetchWorryDetail(selectedKey!),
-    enabled: !!selectedKey,
-  });
-
-  const selectedLabel = useMemo(
-    () => worries.find((w) => w.key === selectedKey)?.label,
+  const selectedWorry = useMemo(
+    () => worries.find((w) => w.key === selectedKey) ?? null,
     [worries, selectedKey],
   );
+
+  // Fetch lines + recs only when a worry is selected
+  const { data: lines = [], isFetching: linesLoading } = useQuery<string[]>({
+    queryKey: ["worry-lines", selectedWorry?.id],
+    queryFn: () => fetchResponseLines(selectedWorry!.id),
+    enabled: !!selectedWorry?.id,
+  });
+
+  const { data: recs = [], isFetching: recsLoading } = useQuery<RecUI[]>({
+    queryKey: ["worry-recs", selectedWorry?.id],
+    queryFn: () => fetchRecommendations(selectedWorry!.id),
+    enabled: !!selectedWorry?.id,
+  });
+
+  const detail: DetailUI | null = useMemo(() => {
+    if (!selectedWorry) return null;
+    const headline =
+      (lines[0] as string) || "Let’s take care of this together.";
+    return { headline, recommendations: recs };
+  }, [selectedWorry, lines, recs]);
+
+  const selectedLabel = selectedWorry?.label;
 
   // Auto-scroll to the animated suggestions after selection
   useEffect(() => {
@@ -122,7 +250,8 @@ export default function DashboardWorries() {
 
   const reset = () => {
     setSelectedKey(null);
-    qc.removeQueries({ queryKey: ["worry-detail"] });
+    qc.removeQueries({ queryKey: ["worry-lines"] });
+    qc.removeQueries({ queryKey: ["worry-recs"] });
   };
 
   return (
@@ -276,10 +405,7 @@ export default function DashboardWorries() {
                       className="mb-3 rounded-xl border border-blue-300 bg-blue-50 p-3 shadow-sm"
                     >
                       <div className="text-base md:text-lg font-semibold text-blue-800">
-                        {detailLoading
-                          ? "Personalizing…"
-                          : detail?.headline ||
-                            "Let’s take care of this together."}
+                        {linesLoading ? "Personalizing…" : detail?.headline}
                       </div>
                       <div className="text-xs text-blue-700">
                         Based on “{selectedLabel}”

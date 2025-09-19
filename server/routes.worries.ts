@@ -3,14 +3,14 @@ import type { Request, Response, NextFunction } from "express";
 import sql from "mssql";
 
 /**
- * Connection strategy (in this order):
- * A) If a getPool() was injected by the caller (index.ts), use that.
- * B) Try shared modules (./AzureStorage, ./db) to reuse existing pool.
- * C) Fallback to envs: SQLAZURECONNSTR_* → AZURE_SQL_* parts → AZURE_SQL_CONNECTION
+ * Connection strategy (in this order) — preserved:
+ * A) Injected getPool() from index.ts
+ * B) Shared modules ./AzureStorage or ./db
+ * C) Env-based fallbacks (SQLAZURECONNSTR_* or AZURE_SQL_* or AZURE_SQL_CONNECTION)
  */
 
+// ---- Types / wiring
 export type GetPoolFn = () => Promise<sql.ConnectionPool>;
-
 let injectedGetPool: GetPoolFn | null = null;
 let cachedPool: sql.ConnectionPool | null = null;
 
@@ -20,6 +20,7 @@ type MaybePoolExport = {
   pool?: sql.ConnectionPool;
 };
 
+// ---- Connection helpers (kept and extended)
 function pickSqlAzureConnStr(): string | null {
   const keys = Object.keys(process.env).filter((k) =>
     k.startsWith("SQLAZURECONNSTR_"),
@@ -90,7 +91,7 @@ async function trySharedModule(
 async function resolvePool(): Promise<sql.ConnectionPool> {
   if (cachedPool?.connected) return cachedPool;
 
-  // A) Injected getter from index.ts
+  // A) Injected getter
   if (injectedGetPool) {
     cachedPool = await injectedGetPool();
     if (cachedPool?.connected) return cachedPool;
@@ -130,6 +131,7 @@ async function resolvePool(): Promise<sql.ConnectionPool> {
   );
 }
 
+// ---- Utilities
 function toEmbed(url?: string | null): string {
   if (!url) return "";
   return url.includes("embed/")
@@ -139,7 +141,9 @@ function toEmbed(url?: string | null): string {
         .replace("youtu.be/", "www.youtube.com/embed/");
 }
 
-/* GET /api/worries */
+// ====================== PUBLIC (READ) ENDPOINTS ======================
+
+// GET /api/worries  (now supports ?active=1 to filter)
 export async function listWorries(
   req: Request,
   res: Response,
@@ -147,10 +151,11 @@ export async function listWorries(
 ) {
   try {
     const pool = await resolvePool();
+    const filterActive = String(req.query.active || "").trim() === "1";
     const result = await pool.request().query(`
-      SELECT id, worry_key AS [key], label, blurb, icon_name AS iconName, sort_order
+      SELECT id, worry_key AS worry_key, label, blurb, icon_name AS icon_name, sort_order, is_active
       FROM [dbo].[worries]
-      WHERE is_active = 1
+      ${filterActive ? "WHERE is_active = 1" : ""}
       ORDER BY sort_order, id
     `);
     res.json(result.recordset);
@@ -159,7 +164,7 @@ export async function listWorries(
   }
 }
 
-/* GET /api/worries/:key */
+// GET /api/worries/:key (kept; enriches with keywords + video embed)
 export async function getWorryDetail(
   req: Request,
   res: Response,
@@ -251,15 +256,487 @@ export async function getWorryDetail(
   }
 }
 
-/* Mount helper
-   Optionally inject a getPool() to force using your existing connection. */
+// ====================== ADMIN CRUD: WORRIES ======================
+
+// POST /api/worries
+export async function createWorry(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const {
+      worry_key,
+      label,
+      blurb,
+      icon_name,
+      is_active = 1,
+      sort_order = 0,
+    } = req.body || {};
+    if (!worry_key || !label)
+      return res
+        .status(400)
+        .json({ message: "worry_key and label are required" });
+
+    const pool = await resolvePool();
+    const result = await pool
+      .request()
+      .input("worry_key", sql.NVarChar(64), worry_key)
+      .input("label", sql.NVarChar(128), label)
+      .input("blurb", sql.NVarChar(256), blurb ?? null)
+      .input("icon_name", sql.NVarChar(64), icon_name ?? null)
+      .input("is_active", sql.Bit, !!is_active ? 1 : 0)
+      .input("sort_order", sql.Int, Number(sort_order) || 0).query(`
+        INSERT INTO [dbo].[worries] (worry_key, label, blurb, icon_name, is_active, sort_order)
+        OUTPUT inserted.*
+        VALUES (@worry_key, @label, @blurb, @icon_name, @is_active, @sort_order);
+      `);
+    res.status(201).json(result.recordset[0]);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// PUT /api/worries/:id
+export async function updateWorry(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ message: "Invalid id" });
+    const { worry_key, label, blurb, icon_name, is_active, sort_order } =
+      req.body || {};
+
+    const pool = await resolvePool();
+    const result = await pool
+      .request()
+      .input("id", sql.Int, id)
+      .input("worry_key", sql.NVarChar(64), worry_key ?? null)
+      .input("label", sql.NVarChar(128), label ?? null)
+      .input("blurb", sql.NVarChar(256), blurb ?? null)
+      .input("icon_name", sql.NVarChar(64), icon_name ?? null)
+      .input(
+        "is_active",
+        sql.Bit,
+        typeof is_active === "boolean" ? (is_active ? 1 : 0) : null,
+      )
+      .input(
+        "sort_order",
+        sql.Int,
+        typeof sort_order === "number" ? sort_order : null,
+      ).query(`
+        UPDATE [dbo].[worries]
+        SET
+          worry_key = COALESCE(@worry_key, worry_key),
+          label = COALESCE(@label, label),
+          blurb = @blurb,
+          icon_name = @icon_name,
+          is_active = COALESCE(@is_active, is_active),
+          sort_order = COALESCE(@sort_order, sort_order),
+          updated_at = getutcdate()
+        WHERE id = @id;
+        SELECT * FROM [dbo].[worries] WHERE id = @id;
+      `);
+    res.json(result.recordset[0]);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// DELETE /api/worries/:id
+export async function deleteWorry(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ message: "Invalid id" });
+
+    const pool = await resolvePool();
+    await pool.request().input("id", sql.Int, id).query(`
+      DELETE FROM [dbo].[worry_recommendation_keywords]
+      WHERE recommendation_id IN (SELECT id FROM [dbo].[worry_recommendations] WHERE worry_id = @id);
+
+      DELETE FROM [dbo].[worry_recommendations] WHERE worry_id = @id;
+      DELETE FROM [dbo].[worry_response_lines] WHERE worry_id = @id;
+      DELETE FROM [dbo].[worries] WHERE id = @id;
+    `);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ====================== ADMIN: RESPONSE LINES ======================
+
+// GET /api/worries/:worryId/response-lines
+export async function listResponseLines(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const worryId = Number(req.params.worryId);
+    const pool = await resolvePool();
+    const r = await pool.request().input("worryId", sql.Int, worryId).query(`
+        SELECT id, line_text
+        FROM [dbo].[worry_response_lines]
+        WHERE worry_id = @worryId
+        ORDER BY id DESC
+      `);
+    res.json(r.recordset);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/worries/:worryId/response-lines
+export async function createResponseLine(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const worryId = Number(req.params.worryId);
+    const { line_text } = req.body || {};
+    if (!worryId || !line_text)
+      return res
+        .status(400)
+        .json({ message: "worryId and line_text required" });
+
+    const pool = await resolvePool();
+    const r = await pool
+      .request()
+      .input("worryId", sql.Int, worryId)
+      .input("line_text", sql.NVarChar(512), line_text).query(`
+        INSERT INTO [dbo].[worry_response_lines] (worry_id, line_text)
+        OUTPUT inserted.*
+        VALUES (@worryId, @line_text);
+      `);
+    res.status(201).json(r.recordset[0]);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// DELETE /api/worry-response-lines/:id
+export async function deleteResponseLine(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ message: "Invalid id" });
+
+    const pool = await resolvePool();
+    await pool.request().input("id", sql.Int, id).query(`
+      DELETE FROM [dbo].[worry_response_lines] WHERE id = @id;
+    `);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ====================== ADMIN: RECOMMENDATIONS ======================
+
+// GET /api/worries/:worryId/recommendations
+export async function listRecommendations(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const worryId = Number(req.params.worryId);
+    const pool = await resolvePool();
+    const r = await pool.request().input("worryId", sql.Int, worryId).query(`
+        SELECT id, slug, title, rationale, points_text, est_text, sort_order, is_active
+        FROM [dbo].[worry_recommendations]
+        WHERE worry_id = @worryId
+        ORDER BY sort_order, id
+      `);
+    res.json(r.recordset);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/worries/:worryId/recommendations
+export async function createRecommendation(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const worryId = Number(req.params.worryId);
+    const {
+      slug,
+      title,
+      rationale,
+      points_text = null,
+      est_text = null,
+      sort_order = 0,
+      is_active = 1,
+    } = req.body || {};
+    if (!worryId || !slug || !title || !rationale) {
+      return res
+        .status(400)
+        .json({ message: "worryId, slug, title, rationale are required" });
+    }
+
+    const pool = await resolvePool();
+    const r = await pool
+      .request()
+      .input("worryId", sql.Int, worryId)
+      .input("slug", sql.NVarChar(64), slug)
+      .input("title", sql.NVarChar(256), title)
+      .input("rationale", sql.NVarChar(sql.MAX), rationale)
+      .input("points_text", sql.NVarChar(32), points_text)
+      .input("est_text", sql.NVarChar(32), est_text)
+      .input("sort_order", sql.Int, Number(sort_order) || 0)
+      .input("is_active", sql.Bit, !!is_active ? 1 : 0).query(`
+        INSERT INTO [dbo].[worry_recommendations]
+          (worry_id, slug, title, rationale, points_text, est_text, sort_order, is_active)
+        OUTPUT inserted.*
+        VALUES
+          (@worryId, @slug, @title, @rationale, @points_text, @est_text, @sort_order, @is_active);
+      `);
+    res.status(201).json(r.recordset[0]);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// PUT /api/worry-recommendations/:id
+export async function updateRecommendation(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ message: "Invalid id" });
+
+    const {
+      slug,
+      title,
+      rationale,
+      points_text,
+      est_text,
+      sort_order,
+      is_active,
+    } = req.body || {};
+    const pool = await resolvePool();
+    const r = await pool
+      .request()
+      .input("id", sql.Int, id)
+      .input("slug", sql.NVarChar(64), slug ?? null)
+      .input("title", sql.NVarChar(256), title ?? null)
+      .input("rationale", sql.NVarChar(sql.MAX), rationale ?? null)
+      .input("points_text", sql.NVarChar(32), points_text ?? null)
+      .input("est_text", sql.NVarChar(32), est_text ?? null)
+      .input(
+        "sort_order",
+        sql.Int,
+        typeof sort_order === "number" ? sort_order : null,
+      )
+      .input(
+        "is_active",
+        sql.Bit,
+        typeof is_active === "boolean" ? (is_active ? 1 : 0) : null,
+      ).query(`
+        UPDATE [dbo].[worry_recommendations]
+        SET
+          slug = COALESCE(@slug, slug),
+          title = COALESCE(@title, title),
+          rationale = COALESCE(@rationale, rationale),
+          points_text = @points_text,
+          est_text = @est_text,
+          sort_order = COALESCE(@sort_order, sort_order),
+          is_active = COALESCE(@is_active, is_active),
+          updated_at = getutcdate()
+        WHERE id = @id;
+        SELECT * FROM [dbo].[worry_recommendations] WHERE id = @id;
+      `);
+    res.json(r.recordset[0]);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// DELETE /api/worry-recommendations/:id
+export async function deleteRecommendation(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ message: "Invalid id" });
+
+    const pool = await resolvePool();
+    await pool.request().input("id", sql.Int, id).query(`
+      DELETE FROM [dbo].[worry_recommendation_keywords] WHERE recommendation_id = @id;
+      DELETE FROM [dbo].[worry_recommendations] WHERE id = @id;
+    `);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ====================== ADMIN: KEYWORDS ======================
+
+// GET /api/worry-recommendations/:id/keywords
+export async function listRecommendationKeywords(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const id = Number(req.params.id);
+    const pool = await resolvePool();
+    const r = await pool.request().input("id", sql.Int, id).query(`
+        SELECT id, keyword
+        FROM [dbo].[worry_recommendation_keywords]
+        WHERE recommendation_id = @id
+        ORDER BY id DESC
+      `);
+    res.json(r.recordset);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/worry-recommendations/:id/keywords
+export async function createRecommendationKeyword(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const id = Number(req.params.id);
+    const { keyword } = req.body || {};
+    if (!id || !keyword)
+      return res.status(400).json({ message: "id and keyword required" });
+
+    const pool = await resolvePool();
+    const r = await pool
+      .request()
+      .input("id", sql.Int, id)
+      .input("keyword", sql.NVarChar(64), keyword).query(`
+        INSERT INTO [dbo].[worry_recommendation_keywords] (recommendation_id, keyword)
+        OUTPUT inserted.*
+        VALUES (@id, @keyword);
+      `);
+    res.status(201).json(r.recordset[0]);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// DELETE /api/worry-recommendation-keywords/:id
+export async function deleteRecommendationKeyword(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ message: "Invalid id" });
+
+    const pool = await resolvePool();
+    await pool.request().input("id", sql.Int, id).query(`
+      DELETE FROM [dbo].[worry_recommendation_keywords] WHERE id = @id;
+    `);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ====================== SECURITY CHECKLIST (for mapping) ======================
+
+// GET /api/security-checklist  (active items; minimal fields for mapping)
+export async function listSecurityChecklist(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const pool = await resolvePool();
+    const r = await pool.request().query(`
+      SELECT
+        id,
+        title,
+        description,
+        recommendation_text AS recommendationText,
+        help_url AS helpUrl,
+        estimated_time_minutes AS estimatedTimeMinutes,
+        sort_order,
+        youtube_video_url
+      FROM [dbo].[security_checklist_items]
+      WHERE is_active = 1
+      ORDER BY sort_order, id
+    `);
+    res.json(r.recordset);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ====================== MOUNT HELPERS ======================
+
+/** Optional: set an injected getPool() from index.ts */
+export function setWorriesGetPool(fn: GetPoolFn) {
+  injectedGetPool = fn;
+}
+
+/** Register all routes on an Express app instance */
 export default function registerWorryRoutes(
   app: import("express").Express,
   opts?: { getPool?: GetPoolFn },
 ) {
-  if (opts?.getPool) {
-    injectedGetPool = opts.getPool;
-  }
-  app.get("/api/worries", listWorries);
+  if (opts?.getPool) injectedGetPool = opts.getPool;
+
+  // Public reads
+  app.get("/api/worries", listWorries); // supports ?active=1
   app.get("/api/worries/:key", getWorryDetail);
+
+  // Admin: worries core
+  app.post("/api/worries", createWorry);
+  app.put("/api/worries/:id", updateWorry);
+  app.delete("/api/worries/:id", deleteWorry);
+
+  // Admin: response lines
+  app.get("/api/worries/:worryId/response-lines", listResponseLines);
+  app.post("/api/worries/:worryId/response-lines", createResponseLine);
+  app.delete("/api/worry-response-lines/:id", deleteResponseLine);
+
+  // Admin: recommendations
+  app.get("/api/worries/:worryId/recommendations", listRecommendations);
+  app.post("/api/worries/:worryId/recommendations", createRecommendation);
+  app.put("/api/worry-recommendations/:id", updateRecommendation);
+  app.delete("/api/worry-recommendations/:id", deleteRecommendation);
+
+  // Admin: keywords
+  app.get(
+    "/api/worry-recommendations/:id/keywords",
+    listRecommendationKeywords,
+  );
+  app.post(
+    "/api/worry-recommendations/:id/keywords",
+    createRecommendationKeyword,
+  );
+  app.delete(
+    "/api/worry-recommendation-keywords/:id",
+    deleteRecommendationKeyword,
+  );
+
+  // Mapping source
+  app.get("/api/security-checklist", listSecurityChecklist);
 }
