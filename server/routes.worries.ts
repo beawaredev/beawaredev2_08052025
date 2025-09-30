@@ -134,11 +134,19 @@ async function resolvePool(): Promise<sql.ConnectionPool> {
 // ---- Utilities
 function toEmbed(url?: string | null): string {
   if (!url) return "";
-  return url.includes("embed/")
-    ? url
-    : url
-        .replace("watch?v=", "embed/")
-        .replace("youtu.be/", "www.youtube.com/embed/");
+  const u = url.trim();
+  // Already an embed or a direct mp4: return as-is
+  if (u.includes("/embed/") || u.endsWith(".mp4")) return u;
+  // YouTube variants
+  if (u.includes("youtube.com/watch?v="))
+    return u.replace("watch?v=", "embed/");
+  if (u.includes("youtu.be/"))
+    return u.replace("youtu.be/", "www.youtube.com/embed/");
+  // Vimeo normal -> embed
+  const vimeoMatch = u.match(/vimeo\.com\/(\d+)/);
+  if (vimeoMatch) return `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+  // Fallback
+  return u;
 }
 
 // ====================== PUBLIC (READ) ENDPOINTS ======================
@@ -158,6 +166,15 @@ export async function listWorries(
       ${filterActive ? "WHERE is_active = 1" : ""}
       ORDER BY sort_order, id
     `);
+    console.log(
+      "GET /api/worries:\n" +
+        require("node:util").inspect(result.recordset, {
+          depth: null,
+          breakLength: 80,
+          maxArrayLength: null,
+          compact: false,
+        }),
+    );
     res.json(result.recordset);
   } catch (err) {
     next(err);
@@ -235,8 +252,9 @@ export async function getWorryDetail(
         const hay = `${item.title} ${item.description}`.toLowerCase();
         return keys.some((k) => hay.includes(k));
       });
-      const embedVideoUrl = toEmbed(found?.youtube_video_url || "");
-      return { ...r, embedVideoUrl };
+      const videoUrl = found?.youtube_video_url || "";
+      const embedVideoUrl = toEmbed(videoUrl);
+      return { ...r, videoUrl, embedVideoUrl };
     });
 
     const userId = req.headers["x-user-id"]
@@ -250,6 +268,33 @@ export async function getWorryDetail(
         `INSERT INTO [dbo].[user_worry_events] (user_id, worry_id) VALUES (@uid, @worryId);`,
       );
 
+    console.log(
+      "GET /api/worries/:key -> worry:\n" +
+        require("node:util").inspect(worry, {
+          depth: null,
+          breakLength: 80,
+          maxArrayLength: null,
+          compact: false,
+        }),
+    );
+    console.log(
+      "GET /api/worries/:key -> response-lines:\n" +
+        require("node:util").inspect(lines, {
+          depth: null,
+          breakLength: 80,
+          maxArrayLength: null,
+          compact: false,
+        }),
+    );
+    console.log(
+      "GET /api/worries/:key -> recommendations (enriched):\n" +
+        require("node:util").inspect(enriched, {
+          depth: null,
+          breakLength: 80,
+          maxArrayLength: null,
+          compact: false,
+        }),
+    );
     res.json({ worry, headline, recommendations: enriched });
   } catch (err) {
     next(err);
@@ -387,6 +432,15 @@ export async function listResponseLines(
         WHERE worry_id = @worryId
         ORDER BY id DESC
       `);
+    console.log(
+      "GET /api/worries/:worryId/response-lines:\n" +
+        require("node:util").inspect(r.recordset, {
+          depth: null,
+          breakLength: 80,
+          maxArrayLength: null,
+          compact: false,
+        }),
+    );
     res.json(r.recordset);
   } catch (err) {
     next(err);
@@ -459,6 +513,15 @@ export async function listRecommendations(
         WHERE worry_id = @worryId
         ORDER BY sort_order, id
       `);
+    console.log(
+      "GET /api/worries/:worryId/recommendations:\n" +
+        require("node:util").inspect(r.recordset, {
+          depth: null,
+          breakLength: 80,
+          maxArrayLength: null,
+          compact: false,
+        }),
+    );
     res.json(r.recordset);
   } catch (err) {
     next(err);
@@ -678,11 +741,20 @@ export async function listSecurityChecklist(
         help_url AS helpUrl,
         estimated_time_minutes AS estimatedTimeMinutes,
         sort_order,
-        youtube_video_url
+        youtube_video_url AS video_url
       FROM [dbo].[security_checklist_items]
       WHERE is_active = 1
       ORDER BY sort_order, id
     `);
+    console.log(
+      "GET /api/security-checklist:\n" +
+        require("node:util").inspect(r.recordset, {
+          depth: null,
+          breakLength: 80,
+          maxArrayLength: null,
+          compact: false,
+        }),
+    );
     res.json(r.recordset);
   } catch (err) {
     next(err);
