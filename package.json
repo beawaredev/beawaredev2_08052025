@@ -62,7 +62,8 @@
     "express-cors": "^0.0.3",
     "express-session": "^1.18.1",
     "firebase": "^11.6.0",
-    "form-data": "^4.0.2",
+    "form-data": "^4.0.4",
+    "axios": "^1.12.2",
     "formdata-node": "^6.0.3",
     "framer-motion": "^11.13.1",
     "input-otp": "^1.2.4",
@@ -70,7 +71,7 @@
     "memoizee": "^0.4.17",
     "memorystore": "^1.6.7",
     "mssql": "^11.0.1",
-    "multer": "^1.4.5-lts.2",
+    "multer": "^2.0.2",
     "node-fetch": "^3.3.2",
     "nodemailer": "^6.10.1",
     "openid-client": "^6.6.2",
@@ -114,7 +115,7 @@
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",
     "typescript": "5.6.3",
-    "vite": "^5.4.14"
+    "vite": "^6.2.3"
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"
