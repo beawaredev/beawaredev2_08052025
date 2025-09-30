@@ -1,6 +1,7 @@
 // server/routes.worries.ts
 import type { Request, Response, NextFunction } from "express";
 import sql from "mssql";
+import util from "node:util";
 
 /**
  * Connection strategy (in this order) — preserved:
@@ -168,7 +169,7 @@ export async function listWorries(
     `);
     console.log(
       "GET /api/worries:\n" +
-        require("node:util").inspect(result.recordset, {
+        util.inspect(result.recordset, {
           depth: null,
           breakLength: 80,
           maxArrayLength: null,
@@ -270,7 +271,7 @@ export async function getWorryDetail(
 
     console.log(
       "GET /api/worries/:key -> worry:\n" +
-        require("node:util").inspect(worry, {
+        util.inspect(worry, {
           depth: null,
           breakLength: 80,
           maxArrayLength: null,
@@ -279,7 +280,7 @@ export async function getWorryDetail(
     );
     console.log(
       "GET /api/worries/:key -> response-lines:\n" +
-        require("node:util").inspect(lines, {
+        util.inspect(lines, {
           depth: null,
           breakLength: 80,
           maxArrayLength: null,
@@ -288,7 +289,7 @@ export async function getWorryDetail(
     );
     console.log(
       "GET /api/worries/:key -> recommendations (enriched):\n" +
-        require("node:util").inspect(enriched, {
+        util.inspect(enriched, {
           depth: null,
           breakLength: 80,
           maxArrayLength: null,
@@ -434,7 +435,7 @@ export async function listResponseLines(
       `);
     console.log(
       "GET /api/worries/:worryId/response-lines:\n" +
-        require("node:util").inspect(r.recordset, {
+        util.inspect(r.recordset, {
           depth: null,
           breakLength: 80,
           maxArrayLength: null,
@@ -515,14 +516,65 @@ export async function listRecommendations(
       `);
     console.log(
       "GET /api/worries/:worryId/recommendations:\n" +
-        require("node:util").inspect(r.recordset, {
+        util.inspect(r.recordset, {
           depth: null,
           breakLength: 80,
           maxArrayLength: null,
           compact: false,
         }),
     );
-    res.json(r.recordset);
+    // Build keyword map for this worry's recommendations
+    const kwQ = await pool.request().input("worryId", sql.Int, worryId).query(`
+      SELECT wr.id AS recommendation_id, wk.keyword
+      FROM [dbo].[worry_recommendations] wr
+      JOIN [dbo].[worry_recommendation_keywords] wk
+        ON wk.recommendation_id = wr.id
+      WHERE wr.worry_id = @worryId AND wr.is_active = 1
+    `);
+    const kwByRec = new Map<number, string[]>();
+    for (const row of kwQ.recordset) {
+      const arr = kwByRec.get(row.recommendation_id) || [];
+      arr.push((row.keyword || "").toLowerCase());
+      kwByRec.set(row.recommendation_id, arr);
+    }
+
+    // Pull active checklist items with their YouTube URL
+    const checklistQ = await pool.request().query(`
+      SELECT id, title, description, youtube_video_url
+      FROM [dbo].[security_checklist_items]
+      WHERE is_active = 1
+    `);
+    const checklist = checklistQ.recordset;
+
+    // Enrich recommendations with videoUrl + embedVideoUrl (mirrors getWorryDetail)
+    const recs = r.recordset;
+    const enriched = recs.map((rec: any) => {
+      const keys = (kwByRec.get(rec.id) || [rec.slug, rec.title])
+        .filter(Boolean)
+        .map((s) => String(s).toLowerCase());
+
+      const found = checklist.find((item: any) => {
+        const hay = `${item.title} ${item.description}`.toLowerCase();
+        return keys.some((k) => hay.includes(k));
+      });
+
+      const videoUrl = found?.youtube_video_url || "";
+      const embedVideoUrl = toEmbed(videoUrl);
+      return { ...rec, videoUrl, embedVideoUrl };
+    });
+
+    // (nice logs, now using util.inspect import you added)
+    console.log(
+      "GET /api/worries/:worryId/recommendations (enriched):\n" +
+        util.inspect(enriched, {
+          depth: null,
+          breakLength: 80,
+          maxArrayLength: null,
+          compact: false,
+        }),
+    );
+
+    res.json(enriched);
   } catch (err) {
     next(err);
   }
@@ -748,7 +800,7 @@ export async function listSecurityChecklist(
     `);
     console.log(
       "GET /api/security-checklist:\n" +
-        require("node:util").inspect(r.recordset, {
+        util.inspect(r.recordset, {
           depth: null,
           breakLength: 80,
           maxArrayLength: null,
