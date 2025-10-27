@@ -508,62 +508,164 @@ export async function listRecommendations(
   try {
     const worryId = Number(req.params.worryId);
     const pool = await resolvePool();
-    const r = await pool.request().input("worryId", sql.Int, worryId).query(`
-        SELECT id, slug, title, rationale, points_text, est_text, sort_order, is_active
-        FROM [dbo].[worry_recommendations]
-        WHERE worry_id = @worryId
-        ORDER BY sort_order, id
+
+    // 1) Base recommendations for this worry
+    const recsQ = await pool.request().input("worryId", sql.Int, worryId)
+      .query(`
+        SELECT
+          wr.id,
+          wr.slug,
+          wr.title,
+          wr.rationale,
+          wr.points_text,
+          wr.est_text,
+          wr.sort_order,
+          wr.is_active
+        FROM [dbo].[worry_recommendations] AS wr
+        WHERE wr.worry_id = @worryId
+        ORDER BY wr.sort_order, wr.id
       `);
-    console.log(
-      "GET /api/worries/:worryId/recommendations:\n" +
-        util.inspect(r.recordset, {
-          depth: null,
-          breakLength: 80,
-          maxArrayLength: null,
-          compact: false,
-        }),
-    );
-    // Build keyword map for this worry's recommendations
+
+    // 2) Keywords mapped to rec.id
     const kwQ = await pool.request().input("worryId", sql.Int, worryId).query(`
-      SELECT wr.id AS recommendation_id, wk.keyword
-      FROM [dbo].[worry_recommendations] wr
-      JOIN [dbo].[worry_recommendation_keywords] wk
-        ON wk.recommendation_id = wr.id
-      WHERE wr.worry_id = @worryId AND wr.is_active = 1
-    `);
+        SELECT wr.id AS recommendation_id, wk.keyword
+        FROM [dbo].[worry_recommendations] AS wr
+        JOIN [dbo].[worry_recommendation_keywords] AS wk
+          ON wk.recommendation_id = wr.id
+        WHERE wr.worry_id = @worryId
+          AND wr.is_active = 1
+      `);
+
     const kwByRec = new Map<number, string[]>();
     for (const row of kwQ.recordset) {
-      const arr = kwByRec.get(row.recommendation_id) || [];
-      arr.push((row.keyword || "").toLowerCase());
-      kwByRec.set(row.recommendation_id, arr);
+      const id = Number(row.recommendation_id);
+      const arr = kwByRec.get(id) || [];
+      if (row.keyword) arr.push(String(row.keyword));
+      kwByRec.set(id, arr);
     }
 
-    // Pull active checklist items with their YouTube URL
-    const checklistQ = await pool.request().query(`
-      SELECT id, title, description, youtube_video_url
+    // 3) Active checklist items (exact schema you provided)
+    const sciQ = await pool.request().query(`
+      SELECT
+        id,
+        title,
+        description,
+        category,
+        priority,
+        recommendation_text,
+        help_url,
+        estimated_time_minutes,
+        sort_order,
+        is_active,
+        created_at,
+        updated_at,
+        tool_launch_url,
+        youtube_video_url
       FROM [dbo].[security_checklist_items]
       WHERE is_active = 1
     `);
-    const checklist = checklistQ.recordset;
+    const checklist = sciQ.recordset;
 
-    // Enrich recommendations with videoUrl + embedVideoUrl (mirrors getWorryDetail)
-    const recs = r.recordset;
-    const enriched = recs.map((rec: any) => {
-      const keys = (kwByRec.get(rec.id) || [rec.slug, rec.title])
-        .filter(Boolean)
-        .map((s) => String(s).toLowerCase());
+    // --- helpers ---
+    const norm = (s: any) => (s == null ? "" : String(s)).trim().toLowerCase();
 
-      const found = checklist.find((item: any) => {
-        const hay = `${item.title} ${item.description}`.toLowerCase();
-        return keys.some((k) => hay.includes(k));
-      });
+    const sanitize = (s: string) => s.replace(/[\s\-_.:/]+/g, " ").trim();
 
-      const videoUrl = found?.youtube_video_url || "";
-      const embedVideoUrl = toEmbed(videoUrl);
-      return { ...rec, videoUrl, embedVideoUrl };
+    const scoreItem = (item: any, keys: string[]) => {
+      // Score based on total keyword occurrences in title + text fields
+      const hay =
+        `${norm(item.title)} ` +
+        `${norm(item.description)} ` +
+        `${norm(item.recommendation_text)}`;
+      let score = 0;
+      for (const k of keys) {
+        if (!k) continue;
+        const needle = norm(k);
+        if (!needle) continue;
+        // count occurrences
+        let idx = 0;
+        while (true) {
+          const j = hay.indexOf(needle, idx);
+          if (j === -1) break;
+          score += 1;
+          idx = j + needle.length;
+        }
+      }
+      // Heavier boost for exact/sanitized title match (e.g., "vpn22")
+      const titleSan = sanitize(norm(item.title));
+      const keysSan = keys.map((k) => sanitize(norm(k)));
+      if (keysSan.includes(titleSan)) score += 5;
+      return score;
+    };
+
+    // 4) Enrich each recommendation with best-matching checklist row
+    const enriched = recsQ.recordset.map((rec: any) => {
+      // UNION: keywords ∪ [slug, title]
+      const kw = kwByRec.get(Number(rec.id)) || [];
+      const rawKeys = [...kw, rec.slug, rec.title].filter(Boolean) as string[];
+
+      // Normalize once
+      const keys = rawKeys.map(norm).filter(Boolean);
+
+      // Pick the highest scoring checklist item
+      let best: any | undefined;
+      let bestScore = 0;
+      for (const item of checklist) {
+        const s = scoreItem(item, keys);
+        if (s > bestScore) {
+          best = item;
+          bestScore = s;
+        }
+      }
+
+      // Prefer long-form recommendation_text, then description, then fallback to rationale
+      const longText =
+        (best?.recommendation_text &&
+          String(best.recommendation_text).trim()) ||
+        (best?.description && String(best.description).trim()) ||
+        rec.rationale ||
+        null;
+
+      const helpUrl = (best?.help_url && String(best.help_url).trim()) || null;
+
+      const toolLaunchUrl =
+        (best?.tool_launch_url && String(best.tool_launch_url).trim()) || null;
+
+      const videoUrl =
+        (best?.youtube_video_url && String(best.youtube_video_url).trim()) ||
+        "";
+
+      const embedVideoUrl = toEmbed(videoUrl || "");
+
+      const estimatedTimeMinutes =
+        typeof best?.estimated_time_minutes === "number"
+          ? best.estimated_time_minutes
+          : null;
+
+      return {
+        id: rec.id,
+        slug: rec.slug,
+        title: rec.title,
+        rationale: rec.rationale,
+        pointsText: rec.points_text ?? null,
+        estText: rec.est_text ?? null,
+        sortOrder: rec.sort_order,
+        isActive: !!rec.is_active,
+
+        // UI fields
+        description: longText,
+        helpUrl,
+        toolLaunchUrl,
+        videoUrl,
+        embedVideoUrl,
+        estimatedTimeMinutes,
+
+        // optional debug to confirm which SCI was chosen:
+        // _matchedChecklistId: best?.id ?? null,
+        // _matchScore: bestScore,
+      };
     });
 
-    // (nice logs, now using util.inspect import you added)
     console.log(
       "GET /api/worries/:worryId/recommendations (enriched):\n" +
         util.inspect(enriched, {

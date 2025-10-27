@@ -323,7 +323,13 @@ function renderIcon(name?: string | null) {
 ========================= */
 export default function DashboardWorries() {
   const qc = useQueryClient();
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const initialKey = new URLSearchParams(window.location.search).get(
+    "worryKey",
+  );
+
+  // const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(initialKey);
+
   const recsRef = useRef<HTMLDivElement | null>(null);
 
   const {
