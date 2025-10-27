@@ -212,11 +212,6 @@ export default function Home() {
                     {w.blurb ? (
                       <p className="mt-2 text-sm text-slate-600">{w.blurb}</p>
                     ) : null}
-                    <div className="mt-4">
-                      <Button variant="ghost" className="px-0">
-                        Go to Dashboard <ArrowRight className="ml-2 h-4 w-4" />
-                      </Button>
-                    </div>
                   </a>
                 </motion.div>
               ))}
