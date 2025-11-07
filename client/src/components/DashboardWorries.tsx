@@ -16,6 +16,10 @@ import {
   Sparkles,
   CheckCircle2,
   RotateCw,
+  ExternalLink,
+  Link2,
+  Video,
+  Info,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -32,14 +36,23 @@ type WorryUI = {
   isActive: boolean;
 };
 
+type ResourceLink = {
+  label: string;
+  url: string;
+};
+
 type RecUI = {
-  id: number; // link id (new) or recommendation id (legacy)
-  slug: string; // for anchor on checklist page
+  id: number;
+  slug: string;
   title: string;
-  rationale: string;
-  points?: string | null; // e.g., "+10 pts"
-  est?: string | null; // e.g., "5 min"
-  embedVideoUrl?: string | null;
+  rationale: string; // primary guidance (recommendation)
+  description?: string | null; // long/extra context
+  points?: string | null; // "+10 pts"
+  est?: string | null; // "5 min"
+  embedPrimary?: { kind: "iframe" | "video"; src: string } | null;
+  extraEmbeds?: { kind: "iframe" | "video"; src: string }[];
+  resources?: ResourceLink[];
+  tags?: string[] | null;
   sortOrder?: number | null;
   isActive?: boolean | null;
 };
@@ -61,16 +74,33 @@ function toSlug(text?: string | null): string {
     .replace(/[^a-z0-9_]/g, "");
 }
 
-function toEmbedUrl(url?: string | null): string | null {
+function toIframeEmbed(url?: string | null): string | null {
   if (!url) return null;
-  // YouTube normal or share link -> embed
+  // YouTube watch/share -> embed
   const yt =
     /(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_\-]{6,})/i.exec(url);
   if (yt?.[1]) return `https://www.youtube.com/embed/${yt[1]}`;
-  // Vimeo
+  // Vimeo -> embed
   const vm = /vimeo\.com\/(\d+)/.exec(url);
   if (vm?.[1]) return `https://player.vimeo.com/video/${vm[1]}`;
-  return url; // already embed or direct
+  // If it looks like an embed already, allow it
+  if (
+    /^(https?:)?\/\/(player\.vimeo|www\.youtube|youtube|youtu\.be)/i.test(url)
+  )
+    return url;
+  return null;
+}
+
+function toMedia(
+  url?: string | null,
+): { kind: "iframe" | "video"; src: string } | null {
+  if (!url) return null;
+  const u = String(url).trim();
+  const iframe = toIframeEmbed(u);
+  if (iframe) return { kind: "iframe", src: iframe };
+  // simple mp4 check
+  if (/\.(mp4|webm|ogg)(\?.*)?$/i.test(u)) return { kind: "video", src: u };
+  return null;
 }
 
 function minutesText(min?: number | null): string | null {
@@ -78,7 +108,21 @@ function minutesText(min?: number | null): string | null {
   return `${min} min`;
 }
 
-/* Map backend worry (snake or camel) -> UI */
+function uniqueBy<T>(arr: T[], key: (x: T) => string): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const item of arr) {
+    const k = key(item);
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push(item);
+  }
+  return out;
+}
+
+/* =========================
+   Mappers
+========================= */
 function mapWorry(raw: any): WorryUI {
   return {
     id: raw.id,
@@ -91,16 +135,85 @@ function mapWorry(raw: any): WorryUI {
   };
 }
 
-/* Map recommendation row (new link view or legacy) -> UI */
+/** Gather links from many possible fields */
+function collectResourceLinks(raw: any): ResourceLink[] {
+  const candidates: Array<{ url?: string | null; label?: string | null }> = [
+    { url: raw.help_url, label: raw.help_label ?? "Learn more" },
+    { url: raw.link_url, label: raw.link_label ?? "Reference" },
+    { url: raw.external_url, label: raw.external_label ?? "Official site" },
+    { url: raw.doc_url, label: raw.doc_label ?? "Documentation" },
+    { url: raw.learn_more_url, label: raw.learn_more_label ?? "Learn more" },
+    { url: raw.partner_url, label: raw.partner_label ?? "Partner offer" },
+    { url: raw.resource_url, label: raw.resource_label ?? "Resource" },
+    { url: raw.url, label: raw.url_label ?? "Link" },
+    { url: raw.cta_url, label: raw.cta_text ?? "Open" },
+  ];
+
+  // Merge arrays if present: [{label,url}], or [{text,href}]
+  if (Array.isArray(raw.resources)) {
+    for (const r of raw.resources) {
+      candidates.push({
+        url: r?.url ?? r?.href,
+        label: r?.label ?? r?.text ?? "Resource",
+      });
+    }
+  }
+
+  const normalized = candidates
+    .filter((x) => typeof x.url === "string" && x.url)
+    .map((x) => ({
+      url: String(x.url),
+      label: String(x.label || "Link"),
+    }));
+
+  return uniqueBy(normalized, (r) => `${r.label}|${r.url}`);
+}
+
+/** Gather videos/embeds from multiple possible fields */
+function collectEmbeds(raw: any): { kind: "iframe" | "video"; src: string }[] {
+  const urls: string[] = [];
+  const possible = [
+    raw.embedVideoUrl,
+    raw.youtube_video_url,
+    raw.youtubeVideoUrl,
+    raw.video_url,
+    raw.video_url_2,
+    raw.video_url_3,
+    ...(Array.isArray(raw.video_urls) ? raw.video_urls : []),
+    ...(Array.isArray(raw.videos) ? raw.videos : []),
+  ].filter(Boolean);
+
+  for (const v of possible) {
+    const url = String(v);
+    const media = toMedia(url);
+    if (media) urls.push(media.src + "|" + media.kind);
+  }
+
+  // dedupe by URL+kind
+  const uniq = Array.from(new Set(urls)).map((item) => {
+    const [src, kind] = item.split("|");
+    return { src, kind: kind as "iframe" | "video" };
+  });
+
+  return uniq;
+}
+
+/** Map recommendation row (link-expanded or legacy) -> UI */
 function mapRec(raw: any): RecUI {
-  // New link-expanded view fields
   const title = raw.title ?? "";
+
+  // Primary guidance
   const rationale =
     raw.rationale_override ??
     raw.rationale ??
     raw.recommendation_text ??
-    raw.description ??
+    raw.description_short ??
+    raw.tip ??
     "";
+
+  // Longer description/context
+  const description =
+    raw.description ?? raw.long_description ?? raw.details ?? raw.notes ?? null;
 
   const points =
     raw.points_text_override ?? raw.points_text ?? raw.points ?? null;
@@ -114,17 +227,30 @@ function mapRec(raw: any): RecUI {
 
   const slug = raw.slug ?? toSlug(title);
 
-  const embed =
-    raw.embedVideoUrl ?? raw.youtube_video_url ?? raw.youtubeVideoUrl ?? null;
+  const embeds = collectEmbeds(raw);
+  const [primary, ...extras] = embeds;
+
+  const tags = Array.isArray(raw.tags)
+    ? raw.tags
+    : typeof raw.tags === "string"
+      ? raw.tags
+          .split(",")
+          .map((s: string) => s.trim())
+          .filter(Boolean)
+      : null;
 
   return {
     id: raw.id,
     slug,
     title,
     rationale,
+    description,
     points,
     est,
-    embedVideoUrl: toEmbedUrl(embed),
+    embedPrimary: primary ?? null,
+    extraEmbeds: extras ?? [],
+    resources: collectResourceLinks(raw),
+    tags,
     sortOrder: raw.sort_order ?? raw.sortOrder ?? null,
     isActive: raw.is_active ?? raw.isActive ?? null,
   };
@@ -150,7 +276,6 @@ async function fetchResponseLines(worryId: number): Promise<string[]> {
   const res = await apiRequest(`/api/worries/${worryId}/response-lines`);
   if (!res.ok) return [];
   const data = await res.json();
-  // Expecting rows with { id, line_text }
   return (Array.isArray(data) ? data : [])
     .map((r: any) => r.line_text)
     .filter(Boolean);
@@ -162,7 +287,6 @@ async function fetchRecommendations(worryId: number): Promise<RecUI[]> {
   const data = await res.json();
   const rows = Array.isArray(data) ? data : [];
   const mapped = rows.map(mapRec);
-  // Prefer active only when flag exists; otherwise include all
   const filtered = mapped.filter(
     (r) => r.isActive === null || r.isActive === true,
   );
@@ -199,7 +323,13 @@ function renderIcon(name?: string | null) {
 ========================= */
 export default function DashboardWorries() {
   const qc = useQueryClient();
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const initialKey = new URLSearchParams(window.location.search).get(
+    "worryKey",
+  );
+
+  // const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(initialKey);
+
   const recsRef = useRef<HTMLDivElement | null>(null);
 
   const {
@@ -209,7 +339,10 @@ export default function DashboardWorries() {
   } = useQuery({
     queryKey: ["worries"],
     queryFn: fetchWorries,
-    staleTime: 5 * 60 * 1000,
+    // reduce cache so the worry list also refreshes frequently
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
   });
 
   const selectedWorry = useMemo(
@@ -217,17 +350,23 @@ export default function DashboardWorries() {
     [worries, selectedKey],
   );
 
-  // Fetch lines + recs only when a worry is selected
+  // Lines + recs always refetch (avoid stale)
   const { data: lines = [], isFetching: linesLoading } = useQuery<string[]>({
     queryKey: ["worry-lines", selectedWorry?.id],
     queryFn: () => fetchResponseLines(selectedWorry!.id),
     enabled: !!selectedWorry?.id,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
   });
 
   const { data: recs = [], isFetching: recsLoading } = useQuery<RecUI[]>({
     queryKey: ["worry-recs", selectedWorry?.id],
     queryFn: () => fetchRecommendations(selectedWorry!.id),
     enabled: !!selectedWorry?.id,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
   });
 
   const detail: DetailUI | null = useMemo(() => {
@@ -236,8 +375,6 @@ export default function DashboardWorries() {
       (lines[0] as string) || "Let’s take care of this together.";
     return { headline, recommendations: recs };
   }, [selectedWorry, lines, recs]);
-
-  const selectedLabel = selectedWorry?.label;
 
   // Auto-scroll to the animated suggestions after selection
   useEffect(() => {
@@ -279,12 +416,6 @@ export default function DashboardWorries() {
 
             <div className="flex items-center gap-2">
               {selectedKey && (
-                <Badge variant="secondary" className="text-sm">
-                  <CheckCircle2 className="mr-1 h-4 w-4" />
-                  {selectedLabel}
-                </Badge>
-              )}
-              {selectedKey && (
                 <motion.div
                   whileHover={{ scale: 1.04 }}
                   whileTap={{ scale: 0.98 }}
@@ -304,8 +435,8 @@ export default function DashboardWorries() {
           </div>
 
           <p className="text-muted-foreground mt-2">
-            Tap a card — we’ll prioritize your checklist, show quick wins, and
-            include a helpful video when available.
+            Tap a card — we’ll prioritize your checklist, and show Description,
+            Video, and Helpful links (if available) for each step.
           </p>
         </CardHeader>
 
@@ -327,7 +458,12 @@ export default function DashboardWorries() {
               return (
                 <motion.button
                   key={w.key}
-                  onClick={() => setSelectedKey(w.key)}
+                  onClick={() => {
+                    setSelectedKey(w.key);
+                    // ensure fresh data for the selected worry
+                    qc.invalidateQueries({ queryKey: ["worry-lines", w.id] });
+                    qc.invalidateQueries({ queryKey: ["worry-recs", w.id] });
+                  }}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   transition={{ type: "spring", stiffness: 280, damping: 18 }}
@@ -384,8 +520,10 @@ export default function DashboardWorries() {
                   className="rounded-2xl border bg-slate-50 p-4 text-sm text-slate-700 mt-3"
                 >
                   <Sparkles className="mr-2 inline-block h-4 w-4" />
-                  Select an option to see personalized steps (with videos when
-                  available).
+                  Select an option to see personalized steps (with
+                  <span className="font-semibold"> Description</span>,
+                  <span className="font-semibold"> Video</span>, and
+                  <span className="font-semibold"> Helpful links</span>).
                 </motion.div>
               ) : (
                 <motion.div
@@ -408,7 +546,7 @@ export default function DashboardWorries() {
                         {linesLoading ? "Personalizing…" : detail?.headline}
                       </div>
                       <div className="text-xs text-blue-700">
-                        Based on “{selectedLabel}”
+                        Based on your selection
                       </div>
                     </motion.div>
 
@@ -447,7 +585,8 @@ export default function DashboardWorries() {
                           transition={{ duration: 0.25, ease: "easeOut" }}
                           className="rounded-2xl border border-blue-200 p-4 bg-blue-50 shadow-md"
                         >
-                          <div className="flex items-start justify-between">
+                          {/* Title + Badges */}
+                          <div className="flex items-start justify-between gap-3">
                             <div className="font-semibold leading-tight">
                               {item.title}
                             </div>
@@ -460,25 +599,128 @@ export default function DashboardWorries() {
                             )}
                           </div>
 
-                          <p className="text-sm text-slate-700 mt-1">
-                            {item.rationale}
-                          </p>
-
-                          {/* Video (if provided by API) */}
-                          {item.embedVideoUrl && (
-                            <div className="mt-3">
-                              <div className="aspect-video">
-                                <iframe
-                                  src={item.embedVideoUrl}
-                                  className="w-full h-full rounded"
-                                  frameBorder={0}
-                                  allowFullScreen
-                                  title={`${item.title} Tutorial`}
-                                />
-                              </div>
+                          {/* Tags */}
+                          {item.tags?.length ? (
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              {item.tags.map((t, idx) => (
+                                <Badge key={idx} variant="secondary">
+                                  {t}
+                                </Badge>
+                              ))}
                             </div>
-                          )}
+                          ) : null}
 
+                          {/* Recommendation (always shown) */}
+                          <div className="mt-2 flex items-start gap-2">
+                            <Info className="h-4 w-4 mt-0.5 text-slate-600" />
+                            <p className="text-sm text-slate-800">
+                              {item.rationale ||
+                                "No recommendation text provided yet."}
+                            </p>
+                          </div>
+
+                          {/* Description section (always present; shows placeholder if missing) */}
+                          <div className="mt-2">
+                            <div className="text-xs font-semibold text-slate-600 mb-1">
+                              Description
+                            </div>
+                            <p className="text-sm text-slate-700">
+                              {item.description &&
+                              item.description.trim().length > 0
+                                ? item.description
+                                : "No additional description provided yet."}
+                            </p>
+                          </div>
+
+                          {/* Video(s) section (always present; show placeholder if none) */}
+                          <div className="mt-3">
+                            <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 mb-1">
+                              <Video className="h-3.5 w-3.5" />
+                              <span>Video</span>
+                            </div>
+
+                            {item.embedPrimary ? (
+                              item.embedPrimary.kind === "iframe" ? (
+                                <div className="aspect-video">
+                                  <iframe
+                                    src={item.embedPrimary.src}
+                                    className="w-full h-full rounded"
+                                    frameBorder={0}
+                                    allowFullScreen
+                                    title={`${item.title} Video`}
+                                  />
+                                </div>
+                              ) : (
+                                <video
+                                  className="w-full rounded"
+                                  controls
+                                  src={item.embedPrimary.src}
+                                />
+                              )
+                            ) : (
+                              <div className="text-xs text-slate-500">
+                                No video provided yet.
+                              </div>
+                            )}
+
+                            {item.extraEmbeds &&
+                              item.extraEmbeds.length > 0 && (
+                                <div className="mt-2 space-y-2">
+                                  {item.extraEmbeds.map((v, i) =>
+                                    v.kind === "iframe" ? (
+                                      <div key={i} className="aspect-video">
+                                        <iframe
+                                          src={v.src}
+                                          className="w-full h-full rounded"
+                                          frameBorder={0}
+                                          allowFullScreen
+                                          title={`${item.title} Extra ${i + 1}`}
+                                        />
+                                      </div>
+                                    ) : (
+                                      <video
+                                        key={i}
+                                        className="w-full rounded"
+                                        controls
+                                        src={v.src}
+                                      />
+                                    ),
+                                  )}
+                                </div>
+                              )}
+                          </div>
+
+                          {/* Helpful links section (always present; placeholder if none) */}
+                          <div className="mt-3">
+                            <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 mb-1">
+                              <Link2 className="h-3.5 w-3.5" />
+                              <span>Helpful links</span>
+                            </div>
+
+                            {item.resources && item.resources.length > 0 ? (
+                              <ul className="space-y-1">
+                                {item.resources.map((r, idx) => (
+                                  <li key={idx} className="text-sm">
+                                    <a
+                                      href={r.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-indigo-600 hover:underline inline-flex items-center gap-1"
+                                    >
+                                      {r.label}{" "}
+                                      <ExternalLink className="h-3.5 w-3.5" />
+                                    </a>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <div className="text-xs text-slate-500">
+                                No links provided yet.
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Primary action */}
                           <div className="mt-3">
                             <motion.div
                               whileHover={{ scale: 1.03 }}
