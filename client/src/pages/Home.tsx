@@ -228,79 +228,6 @@ export default function Home() {
         )}
       </Section>
 
-      {/* SLIM QUICK-CHECK STRIP */}
-      <section className="px-4 py-6 bg-slate-50 border-y">
-        <div className="mx-auto max-w-5xl">
-          <div className="grid gap-4 sm:grid-cols-2">
-            {/* Phone quick check */}
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.25 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-            >
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Phone className="h-4 w-4" /> Quick check: phone number
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="e.g. +1 (555) 123-4567"
-                      value={phoneQuery}
-                      onChange={(e) => setPhoneQuery(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && goPhoneLookup()}
-                    />
-                    <Button
-                      variant="secondary"
-                      onClick={goPhoneLookup}
-                      aria-label="Lookup phone"
-                    >
-                      <Search className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-
-            {/* URL quick check */}
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.25 }}
-              transition={{ duration: 0.3, ease: "easeOut", delay: 0.05 }}
-            >
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <LinkIcon className="h-4 w-4" /> Quick check: link / URL
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Paste a URL"
-                      value={urlQuery}
-                      onChange={(e) => setUrlQuery(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && goUrlLookup()}
-                    />
-                    <Button
-                      variant="secondary"
-                      onClick={goUrlLookup}
-                      aria-label="Scan URL"
-                    >
-                      <Search className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
       {/* COMPACT CTA ROW */}
       <section className="px-4 py-6 bg-white">
         <div className="mx-auto max-w-5xl flex flex-wrap items-center justify-center gap-3">
@@ -439,7 +366,7 @@ export default function Home() {
         </div>
       </Section>
 
-      {/* FEATURES */}
+      {/*{ FEATURES }
       <Section
         title="Tools that help you act fast"
         subtitle="Outcomes over dashboards."
@@ -465,7 +392,7 @@ export default function Home() {
             href="/scam-videos"
           />
         </div>
-      </Section>
+      </Section>*/}
 
       {/* PARTNER PERKS */}
       <Section

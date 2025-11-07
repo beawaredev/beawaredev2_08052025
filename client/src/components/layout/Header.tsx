@@ -189,9 +189,10 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
   const { user, logout } = useAuth();
   const [query, setQuery] = useState("");
 
+  // Removed "Scam Lookup" from guestTopLinks per request.
   const guestTopLinks = [
     { name: "Home", path: "/" },
-    { name: "Scam Lookup", path: "/scam-lookup" },
+    // { name: "Scam Lookup", path: "/scam-lookup" }, <-- commented out
     { name: "Educational Videos", path: "/scam-videos" },
     { name: "Scam Help", path: "/help" },
     { name: "Contact Us", path: "/contact" },
@@ -203,6 +204,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
     e.preventDefault();
     const q = query.trim();
     if (!q) return;
+    // Keep the function in place if you re-enable the form later
     window.location.href = `/scam-lookup?q=${encodeURIComponent(q)}`;
   };
 
@@ -261,7 +263,8 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
 
         {/* Right: Search + Auth / user actions */}
         <div className="flex items-center space-x-3 h-full">
-          {/* 🔍 Scam Lookup search (both guests and users) */}
+          {/* 🔍 Scam Lookup search (desktop) - COMMENTED OUT per request */}
+          {/*
           <form
             onSubmit={submitLookup}
             className="hidden md:flex items-center"
@@ -282,8 +285,10 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
               Search
             </Button>
           </form>
+          */}
 
-          {/* Mobile quick access to Scam Lookup */}
+          {/* Mobile quick access to Scam Lookup - COMMENTED OUT per request */}
+          {/*
           {location !== "/scam-lookup" && (
             <Button
               asChild
@@ -298,6 +303,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
               </Link>
             </Button>
           )}
+          */}
 
           {!user ? (
             <>
@@ -318,7 +324,8 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
               {/* Consistent, colored, explanatory score pill */}
               <HeaderSecurityScore />
 
-              {/* Quick button to open Scam Lookup */}
+              {/* Quick button to open Scam Lookup for logged-in users - COMMENTED OUT per request */}
+              {/*
               {location !== "/scam-lookup" && (
                 <Button
                   asChild
@@ -333,6 +340,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
                   </Link>
                 </Button>
               )}
+              */}
 
               <Button
                 variant="ghost"

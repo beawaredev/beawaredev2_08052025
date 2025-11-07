@@ -1,3 +1,4 @@
+// src/components/layout/Sidebar.tsx
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import beawareLogo from "@assets/beaware-logo.png";
@@ -72,11 +73,11 @@ export default function Sidebar({
       path: "/dashboard",
       icon: <LayoutDashboardIcon className="h-5 w-5" />,
     },
-    {
-      name: "Scam Lookup",
-      path: "/scam-lookup",
-      icon: <SearchIcon className="h-5 w-5" />,
-    },
+    // {  // ⛔ Per request, hide/comment out Scam Lookup from the sidebar
+    //   name: "Scam Lookup",
+    //   path: "/scam-lookup",
+    //   icon: <SearchIcon className="h-5 w-5" />,
+    // },
     {
       name: "Educational Videos",
       path: "/scam-videos",
@@ -179,6 +180,7 @@ export default function Sidebar({
           <button
             onClick={() => setMobileMenuOpen(false)}
             className="p-1 text-gray-600 focus:outline-none"
+            aria-label="Close menu"
           >
             &times;
           </button>
