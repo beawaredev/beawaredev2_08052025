@@ -1,13 +1,13 @@
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { apiRequest } from '@/lib/queryClient';
-import { type ScamVideo, type ScamType } from '@shared/schema';
-import { ScamVideoPlayer } from '@/components/ScamVideoPlayer';
-import { useToast } from '@/hooks/use-toast';
-import { Trash2, Edit, Plus, ExternalLink } from 'lucide-react';
+import { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { apiRequest } from "@/lib/queryClient";
+import { type ScamVideo } from "@shared/schema";
+import { ScamVideoPlayer } from "@/components/ScamVideoPlayer";
+import { useToast } from "@/hooks/use-toast";
+import { Trash2, Edit, Plus, ExternalLink } from "lucide-react";
 
 import {
   Form,
@@ -17,7 +17,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form';
+} from "@/components/ui/form";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,8 +27,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
+} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -36,8 +35,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 import {
   Card,
   CardContent,
@@ -45,30 +43,53 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
+} from "@/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-// Form schema for adding/editing a video
+type VideoType = "educational" | "awareness" | "alerting" | "tutorial";
+
+// Allow legacy items (that still have scamType) to be displayed
+type VideoItem = ScamVideo & {
+  videoType?: VideoType;
+  scamType?: string; // legacy
+};
+
+// Map legacy scamType → new generic video type (override here as you like)
+const legacyTypeToVideoType = (legacy?: string): VideoType => {
+  switch ((legacy || "").toLowerCase()) {
+    case "phone":
+    case "email":
+    case "business":
+      return "awareness";
+    default:
+      return "awareness";
+  }
+};
+
+// Form schema for adding/editing a video (generic types)
 const videoFormSchema = z.object({
-  title: z.string().min(5, { message: 'Title must be at least 5 characters' }),
-  description: z.string().min(10, { message: 'Description must be at least 10 characters' }),
-  youtubeUrl: z.string().url({ message: 'Must be a valid YouTube URL' }),
-  youtubeVideoId: z.string().optional(), // Added for form submission
-  scamType: z.enum(['phone', 'email', 'business']),
+  title: z.string().min(5, { message: "Title must be at least 5 characters" }),
+  description: z
+    .string()
+    .min(10, { message: "Description must be at least 10 characters" }),
+  youtubeUrl: z.string().url({ message: "Must be a valid YouTube URL" }),
+  youtubeVideoId: z.string().optional(),
+  videoType: z.enum(["educational", "awareness", "alerting", "tutorial"]),
   featured: z.boolean().default(false),
+  // keeping this optional field for now to avoid breaking existing API
   consolidatedScamId: z.number().nullable().optional(),
 });
 
@@ -77,167 +98,211 @@ type VideoFormValues = z.infer<typeof videoFormSchema>;
 export function ScamVideoManager() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [editingVideo, setEditingVideo] = useState<ScamVideo | null>(null);
-  const [deletingVideo, setDeletingVideo] = useState<ScamVideo | null>(null);
+  const [editingVideo, setEditingVideo] = useState<VideoItem | null>(null);
+  const [deletingVideo, setDeletingVideo] = useState<VideoItem | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  
+
   // Fetch all videos
-  const { data: videos, isLoading, isError } = useQuery<ScamVideo[]>({
-    queryKey: ['/api/scam-videos'],
+  const {
+    data: videos,
+    isLoading,
+    isError,
+  } = useQuery<VideoItem[]>({
+    queryKey: ["/api/scam-videos"],
   });
-  
+
+  const normalizedVideos = useMemo<VideoItem[]>(
+    () =>
+      (videos || []).map((v) => ({
+        ...v,
+        videoType:
+          (v.videoType as VideoType) ?? legacyTypeToVideoType(v.scamType),
+      })),
+    [videos],
+  );
+
   // Add video mutation
   const addVideoMutation = useMutation({
     mutationFn: async (data: VideoFormValues) => {
-      const response = await apiRequest('/scam-videos', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      const response = await apiRequest("/scam-videos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // send new field; backend can accept both during transition if needed
         body: JSON.stringify(data),
       });
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/scam-videos'] });
+      queryClient.invalidateQueries({ queryKey: ["/api/scam-videos"] });
       setIsAddDialogOpen(false);
       toast({
-        title: 'Video added successfully',
-        description: 'The educational video has been added.',
+        title: "Video added",
+        description: "Your video has been added to the library.",
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
-        title: 'Failed to add video',
-        description: error.message || 'An error occurred while adding the video.',
-        variant: 'destructive',
+        title: "Failed to add video",
+        description:
+          error?.message || "An error occurred while adding the video.",
+        variant: "destructive",
       });
     },
   });
-  
+
   // Update video mutation
   const updateVideoMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Partial<VideoFormValues> }) => {
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: number;
+      data: Partial<VideoFormValues>;
+    }) => {
       const response = await apiRequest(`/scam-videos/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/scam-videos'] });
+      queryClient.invalidateQueries({ queryKey: ["/api/scam-videos"] });
       setIsEditDialogOpen(false);
       setEditingVideo(null);
       toast({
-        title: 'Video updated successfully',
-        description: 'The educational video has been updated.',
+        title: "Video updated",
+        description: "Your changes have been saved.",
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
-        title: 'Failed to update video',
-        description: error.message || 'An error occurred while updating the video.',
-        variant: 'destructive',
+        title: "Failed to update video",
+        description:
+          error?.message || "An error occurred while updating the video.",
+        variant: "destructive",
       });
     },
   });
-  
+
   // Delete video mutation
   const deleteVideoMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest(`/scam-videos/${id}`, {
-        method: 'DELETE',
-      });
+      await apiRequest(`/scam-videos/${id}`, { method: "DELETE" });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/scam-videos'] });
+      queryClient.invalidateQueries({ queryKey: ["/api/scam-videos"] });
       setIsDeleteDialogOpen(false);
       setDeletingVideo(null);
       toast({
-        title: 'Video deleted successfully',
-        description: 'The educational video has been removed.',
+        title: "Video deleted",
+        description: "The video has been removed.",
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
-        title: 'Failed to delete video',
-        description: error.message || 'An error occurred while deleting the video.',
-        variant: 'destructive',
+        title: "Failed to delete video",
+        description:
+          error?.message || "An error occurred while deleting the video.",
+        variant: "destructive",
       });
     },
   });
-  
+
   // Extract YouTube video ID from URL
   const getYouTubeId = (url: string): string | null => {
     try {
       const urlObj = new URL(url);
-      if (urlObj.hostname.includes('youtube.com')) {
-        return urlObj.searchParams.get('v');
-      } else if (urlObj.hostname.includes('youtu.be')) {
+      if (urlObj.hostname.includes("youtube.com")) {
+        return urlObj.searchParams.get("v");
+      } else if (urlObj.hostname.includes("youtu.be")) {
         return urlObj.pathname.substring(1);
       }
     } catch (error) {
-      console.error('Error parsing YouTube URL:', error);
+      // noop
     }
     return null;
   };
-  
+
   // Filter videos by type
-  const phoneVideos = videos?.filter(v => v.scamType === 'phone') || [];
-  const emailVideos = videos?.filter(v => v.scamType === 'email') || [];
-  const businessVideos = videos?.filter(v => v.scamType === 'business') || [];
-  const featuredVideos = videos?.filter(v => v.featured) || [];
-  
+  const featuredVideos = normalizedVideos.filter((v) => v.featured);
+  const educationalVideos = normalizedVideos.filter(
+    (v) => v.videoType === "educational",
+  );
+  const awarenessVideos = normalizedVideos.filter(
+    (v) => v.videoType === "awareness",
+  );
+  const alertingVideos = normalizedVideos.filter(
+    (v) => v.videoType === "alerting",
+  );
+  const tutorialVideos = normalizedVideos.filter(
+    (v) => v.videoType === "tutorial",
+  );
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center p-8">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
       </div>
     );
   }
-  
+
   if (isError) {
     return (
       <Card className="bg-destructive/10 border-destructive">
         <CardHeader>
           <CardTitle>Error Loading Videos</CardTitle>
-          <CardDescription>There was a problem loading the educational videos.</CardDescription>
+          <CardDescription>
+            There was a problem loading the videos.
+          </CardDescription>
         </CardHeader>
         <CardFooter>
-          <Button onClick={() => queryClient.invalidateQueries({ queryKey: ['/api/scam-videos'] })}>
+          <Button
+            onClick={() =>
+              queryClient.invalidateQueries({ queryKey: ["/api/scam-videos"] })
+            }
+          >
             Try Again
           </Button>
         </CardFooter>
       </Card>
     );
   }
-  
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Educational Videos</h2>
+        <h2 className="text-2xl font-bold">Video Library</h2>
         <Button onClick={() => setIsAddDialogOpen(true)}>
           <Plus className="mr-2 h-4 w-4" /> Add Video
         </Button>
       </div>
-      
+
       <Tabs defaultValue="all">
         <TabsList>
-          <TabsTrigger value="all">All Videos ({videos?.length || 0})</TabsTrigger>
-          <TabsTrigger value="featured">Featured ({featuredVideos.length})</TabsTrigger>
-          <TabsTrigger value="phone">Phone ({phoneVideos.length})</TabsTrigger>
-          <TabsTrigger value="email">Email ({emailVideos.length})</TabsTrigger>
-          <TabsTrigger value="business">Business ({businessVideos.length})</TabsTrigger>
+          <TabsTrigger value="all">All ({normalizedVideos.length})</TabsTrigger>
+          <TabsTrigger value="featured">
+            Featured ({featuredVideos.length})
+          </TabsTrigger>
+          <TabsTrigger value="educational">
+            Educational ({educationalVideos.length})
+          </TabsTrigger>
+          <TabsTrigger value="awareness">
+            Awareness ({awarenessVideos.length})
+          </TabsTrigger>
+          <TabsTrigger value="alerting">
+            Alerting ({alertingVideos.length})
+          </TabsTrigger>
+          <TabsTrigger value="tutorial">
+            Tutorial ({tutorialVideos.length})
+          </TabsTrigger>
         </TabsList>
-        
+
         <TabsContent value="all">
-          <VideoList 
-            videos={videos || []}
+          <VideoList
+            videos={normalizedVideos}
             onEdit={(video) => {
               setEditingVideo(video);
               setIsEditDialogOpen(true);
@@ -248,9 +313,9 @@ export function ScamVideoManager() {
             }}
           />
         </TabsContent>
-        
+
         <TabsContent value="featured">
-          <VideoList 
+          <VideoList
             videos={featuredVideos}
             onEdit={(video) => {
               setEditingVideo(video);
@@ -262,10 +327,10 @@ export function ScamVideoManager() {
             }}
           />
         </TabsContent>
-        
-        <TabsContent value="phone">
-          <VideoList 
-            videos={phoneVideos}
+
+        <TabsContent value="educational">
+          <VideoList
+            videos={educationalVideos}
             onEdit={(video) => {
               setEditingVideo(video);
               setIsEditDialogOpen(true);
@@ -276,10 +341,10 @@ export function ScamVideoManager() {
             }}
           />
         </TabsContent>
-        
-        <TabsContent value="email">
-          <VideoList 
-            videos={emailVideos}
+
+        <TabsContent value="awareness">
+          <VideoList
+            videos={awarenessVideos}
             onEdit={(video) => {
               setEditingVideo(video);
               setIsEditDialogOpen(true);
@@ -290,10 +355,24 @@ export function ScamVideoManager() {
             }}
           />
         </TabsContent>
-        
-        <TabsContent value="business">
-          <VideoList 
-            videos={businessVideos}
+
+        <TabsContent value="alerting">
+          <VideoList
+            videos={alertingVideos}
+            onEdit={(video) => {
+              setEditingVideo(video);
+              setIsEditDialogOpen(true);
+            }}
+            onDelete={(video) => {
+              setDeletingVideo(video);
+              setIsDeleteDialogOpen(true);
+            }}
+          />
+        </TabsContent>
+
+        <TabsContent value="tutorial">
+          <VideoList
+            videos={tutorialVideos}
             onEdit={(video) => {
               setEditingVideo(video);
               setIsEditDialogOpen(true);
@@ -305,79 +384,71 @@ export function ScamVideoManager() {
           />
         </TabsContent>
       </Tabs>
-      
+
       {/* Add Video Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add Educational Video</DialogTitle>
+            <DialogTitle>Add Video</DialogTitle>
             <DialogDescription>
-              Add a YouTube video to help users learn about scams and how to protect themselves.
+              Add a YouTube video to help users learn and stay safe.
             </DialogDescription>
           </DialogHeader>
-          
-          <VideoForm 
+
+          <VideoForm
             onSubmit={(data) => addVideoMutation.mutate(data)}
             isSubmitting={addVideoMutation.isPending}
           />
         </DialogContent>
       </Dialog>
-      
+
       {/* Edit Video Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit Educational Video</DialogTitle>
+            <DialogTitle>Edit Video</DialogTitle>
             <DialogDescription>
-              Update the details of this educational video.
+              Update the details of this video.
             </DialogDescription>
           </DialogHeader>
-          
+
           {editingVideo && (
-            <VideoForm 
+            <VideoForm
               video={editingVideo}
               onSubmit={(data) => {
-                // Extract YouTube video ID for updating as well
-                const extractedVideoId = getYouTubeId(data.youtubeUrl);
-                if (extractedVideoId) {
-                  updateVideoMutation.mutate({ 
-                    id: editingVideo.id, 
-                    data: {
-                      ...data,
-                      youtubeVideoId: extractedVideoId,
-                    } 
-                  });
-                } else {
-                  // Can't directly access the form from here, show a toast instead
-                  toast({
-                    title: "Invalid YouTube URL",
-                    description: "Could not extract a valid YouTube video ID from this URL. Please use a valid YouTube URL.",
-                    variant: "destructive"
-                  });
-                }
+                updateVideoMutation.mutate({
+                  id: editingVideo.id,
+                  data,
+                });
               }}
               isSubmitting={updateVideoMutation.isPending}
             />
           )}
         </DialogContent>
       </Dialog>
-      
+
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <AlertDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Delete this video?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the video "{deletingVideo?.title}". This action cannot be undone.
+              This will permanently delete "{deletingVideo?.title}". This action
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={() => deletingVideo && deleteVideoMutation.mutate(deletingVideo.id)}
+            <AlertDialogAction
+              onClick={() =>
+                deletingVideo && deleteVideoMutation.mutate(deletingVideo.id)
+              }
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleteVideoMutation.isPending ? 'Deleting...' : 'Delete'}
+              {deleteVideoMutation.isPending ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -386,14 +457,14 @@ export function ScamVideoManager() {
   );
 }
 
-function VideoList({ 
-  videos, 
-  onEdit, 
-  onDelete 
+function VideoList({
+  videos,
+  onEdit,
+  onDelete,
 }: {
-  videos: ScamVideo[];
-  onEdit: (video: ScamVideo) => void;
-  onDelete: (video: ScamVideo) => void;
+  videos: VideoItem[];
+  onEdit: (video: VideoItem) => void;
+  onDelete: (video: VideoItem) => void;
 }) {
   if (videos.length === 0) {
     return (
@@ -401,13 +472,14 @@ function VideoList({
         <CardHeader>
           <CardTitle>No Videos Found</CardTitle>
           <CardDescription>
-            There are no videos in this category. Add a new video using the "Add Video" button.
+            There are no videos in this category. Add a new video using the "Add
+            Video" button.
           </CardDescription>
         </CardHeader>
       </Card>
     );
   }
-  
+
   return (
     <div className="space-y-4">
       {videos.map((video) => (
@@ -425,37 +497,58 @@ function VideoList({
                     <CardTitle className="flex items-center">
                       {video.title}
                       {video.featured && (
-                        <Badge className="ml-2" variant="secondary">Featured</Badge>
+                        <Badge className="ml-2" variant="secondary">
+                          Featured
+                        </Badge>
                       )}
                     </CardTitle>
                     <CardDescription>
-                      Type: <Badge variant="outline">{video.scamType}</Badge>
+                      Type:{" "}
+                      <Badge variant="outline">
+                        {video.videoType ??
+                          legacyTypeToVideoType(video.scamType)}
+                      </Badge>
                     </CardDescription>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="icon" onClick={() => onEdit(video)}>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => onEdit(video)}
+                    >
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <Button variant="destructive" size="icon" onClick={() => onDelete(video)}>
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      onClick={() => onDelete(video)}
+                    >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">{video.description}</p>
+                <p className="text-sm text-muted-foreground">
+                  {video.description}
+                </p>
                 <div className="mt-4 text-xs text-muted-foreground">
-                  Added: {new Date(video.addedAt || '').toLocaleDateString()}
+                  Added: {new Date(video.addedAt || "").toLocaleDateString()}
                   {video.updatedAt && video.updatedAt !== video.addedAt && (
                     <span className="ml-2">
-                      · Updated: {new Date(video.updatedAt).toLocaleDateString()}
+                      · Updated:{" "}
+                      {new Date(video.updatedAt).toLocaleDateString()}
                     </span>
                   )}
                 </div>
               </CardContent>
               <CardFooter>
                 <Button variant="outline" size="sm" asChild>
-                  <a href={video.youtubeUrl} target="_blank" rel="noopener noreferrer">
+                  <a
+                    href={video.youtubeUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     <ExternalLink className="h-4 w-4 mr-2" /> Watch on YouTube
                   </a>
                 </Button>
@@ -468,52 +561,55 @@ function VideoList({
   );
 }
 
-function VideoForm({ 
-  video, 
-  onSubmit, 
-  isSubmitting 
+function VideoForm({
+  video,
+  onSubmit,
+  isSubmitting,
 }: {
-  video?: ScamVideo;
+  video?: VideoItem;
   onSubmit: (data: VideoFormValues) => void;
   isSubmitting: boolean;
 }) {
+  const defaultType: VideoType =
+    video?.videoType ?? legacyTypeToVideoType(video?.scamType);
+
   const form = useForm<VideoFormValues>({
     resolver: zodResolver(videoFormSchema),
-    defaultValues: video ? {
-      title: video.title,
-      description: video.description,
-      youtubeUrl: video.youtubeUrl,
-      scamType: video.scamType as ScamType,
-      featured: video.featured || false,
-      consolidatedScamId: video.consolidatedScamId || null,
-    } : {
-      title: '',
-      description: '',
-      youtubeUrl: '',
-      scamType: 'phone',
-      featured: false,
-      consolidatedScamId: null,
-    },
+    defaultValues: video
+      ? {
+          title: video.title,
+          description: video.description,
+          youtubeUrl: video.youtubeUrl,
+          videoType: defaultType,
+          featured: video.featured || false,
+          consolidatedScamId: (video as any).consolidatedScamId ?? null,
+        }
+      : {
+          title: "",
+          description: "",
+          youtubeUrl: "",
+          videoType: "educational",
+          featured: false,
+          consolidatedScamId: null,
+        },
   });
-  
-  const youtubeUrl = form.watch('youtubeUrl');
+
+  const youtubeUrl = form.watch("youtubeUrl");
   const videoId = youtubeUrl ? getYouTubeId(youtubeUrl) : null;
-  
-  // Modified form submission to include youtubeVideoId
+
+  // Include youtubeVideoId on submit
   const onSubmitForm = (data: VideoFormValues) => {
-    // Extract YouTube video ID and add it to the form data
     const extractedVideoId = getYouTubeId(data.youtubeUrl);
     if (extractedVideoId) {
-      // Include the video ID in the submission
       onSubmit({
         ...data,
         youtubeVideoId: extractedVideoId,
       });
     } else {
-      // Show error if video ID couldn't be extracted
-      form.setError('youtubeUrl', { 
-        type: 'manual',
-        message: 'Could not extract YouTube video ID from this URL. Please use a valid YouTube URL.' 
+      form.setError("youtubeUrl", {
+        type: "manual",
+        message:
+          "Could not extract YouTube video ID from this URL. Please use a valid YouTube URL.",
       });
     }
   };
@@ -530,13 +626,16 @@ function VideoForm({
                 <FormItem>
                   <FormLabel>Title</FormLabel>
                   <FormControl>
-                    <Input placeholder="How to spot IRS phone scams" {...field} />
+                    <Input
+                      placeholder="Example: How VPNs Protect You"
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            
+
             <FormField
               control={form.control}
               name="youtubeUrl"
@@ -544,7 +643,10 @@ function VideoForm({
                 <FormItem>
                   <FormLabel>YouTube URL</FormLabel>
                   <FormControl>
-                    <Input placeholder="https://www.youtube.com/watch?v=..." {...field} />
+                    <Input
+                      placeholder="https://www.youtube.com/watch?v=..."
+                      {...field}
+                    />
                   </FormControl>
                   <FormDescription>
                     Enter the full YouTube video URL
@@ -553,33 +655,34 @@ function VideoForm({
                 </FormItem>
               )}
             />
-            
+
             <FormField
               control={form.control}
-              name="scamType"
+              name="videoType"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Scam Type</FormLabel>
-                  <Select 
-                    onValueChange={field.onChange} 
+                  <FormLabel>Video Type</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
                     defaultValue={field.value}
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select scam type" />
+                        <SelectValue placeholder="Select video type" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="phone">Phone Scam</SelectItem>
-                      <SelectItem value="email">Email Scam</SelectItem>
-                      <SelectItem value="business">Business Scam</SelectItem>
+                      <SelectItem value="educational">Educational</SelectItem>
+                      <SelectItem value="awareness">Awareness</SelectItem>
+                      <SelectItem value="alerting">Alerting</SelectItem>
+                      <SelectItem value="tutorial">Tutorial</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            
+
             <FormField
               control={form.control}
               name="featured"
@@ -594,13 +697,13 @@ function VideoForm({
                   <div className="space-y-1 leading-none">
                     <FormLabel>Featured Video</FormLabel>
                     <FormDescription>
-                      Featured videos are displayed prominently on the scam videos page
+                      Featured videos are displayed prominently in the library.
                     </FormDescription>
                   </div>
                 </FormItem>
               )}
             />
-            
+
             <FormField
               control={form.control}
               name="description"
@@ -608,10 +711,10 @@ function VideoForm({
                 <FormItem>
                   <FormLabel>Description</FormLabel>
                   <FormControl>
-                    <Textarea 
-                      placeholder="Explain what users will learn from this video..." 
+                    <Textarea
+                      placeholder="Describe what users will learn..."
                       className="min-h-[120px]"
-                      {...field} 
+                      {...field}
                     />
                   </FormControl>
                   <FormMessage />
@@ -619,7 +722,7 @@ function VideoForm({
               )}
             />
           </div>
-          
+
           <div className="space-y-4">
             <h3 className="text-lg font-medium">Video Preview</h3>
             {videoId ? (
@@ -628,17 +731,19 @@ function VideoForm({
               </div>
             ) : (
               <div className="aspect-video flex items-center justify-center rounded-md border bg-muted">
-                <p className="text-muted-foreground">Enter a valid YouTube URL to see preview</p>
+                <p className="text-muted-foreground">
+                  Enter a valid YouTube URL to see preview
+                </p>
               </div>
             )}
           </div>
         </div>
-        
+
         <Separator />
-        
+
         <DialogFooter>
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Saving...' : video ? 'Update Video' : 'Add Video'}
+            {isSubmitting ? "Saving..." : video ? "Update Video" : "Add Video"}
           </Button>
         </DialogFooter>
       </form>
@@ -649,13 +754,13 @@ function VideoForm({
 function getYouTubeId(url: string): string | null {
   try {
     const urlObj = new URL(url);
-    if (urlObj.hostname.includes('youtube.com')) {
-      return urlObj.searchParams.get('v');
-    } else if (urlObj.hostname.includes('youtu.be')) {
+    if (urlObj.hostname.includes("youtube.com")) {
+      return urlObj.searchParams.get("v");
+    } else if (urlObj.hostname.includes("youtu.be")) {
       return urlObj.pathname.substring(1);
     }
   } catch (error) {
-    console.error('Error parsing YouTube URL:', error);
+    // noop
   }
   return null;
 }
