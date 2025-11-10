@@ -289,6 +289,84 @@ export class AzureStorage implements IStorage {
     }
   }
 
+  // inside class AzureStorage implements IStorage
+  async createSecurityChecklistItem(
+    insertItem: InsertSecurityChecklistItem,
+  ): Promise<SecurityChecklistItem | undefined> {
+    try {
+      // Ensure we have an active database connection
+      await this.ensureConnection();
+      // Use the imported pool to create a new request (same pattern as other methods)
+      const request = pool.request();
+
+      // Bind parameters to prevent SQL injection and ensure types are correct
+      request.input("title", insertItem.title);
+      request.input("description", insertItem.description ?? "");
+      request.input("recommendationText", insertItem.recommendationText ?? "");
+      request.input("helpUrl", insertItem.helpUrl ?? null);
+      request.input("toolLaunchUrl", insertItem.toolLaunchUrl ?? null);
+      request.input("youtubeVideoUrl", insertItem.youtubeVideoUrl ?? null);
+      request.input(
+        "estimatedTimeMinutes",
+        insertItem.estimatedTimeMinutes ?? null,
+      );
+      request.input("category", insertItem.category);
+      request.input("priority", insertItem.priority ?? "medium");
+      request.input("sortOrder", insertItem.sortOrder ?? 0);
+
+      const result = await request.query(`
+        INSERT INTO security_checklist_items (
+          title,
+          description,
+          recommendation_text,
+          help_url,
+          tool_launch_url,
+          youtube_video_url,
+          estimated_time_minutes,
+          category,
+          priority,
+          sort_order,
+          is_active,
+          created_at
+        )
+        OUTPUT
+          INSERTED.id,
+          INSERTED.title,
+          INSERTED.description,
+          INSERTED.recommendation_text     AS recommendationText,
+          INSERTED.help_url                AS helpUrl,
+          INSERTED.tool_launch_url         AS toolLaunchUrl,
+          INSERTED.youtube_video_url       AS youtubeVideoUrl,
+          INSERTED.estimated_time_minutes  AS estimatedTimeMinutes,
+          INSERTED.category,
+          INSERTED.priority,
+          INSERTED.sort_order              AS sortOrder,
+          INSERTED.is_active               AS isActive,
+          INSERTED.created_at              AS createdAt
+        VALUES (
+          @title,
+          @description,
+          @recommendationText,
+          @helpUrl,
+          @toolLaunchUrl,
+          @youtubeVideoUrl,
+          @estimatedTimeMinutes,
+          @category,
+          @priority,
+          @sortOrder,
+          1,
+          SYSUTCDATETIME()
+        );
+      `);
+
+      const dbItem = result.recordset?.[0];
+      return dbItem ?? undefined;
+    } catch (error) {
+      console.error("Error creating security checklist item:", error);
+      return undefined;
+    }
+  }
+
   async getAllUsers(): Promise<User[]> {
     try {
       await this.ensureConnection();
