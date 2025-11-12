@@ -641,9 +641,12 @@ export default function Dashboard() {
                         ) : null}
                       </div>
 
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {item.recommendationText}
-                      </p>
+                      <div
+                        className="text-sm text-muted-foreground mt-1"
+                        dangerouslySetInnerHTML={{
+                          __html: item.recommendationText,
+                        }}
+                      />
 
                       <div className="mt-2 flex flex-wrap gap-2">
                         {item.toolLaunchUrl && (

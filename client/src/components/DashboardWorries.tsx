@@ -610,26 +610,32 @@ export default function DashboardWorries() {
                             </div>
                           ) : null}
 
-                          {/* Recommendation (always shown) */}
+                          {/* Recommendation (always shown) 
                           <div className="mt-2 flex items-start gap-2">
                             <Info className="h-4 w-4 mt-0.5 text-slate-600" />
-                            <p className="text-sm text-slate-800">
-                              {item.rationale ||
-                                "No recommendation text provided yet."}
-                            </p>
-                          </div>
+                            <div
+                              className="text-sm text-slate-800"
+                              dangerouslySetInnerHTML={{
+                                __html:
+                                  item.rationale ||
+                                  "No recommendation text provided yet.",
+                              }}
+                            />
+                          </div>*/}
 
                           {/* Description section (always present; shows placeholder if missing) */}
                           <div className="mt-2">
-                            <div className="text-xs font-semibold text-slate-600 mb-1">
-                              Description
-                            </div>
-                            <p className="text-sm text-slate-700">
-                              {item.description &&
-                              item.description.trim().length > 0
-                                ? item.description
-                                : "No additional description provided yet."}
-                            </p>
+                            <div className="text-xs font-semibold text-slate-600 mb-1"></div>
+                            <div
+                              className="text-sm text-slate-700"
+                              dangerouslySetInnerHTML={{
+                                __html:
+                                  item.description &&
+                                  item.description.trim().length > 0
+                                    ? item.description
+                                    : "No additional description provided yet.",
+                              }}
+                            />
                           </div>
 
                           {/* Video(s) section (always present; show placeholder if none) */}
