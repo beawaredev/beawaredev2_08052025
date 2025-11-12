@@ -1,4 +1,4 @@
-// /src/pages/AdminPanel.tsx (aligned to Dashboard, full width) - UPDATED with Worries Manager
+// /src/pages/AdminPanel.tsx (aligned to Dashboard, full width) - UPDATED with Worries Manager + Rich Text for Recommendation
 import React, { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -17,9 +17,7 @@ import {
   EditIcon,
   TrashIcon,
   XIcon,
-  ListChecks,
   MessageSquare,
-  KeyRound,
   Sparkles,
   LayoutGrid,
 } from "lucide-react";
@@ -44,6 +42,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+
+// ✅ Rich text editor for Recommendation Text
+import ReactQuill from "react-quill";
+import "react-quill/dist/quill.snow.css";
 
 /**
  * Admin Panel (reports removed)
@@ -1571,14 +1573,22 @@ function AdminSecurityChecklistPanel() {
                 placeholder="Brief description"
               />
             </div>
+
+            {/* ✅ Rich Text: Recommendation Text (Create) */}
             <div>
               <Label htmlFor="create-recommendation">Recommendation Text</Label>
-              <Textarea
-                id="create-recommendation"
-                {...createForm.register("recommendationText")}
-                placeholder="Detailed recommendation"
-              />
+              <div className="prose dark:prose-invert max-w-none">
+                <ReactQuill
+                  theme="snow"
+                  value={createForm.watch("recommendationText") || ""}
+                  onChange={(value) =>
+                    createForm.setValue("recommendationText", value)
+                  }
+                  className="bg-white dark:bg-slate-800 rounded"
+                />
+              </div>
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="create-priority">Priority</Label>
@@ -1719,14 +1729,22 @@ function AdminSecurityChecklistPanel() {
                 placeholder="Brief description"
               />
             </div>
+
+            {/* ✅ Rich Text: Recommendation Text (Edit) */}
             <div>
               <Label htmlFor="edit-recommendation">Recommendation Text</Label>
-              <Textarea
-                id="edit-recommendation"
-                {...editForm.register("recommendationText")}
-                placeholder="Detailed recommendation"
-              />
+              <div className="prose dark:prose-invert max-w-none">
+                <ReactQuill
+                  theme="snow"
+                  value={editForm.watch("recommendationText") || ""}
+                  onChange={(value) =>
+                    editForm.setValue("recommendationText", value)
+                  }
+                  className="bg-white dark:bg-slate-800 rounded"
+                />
+              </div>
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="edit-priority">Priority</Label>
