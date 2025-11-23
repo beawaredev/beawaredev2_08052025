@@ -2,29 +2,30 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import themePlugin from "@replit/vite-plugin-shadcn-theme-json";
 import path from "path";
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+// Use import.meta.dirname directly (available in Node 20+) to avoid __dirname scope issues
+const baseDir = import.meta.dirname;
 export default defineConfig({
-    plugins: [
-        react(),
-        runtimeErrorOverlay(),
-        themePlugin(),
-        ...(process.env.NODE_ENV !== "production" &&
-            process.env.REPL_ID !== undefined
-            ? [
-                await import("@replit/vite-plugin-cartographer").then((m) => m.cartographer()),
-            ]
-            : []),
-    ],
+    plugins: [react(), themePlugin()],
     resolve: {
         alias: {
-            "@": path.resolve(import.meta.dirname, "client", "src"),
-            "@shared": path.resolve(import.meta.dirname, "shared"),
-            "@assets": path.resolve(import.meta.dirname, "attached_assets"),
+            "@": path.resolve(baseDir, "client", "src"),
+            "@shared": path.resolve(baseDir, "shared"),
+            "@assets": path.resolve(baseDir, "attached_assets"),
         },
     },
-    root: path.resolve(import.meta.dirname, "client"),
+    root: path.resolve(baseDir, "client"),
+    server: {
+        port: 5173,
+        strictPort: false,
+        proxy: {
+            "/api": {
+                target: "http://localhost:5000",
+                changeOrigin: true,
+            },
+        },
+    },
     build: {
-        outDir: path.resolve(import.meta.dirname, "dist/public"),
+        outDir: path.resolve(baseDir, "dist/public"),
         emptyOutDir: true,
     },
 });

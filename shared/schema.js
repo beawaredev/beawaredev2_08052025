@@ -1,5 +1,6 @@
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod";
 import { relations } from "drizzle-orm";
 // Users table
 export const users = sqliteTable("users", {
@@ -128,7 +129,9 @@ export const lawyerRequests = sqliteTable("lawyer_requests", {
     requestType: text("request_type").notNull(),
     description: text("description").notNull(),
     urgencyLevel: text("urgency_level").notNull().default("medium"),
-    preferredContactMethod: text("preferred_contact_method").notNull().default("email"),
+    preferredContactMethod: text("preferred_contact_method")
+        .notNull()
+        .default("email"),
     contactInfo: text("contact_info").notNull(),
     estimatedLoss: integer("estimated_loss"),
     status: text("status").notNull().default("pending"),
@@ -287,11 +290,54 @@ export const insertScamCommentSchema = createInsertSchema(scamComments).omit({
 export const insertConsolidatedScamSchema = createInsertSchema(consolidatedScams).omit({
     id: true,
 });
-export const insertScamVideoSchema = createInsertSchema(scamVideos).omit({
-    id: true,
-    created_at: true,
-    updated_at: true,
-});
+export const insertScamVideoSchema = (() => {
+    // Accept BOTH snake_case (DB) and camelCase (older client) and normalize to snake_case
+    const ScamTypeEnum = z.enum(["phone", "email", "business"]);
+    // Snake-case shape (matches DB column names and your Replit schema)
+    const snake = z.object({
+        title: z.string().min(1),
+        description: z.string().optional().nullable(),
+        video_url: z.string().url(),
+        thumbnail_url: z.string().url().optional().nullable(),
+        scam_type: ScamTypeEnum.optional().nullable(),
+        consolidated_scam_id: z.number().int().optional().nullable(),
+        is_featured: z.boolean().optional().default(false),
+        view_count: z.number().int().nonnegative().optional().default(0),
+        duration: z.number().int().positive().optional().nullable(),
+        created_by: z.number().int(),
+    });
+    // CamelCase shape (what the Azure-deployed schema is enforcing right now)
+    const camel = z
+        .object({
+        title: z.string().min(1),
+        description: z.string().optional().nullable(),
+        videoUrl: z.string().url(),
+        thumbnailUrl: z.string().url().optional().nullable(),
+        scamType: ScamTypeEnum.optional().nullable(),
+        consolidatedScamId: z.number().int().optional().nullable(),
+        isFeatured: z.boolean().optional().default(false),
+        viewCount: z.number().int().nonnegative().optional().default(0),
+        duration: z.number().int().positive().optional().nullable(),
+        createdBy: z.number().int(),
+    })
+        // Normalize camelCase → snake_case so the rest of the code & DB stay unchanged
+        .transform((v) => ({
+        title: v.title,
+        description: v.description ?? null,
+        video_url: v.videoUrl,
+        thumbnail_url: v.thumbnailUrl ?? null,
+        scam_type: v.scamType ?? null,
+        consolidated_scam_id: v.consolidatedScamId ?? null,
+        is_featured: v.isFeatured ?? false,
+        view_count: v.viewCount ?? 0,
+        duration: v.duration ?? null,
+        created_by: v.createdBy,
+    }));
+    // Accept either; always output snake_case
+    return z
+        .union([snake, camel])
+        .transform((v) => ("video_url" in v ? v : v));
+})();
 export const insertLawyerProfileSchema = createInsertSchema(lawyerProfiles).omit({
     id: true,
     verifiedBy: true,
