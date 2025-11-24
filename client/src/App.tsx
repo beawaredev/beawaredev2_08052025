@@ -5,7 +5,7 @@ import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 
 /* ---------- Pages ---------- */
-import Home from "@/pages/Home";
+import Home from "@/pages/general/Home";
 import Dashboard from "@/pages/Dashboard";
 import ScamHelp from "@/pages/ScamHelp";
 import AdminPanel from "@/pages/AdminPanel";
@@ -17,15 +17,15 @@ import LawyerRegister from "@/pages/LawyerRegister";
 import LegalHelp from "@/pages/LegalHelp";
 import Settings from "@/pages/Settings";
 import ScamVideos from "@/pages/ScamVideos";
-import ContactUs from "@/pages/ContactUs";
-import About from "@/pages/About";
-import Terms from "@/pages/Terms";
-import Privacy from "@/pages/Privacy";
-import Disclaimer from "@/pages/Disclaimer";
+import ContactUs from "@/pages/general/ContactUs";
+import About from "@/pages/general/About";
+import Terms from "@/pages/general/Terms";
+import Privacy from "@/pages/general/Privacy";
+import Disclaimer from "@/pages/general/Disclaimer";
 import DigitalSecurityChecklist from "@/pages/DigitalSecurityChecklist";
 import GoogleSignupConfirm from "@/pages/auth/GoogleSignupConfirm";
 import ScamLookup from "@/pages/ScamLookup";
-import NotFound from "@/pages/not-found";
+import NotFound from "@/pages/general/not-found";
 
 /* ---------- Layout ---------- */
 import Sidebar from "@/components/layout/Sidebar";
