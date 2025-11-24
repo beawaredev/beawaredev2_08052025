@@ -13,7 +13,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import AIChatAssistant from "@/components/ScamHelp/AIChatAssistant";
+import AIChatAssistant from "@/components/scams/AIChatAssistant";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import {

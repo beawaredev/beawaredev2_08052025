@@ -5,27 +5,27 @@ import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 
 /* ---------- Pages ---------- */
-import Home from "@/pages/Home";
-import Dashboard from "@/pages/Dashboard";
-import ScamHelp from "@/pages/ScamHelp";
-import AdminPanel from "@/pages/AdminPanel";
-import Login from "@/pages/Login";
-import Register from "@/pages/Register";
-import ForgotPassword from "@/pages/ForgotPassword";
-import ResetPassword from "@/pages/ResetPassword";
-import LawyerRegister from "@/pages/LawyerRegister";
-import LegalHelp from "@/pages/LegalHelp";
-import Settings from "@/pages/Settings";
-import ScamVideos from "@/pages/ScamVideos";
-import ContactUs from "@/pages/ContactUs";
-import About from "@/pages/About";
-import Terms from "@/pages/Terms";
-import Privacy from "@/pages/Privacy";
-import Disclaimer from "@/pages/Disclaimer";
-import DigitalSecurityChecklist from "@/pages/DigitalSecurityChecklist";
-import GoogleSignupConfirm from "@/pages/GoogleSignupConfirm";
-import ScamLookup from "@/pages/ScamLookup";
-import NotFound from "@/pages/not-found";
+import Home from "@/pages/general/Home";
+import Dashboard from "@/pages/user/Dashboard";
+import ScamHelp from "@/pages/scams/ScamHelp";
+import AdminPanel from "@/pages/admin/AdminPanel";
+import Login from "@/pages/auth/Login";
+import Register from "@/pages/auth/Register";
+import ForgotPassword from "@/pages/auth/ForgotPassword";
+import ResetPassword from "@/pages/auth/ResetPassword";
+import LawyerRegister from "@/pages/legal/LawyerRegister";
+import LegalHelp from "@/pages/legal/LegalHelp";
+import Settings from "@/pages/user/Settings";
+import ScamVideos from "@/pages/scams/ScamVideos";
+import ContactUs from "@/pages/general/ContactUs";
+import About from "@/pages/general/About";
+import Terms from "@/pages/general/Terms";
+import Privacy from "@/pages/general/Privacy";
+import Disclaimer from "@/pages/general/Disclaimer";
+import DigitalSecurityChecklist from "@/pages/user/DigitalSecurityChecklist";
+import GoogleSignupConfirm from "@/pages/auth/GoogleSignupConfirm";
+import ScamLookup from "@/pages/scams/ScamLookup";
+import NotFound from "@/pages/general/not-found";
 
 /* ---------- Layout ---------- */
 import Sidebar from "@/components/layout/Sidebar";

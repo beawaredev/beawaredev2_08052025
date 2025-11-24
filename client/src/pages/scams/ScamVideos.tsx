@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ScamVideoPlayer } from "@/components/ScamVideoPlayer";
+import { ScamVideoPlayer } from "@/components/scams/ScamVideoPlayer";
 import {
   Card,
   CardContent,
