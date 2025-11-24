@@ -3,7 +3,7 @@ import * as React from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import DashboardWorries from "@/components/DashboardWorries";
+import DashboardWorries from "@/components/user/DashboardWorries";
 
 import {
   Card,

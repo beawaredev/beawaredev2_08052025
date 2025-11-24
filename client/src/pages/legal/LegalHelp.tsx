@@ -17,7 +17,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import LawyerConnectionForm from '@/components/LawyerConnectionForm';
+import LawyerConnectionForm from '@/components/lawyers/LawyerConnectionForm';
 import { 
   Scale, 
   FileText, 

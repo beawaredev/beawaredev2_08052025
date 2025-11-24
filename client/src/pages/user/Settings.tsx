@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { UserIcon, BellIcon, ShieldIcon, LogOutIcon } from 'lucide-react';
-import UsernameProfile from '@/components/UsernameProfile';
+import UsernameProfile from '@/components/user/UsernameProfile';
 
 export default function Settings() {
   const { user, logout, setUser } = useAuth();

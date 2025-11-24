@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiRequest } from "@/lib/queryClient";
 import { type ScamVideo } from "@shared/schema";
-import { ScamVideoPlayer } from "@/components/ScamVideoPlayer";
+import { ScamVideoPlayer } from "@/components/scams/ScamVideoPlayer";
 import { useToast } from "@/hooks/use-toast";
 import { Trash2, Edit, Plus, ExternalLink } from "lucide-react";
 
