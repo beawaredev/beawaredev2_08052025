@@ -1336,6 +1336,83 @@ export class AzureStorage implements IStorage {
     }
   }
 
+  async getSecurityChecklistItem(id: number): Promise<SecurityChecklistItem | undefined> {
+    try {
+      await this.ensureConnection();
+      const request = pool.request();
+      request.input("id", sql.Int, id);
+
+      // First check which columns exist to handle schema differences
+      const columnsCheck = await request.query(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'security_checklist_items'
+      `);
+
+      const existingColumns = columnsCheck.recordset.map((row) =>
+        row.COLUMN_NAME.toLowerCase(),
+      );
+      const hasToolLaunchUrl = existingColumns.includes("tool_launch_url");
+      const hasYoutubeVideoUrl = existingColumns.includes("youtube_video_url");
+
+      // Build query based on available columns
+      let selectColumns = `
+        id, title, description, category, priority, 
+        recommendation_text as recommendationText,
+        help_url as helpUrl
+      `;
+
+      if (hasToolLaunchUrl) {
+        selectColumns += ", tool_launch_url as toolLaunchUrl";
+      } else {
+        selectColumns += ", NULL as toolLaunchUrl";
+      }
+
+      if (hasYoutubeVideoUrl) {
+        selectColumns += ", youtube_video_url as youtubeVideoUrl";
+      } else {
+        selectColumns += ", NULL as youtubeVideoUrl";
+      }
+
+      selectColumns += `, estimated_time_minutes as estimatedTimeMinutes,
+          sort_order as sortOrder,
+          is_active as isActive,
+          created_at as createdAt,
+          updated_at as updatedAt`;
+
+      const result = await request.query(`
+        SELECT ${selectColumns}
+        FROM security_checklist_items 
+        WHERE id = @id
+      `);
+
+      if (result.recordset.length === 0) {
+        return undefined;
+      }
+
+      const item = result.recordset[0];
+      return {
+        id: item.id,
+        title: item.title,
+        description: item.description,
+        category: item.category,
+        priority: item.priority,
+        recommendationText: item.recommendationText,
+        helpUrl: item.helpUrl,
+        toolLaunchUrl: item.toolLaunchUrl,
+        youtubeVideoUrl: item.youtubeVideoUrl,
+        estimatedTimeMinutes: item.estimatedTimeMinutes,
+        sortOrder: item.sortOrder,
+        isActive: Boolean(item.isActive),
+        createdAt: item.createdAt?.toISOString(),
+        updatedAt: item.updatedAt?.toISOString(),
+      };
+    } catch (error) {
+      console.error("Error fetching security checklist item:", error);
+      return undefined;
+    }
+  }
+
   async deleteSecurityChecklistItem(itemId: number): Promise<boolean> {
     try {
       await this.ensureConnection();
@@ -2158,6 +2235,7 @@ export class AzureStorage implements IStorage {
         SET ${updateFields.join(", ")}
         OUTPUT INSERTED.*
         WHERE id = ${userId}
+     
       `);
 
       if (result.recordset.length === 0) {

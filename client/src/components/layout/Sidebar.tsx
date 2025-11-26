@@ -31,6 +31,9 @@ const SecurityIcon = ({ className }: { className?: string }) => (
 const SettingsIcon = ({ className }: { className?: string }) => (
   <span className={className}>⚙️</span>
 );
+const ScoreIcon = ({ className }: { className?: string }) => (
+  <span className={className}>📈</span>
+);
 
 interface SidebarProps {
   mobileMenuOpen: boolean;
@@ -72,6 +75,11 @@ export default function Sidebar({
       name: "Dashboard",
       path: "/dashboard",
       icon: <LayoutDashboardIcon className="h-5 w-5" />,
+    },
+    {
+      name: "My Security Score",
+      path: "/my-security-score",
+      icon: <ScoreIcon className="h-5 w-5" />,
     },
     {
       name: "Scam Lookup",

@@ -23,6 +23,7 @@ import Terms from "@/pages/general/Terms";
 import Privacy from "@/pages/general/Privacy";
 import Disclaimer from "@/pages/general/Disclaimer";
 import DigitalSecurityChecklist from "@/pages/user/DigitalSecurityChecklist";
+import SecurityScore from "@/pages/user/SecurityScore";
 import GoogleSignupConfirm from "@/pages/auth/GoogleSignupConfirm";
 import ScamLookup from "@/pages/scams/ScamLookup";
 import NotFound from "@/pages/general/not-found";
@@ -109,6 +110,9 @@ function MainRouter() {
       </Route>
       <Route path="/secure-your-digital-presence">
         {() => <ProtectedRoute component={DigitalSecurityChecklist} />}
+      </Route>
+      <Route path="/my-security-score">
+        {() => <ProtectedRoute component={SecurityScore} />}
       </Route>
 
       {/* 404 */}
