@@ -2334,6 +2334,7 @@ export class AzureStorage implements IStorage {
         SELECT id, name, type, url, api_key as apiKey, enabled, description, 
                rate_limit as rateLimit, timeout,
                parameter_mapping as parameterMapping, headers,
+               organization_name as organizationName,
                created_at as createdAt, updated_at as updatedAt
         FROM api_configs 
         ORDER BY name ASC
@@ -2351,6 +2352,7 @@ export class AzureStorage implements IStorage {
         timeout: row.timeout,
         parameterMapping: row.parameterMapping,
         headers: row.headers,
+        organizationName: row.organizationName,
         createdAt: row.createdAt?.toISOString(),
         updatedAt: row.updatedAt?.toISOString(),
       }));
@@ -2384,6 +2386,7 @@ export class AzureStorage implements IStorage {
         SELECT TOP 1 id, name, type, url, api_key as apiKey, enabled, description,
                rate_limit as rateLimit, timeout,
                parameter_mapping as parameterMapping, headers,
+               organization_name as organizationName,
                created_at as createdAt, updated_at as updatedAt
         FROM api_configs 
         WHERE type = @type AND enabled = 1
@@ -2407,6 +2410,7 @@ export class AzureStorage implements IStorage {
         timeout: row.timeout,
         parameterMapping: row.parameterMapping,
         headers: row.headers,
+        organizationName: row.organizationName,
         createdAt: row.createdAt?.toISOString(),
         updatedAt: row.updatedAt?.toISOString(),
       };
@@ -2440,15 +2444,17 @@ export class AzureStorage implements IStorage {
         config.parameterMapping || null,
       );
       insertRequest.input("headers", sql.VarChar, config.headers || null);
+      insertRequest.input("organizationName", sql.VarChar, config.organizationName || null);
 
       const result = await insertRequest.query(`
-        INSERT INTO api_configs (name, type, url, api_key, enabled, description, rate_limit, timeout, parameter_mapping, headers, created_at, updated_at)
+        INSERT INTO api_configs (name, type, url, api_key, enabled, description, rate_limit, timeout, parameter_mapping, headers, organization_name, created_at, updated_at)
         OUTPUT INSERTED.id, INSERTED.name, INSERTED.type, INSERTED.url, 
                INSERTED.api_key as apiKey, INSERTED.enabled, INSERTED.description,
                INSERTED.rate_limit as rateLimit, INSERTED.timeout,
                INSERTED.parameter_mapping as parameterMapping, INSERTED.headers,
+               INSERTED.organization_name as organizationName,
                INSERTED.created_at as createdAt, INSERTED.updated_at as updatedAt
-        VALUES (@name, @type, @url, @apiKey, @enabled, @description, @rateLimit, @timeout, @parameterMapping, @headers, GETDATE(), GETDATE())
+        VALUES (@name, @type, @url, @apiKey, @enabled, @description, @rateLimit, @timeout, @parameterMapping, @headers, @organizationName, GETDATE(), GETDATE())
       `);
 
       const row = result.recordset[0];
@@ -2464,6 +2470,7 @@ export class AzureStorage implements IStorage {
         timeout: row.timeout,
         parameterMapping: row.parameterMapping,
         headers: row.headers,
+        organizationName: row.organizationName,
         createdAt: row.createdAt?.toISOString(),
         updatedAt: row.updatedAt?.toISOString(),
       };
@@ -2526,6 +2533,10 @@ export class AzureStorage implements IStorage {
         request.input("headers", sql.VarChar, updates.headers);
         setClauses.push("headers = @headers");
       }
+      if (updates.organizationName !== undefined) {
+        request.input("organizationName", sql.VarChar, updates.organizationName);
+        setClauses.push("organization_name = @organizationName");
+      }
 
       if (setClauses.length === 0) {
         throw new Error("No updates provided");
@@ -2541,6 +2552,7 @@ export class AzureStorage implements IStorage {
                INSERTED.api_key as apiKey, INSERTED.enabled, INSERTED.description,
                INSERTED.rate_limit as rateLimit, INSERTED.timeout,
                INSERTED.parameter_mapping as parameterMapping, INSERTED.headers,
+               INSERTED.organization_name as organizationName,
                INSERTED.created_at as createdAt, INSERTED.updated_at as updatedAt
         WHERE id = @id
       `);
@@ -2562,6 +2574,7 @@ export class AzureStorage implements IStorage {
         timeout: row.timeout,
         parameterMapping: row.parameterMapping,
         headers: row.headers,
+        organizationName: row.organizationName,
         createdAt: row.createdAt?.toISOString(),
         updatedAt: row.updatedAt?.toISOString(),
       };

@@ -101,6 +101,7 @@ export default function AdminPanel() {
       url: "",
       apiKey: "",
       description: "",
+      organizationName: "",
       rateLimit: 100,
       timeout: 30,
       parameterMapping: '{\n  "phone": "{{input}}",\n  "key": "{{apiKey}}"\n}',
@@ -115,6 +116,7 @@ export default function AdminPanel() {
       url: "",
       apiKey: "",
       description: "",
+      organizationName: "",
       rateLimit: 100,
       timeout: 30,
       enabled: true,
@@ -309,6 +311,7 @@ export default function AdminPanel() {
       url: config.url || "",
       apiKey: config.apiKey || "",
       description: config.description || "",
+      organizationName: config.organizationName || "",
       rateLimit: config.rateLimit || 100,
       timeout: config.timeout || 30,
       enabled: config.enabled !== false,
@@ -548,6 +551,11 @@ export default function AdminPanel() {
                             <p className="text-sm text-muted-foreground">
                               {config.description}
                             </p>
+                            {config.organizationName && (
+                              <p className="text-xs text-blue-600 mt-1">
+                                Source: {config.organizationName}
+                              </p>
+                            )}
                             <div className="text-xs text-muted-foreground mt-1">
                               Rate limit: {config.rateLimit}/min • Timeout:{" "}
                               {config.timeout}s
@@ -920,6 +928,18 @@ export default function AdminPanel() {
                   </div>
 
                   <div>
+                    <Label htmlFor="api-organization-name">Organization Name (Source)</Label>
+                    <Input
+                      id="api-organization-name"
+                      {...apiCreateForm.register("organizationName")}
+                      placeholder="e.g. IPQualityScore, Google Safe Browsing"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      This name will be displayed to users as the source of the data.
+                    </p>
+                  </div>
+
+                  <div>
                     <Label htmlFor="api-params">Parameter Mapping (JSON)</Label>
                     <Textarea
                       id="api-params"
@@ -1073,6 +1093,14 @@ export default function AdminPanel() {
                     <Textarea
                       id="edit-api-description"
                       {...apiEditForm.register("description")}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-api-organization-name">Organization Name (Source)</Label>
+                    <Input
+                      id="edit-api-organization-name"
+                      {...apiEditForm.register("organizationName")}
+                      placeholder="e.g. IPQualityScore"
                     />
                   </div>
                   <div>

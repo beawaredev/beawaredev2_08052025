@@ -1,9 +1,11 @@
 // client/src/pages/Home.tsx
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { motion, useInView } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -108,6 +110,15 @@ function renderIcon(name?: string | null) {
 }
 
 export default function Home() {
+  const { user, isLoading: authLoading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      setLocation("/dashboard");
+    }
+  }, [user, authLoading, setLocation]);
+
   const [phoneQuery, setPhoneQuery] = useState("");
   const [urlQuery, setUrlQuery] = useState("");
 
