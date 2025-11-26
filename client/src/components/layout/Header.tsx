@@ -192,7 +192,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
   // Removed "Scam Lookup" from guestTopLinks per request.
   const guestTopLinks = [
     { name: "Home", path: "/" },
-    // { name: "Scam Lookup", path: "/scam-lookup" }, <-- commented out
+    { name: "Scam Lookup", path: "/scam-lookup" },
     { name: "Educational Videos", path: "/scam-videos" },
     { name: "Scam Help", path: "/help" },
     { name: "Contact Us", path: "/contact" },
@@ -204,8 +204,22 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
     e.preventDefault();
     const q = query.trim();
     if (!q) return;
-    // Keep the function in place if you re-enable the form later
-    window.location.href = `/scam-lookup?q=${encodeURIComponent(q)}`;
+
+    // Simple heuristic to guess type
+    let type = "phone";
+    if (q.includes("@")) {
+      type = "email";
+    } else if (q.match(/^(http|https|www\.)/) || q.includes(".")) {
+      // Very basic URL check: starts with http/www or has a dot (e.g. google.com)
+      // Phone numbers usually don't have dots, but could. 
+      // However, for a quick header search, this is a reasonable guess.
+      // If it's just digits/dashes/parens, it's likely a phone.
+      if (!q.match(/^[\d\-\(\)\s\+]+$/)) {
+         type = "url";
+      }
+    }
+
+    window.location.href = `/scam-lookup?q=${encodeURIComponent(q)}&type=${type}`;
   };
 
   return (
@@ -263,8 +277,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
 
         {/* Right: Search + Auth / user actions */}
         <div className="flex items-center space-x-3 h-full">
-          {/* 🔍 Scam Lookup search (desktop) - COMMENTED OUT per request */}
-          {/*
+          {/* 🔍 Scam Lookup search (desktop) */}
           <form
             onSubmit={submitLookup}
             className="hidden md:flex items-center"
@@ -274,21 +287,19 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
             <Input
               type="text"
               inputMode="search"
-              placeholder="Search phone or link…"
+              placeholder="Search phone, website, or email…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="h-9 rounded-r-none w-56"
-              aria-label="Enter phone number or URL"
+              className="h-9 rounded-r-none w-64"
+              aria-label="Enter phone number, website URL, or email"
             />
             <Button type="submit" className="h-9 rounded-l-none">
               <Search className="h-4 w-4 mr-1" />
               Search
             </Button>
           </form>
-          */}
 
-          {/* Mobile quick access to Scam Lookup - COMMENTED OUT per request */}
-          {/*
+          {/* Mobile quick access to Scam Lookup */}
           {location !== "/scam-lookup" && (
             <Button
               asChild
@@ -303,7 +314,6 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
               </Link>
             </Button>
           )}
-          */}
 
           {!user ? (
             <>
@@ -324,8 +334,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
               {/* Consistent, colored, explanatory score pill */}
               <HeaderSecurityScore />
 
-              {/* Quick button to open Scam Lookup for logged-in users - COMMENTED OUT per request */}
-              {/*
+              {/* Quick button to open Scam Lookup for logged-in users */}
               {location !== "/scam-lookup" && (
                 <Button
                   asChild
@@ -340,7 +349,6 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
                   </Link>
                 </Button>
               )}
-              */}
 
               <Button
                 variant="ghost"

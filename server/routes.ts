@@ -3874,6 +3874,7 @@ ${message}
               success: true,
               data: sanitizedResult,
               apiName: config.name,
+              organizationName: config.organizationName,
               responseTime,
               // Don't include apiId to avoid exposing internal IDs
             });
@@ -3891,6 +3892,7 @@ ${message}
                   ? lookupError.message
                   : "Lookup failed",
               apiName: config.name,
+              organizationName: config.organizationName,
               responseTime,
               apiId: config.id,
             });
@@ -3933,6 +3935,7 @@ ${message}
             type: config.type,
             description: config.description,
             enabled: config.enabled,
+            organizationName: config.organizationName,
           }));
 
         console.log(

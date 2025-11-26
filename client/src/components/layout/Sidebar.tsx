@@ -73,11 +73,11 @@ export default function Sidebar({
       path: "/dashboard",
       icon: <LayoutDashboardIcon className="h-5 w-5" />,
     },
-    // {  // ⛔ Per request, hide/comment out Scam Lookup from the sidebar
-    //   name: "Scam Lookup",
-    //   path: "/scam-lookup",
-    //   icon: <SearchIcon className="h-5 w-5" />,
-    // },
+    {
+      name: "Scam Lookup",
+      path: "/scam-lookup",
+      icon: <SearchIcon className="h-5 w-5" />,
+    },
     {
       name: "Educational Videos",
       path: "/scam-videos",

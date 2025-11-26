@@ -27,6 +27,7 @@ export interface ScamLookupResult {
     headers: any;
     body?: any;
   };
+  organizationName?: string;
 }
 
 export class ScamLookupService {
@@ -42,23 +43,34 @@ export class ScamLookupService {
   async lookupScamData(type: string, input: string, apiConfig: ApiConfig): Promise<ScamLookupResult> {
     console.log(`Starting scam lookup for ${type}: ${input} using ${apiConfig.name}`);
     
+    let result: ScamLookupResult;
+
     // Check if this has custom parameter mapping - if so, use generic API method
     if (apiConfig.parameterMapping && apiConfig.parameterMapping.trim() !== '' && apiConfig.parameterMapping !== '{}') {
       console.log(`Using generic API method due to custom parameter mapping for ${apiConfig.name}`);
-      return this.lookupWithGenericAPI(type, input, apiConfig);
+      result = await this.lookupWithGenericAPI(type, input, apiConfig);
+    } else {
+      switch (apiConfig.name.toLowerCase()) {
+        case 'ipqs':
+        case 'ipqualityscore':
+          result = await this.lookupWithIPQS(type, input, apiConfig);
+          break;
+        case 'virustotal':
+          result = await this.lookupWithVirusTotal(type, input, apiConfig);
+          break;
+        case 'abuseipdb':
+          result = await this.lookupWithAbuseIPDB(type, input, apiConfig);
+          break;
+        default:
+          result = await this.lookupWithGenericAPI(type, input, apiConfig);
+      }
     }
-    
-    switch (apiConfig.name.toLowerCase()) {
-      case 'ipqs':
-      case 'ipqualityscore':
-        return this.lookupWithIPQS(type, input, apiConfig);
-      case 'virustotal':
-        return this.lookupWithVirusTotal(type, input, apiConfig);
-      case 'abuseipdb':
-        return this.lookupWithAbuseIPDB(type, input, apiConfig);
-      default:
-        return this.lookupWithGenericAPI(type, input, apiConfig);
+
+    if (apiConfig.organizationName) {
+      result.organizationName = apiConfig.organizationName;
     }
+
+    return result;
   }
 
   private async lookupWithIPQS(type: string, input: string, apiConfig: ApiConfig): Promise<ScamLookupResult> {

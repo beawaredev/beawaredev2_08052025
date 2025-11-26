@@ -49,6 +49,7 @@ type ApiConfig = {
   type: LookupType | string;
   enabled?: boolean;
   isActive?: boolean;
+  organizationName?: string;
 };
 
 type LookupResult = {
@@ -61,6 +62,7 @@ type LookupResult = {
   responseTime?: number;
   apiId?: number;
   message?: string;
+  organizationName?: string;
 };
 
 type LookupResponse = {
@@ -354,6 +356,16 @@ function ResultCard({
         </CardTitle>
       </CardHeader>
       <CardContent>
+        {r.organizationName && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-md text-xs text-blue-800">
+            <p className="font-semibold mb-1">Data Source Disclaimer:</p>
+            <p>
+              This data is provided by <strong>{r.organizationName}</strong>.
+              BeAware is a facilitator and is not responsible for the accuracy
+              or content of this data.
+            </p>
+          </div>
+        )}
         {r.success ? (
           <ResultDetails payload={r.data ?? { message: r.message }} type={type} />
         ) : (
