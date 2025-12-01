@@ -169,6 +169,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   };
 
+  // Optional authentication middleware
+  const optionalAuth = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      const userEmail = req.headers["x-user-email"] as string;
+      const userRole = req.headers["x-user-role"] as string;
+
+      if (userId && userEmail && userRole) {
+        (req as any).user = {
+          id: parseInt(userId, 10),
+          email: userEmail,
+          role: userRole,
+        };
+      }
+      next();
+    } catch (err) {
+      console.error("Error in optionalAuth middleware:", err);
+      next();
+    }
+  };
+
   // Authorization middleware for admin only routes
   const requireAdmin = async (
     req: Request,
@@ -4213,15 +4238,15 @@ ${message}
   });
 
   // Analytics Routes
-  apiRouter.post("/analytics/visit", async (req: Request, res: Response) => {
+  apiRouter.post("/analytics/visit", optionalAuth, async (req: Request, res: Response) => {
     try {
       const { path } = req.body;
       if (path) {
         await storage.trackPageVisit(path);
         
         // Also update user's last visited page if logged in
-        if (req.user) {
-          await storage.logUserActivity(req.user.id, path);
+        if ((req as any).user) {
+          await storage.logUserActivity((req as any).user.id, path);
         }
       }
       res.status(200).send();
@@ -4231,9 +4256,9 @@ ${message}
     }
   });
 
-  apiRouter.post("/analytics/user-visit", async (req: Request, res: Response) => {
+  apiRouter.post("/analytics/user-visit", optionalAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user ? req.user.id : null;
+      const userId = (req as any).user ? (req as any).user.id : null;
       await storage.trackUserVisit(userId);
       res.status(200).send();
     } catch (error) {
