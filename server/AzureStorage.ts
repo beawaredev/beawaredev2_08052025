@@ -12,6 +12,9 @@ export interface User {
   authProvider: string;
   googleId?: string;
   createdAt?: string;
+  isActive?: boolean;
+  lastLoginAt?: string;
+  lastVisitedPage?: string;
 }
 
 export interface ScamReport {
@@ -160,6 +163,9 @@ export class AzureStorage implements IStorage {
         authProvider: dbUser.auth_provider,
         googleId: dbUser.google_id,
         createdAt: dbUser.created_at,
+        isActive: dbUser.is_active,
+        lastLoginAt: dbUser.last_login_at,
+        lastVisitedPage: dbUser.last_visited_page,
       };
     } catch (error) {
       console.error("Error getting user:", error);
@@ -188,6 +194,9 @@ export class AzureStorage implements IStorage {
         authProvider: dbUser.auth_provider,
         googleId: dbUser.google_id,
         createdAt: dbUser.created_at,
+        isActive: dbUser.is_active,
+        lastLoginAt: dbUser.last_login_at,
+        lastVisitedPage: dbUser.last_visited_page,
       };
     } catch (error) {
       console.error("Error getting user by email:", error);
@@ -216,6 +225,9 @@ export class AzureStorage implements IStorage {
         authProvider: dbUser.auth_provider,
         googleId: dbUser.google_id,
         createdAt: dbUser.created_at,
+        isActive: dbUser.is_active,
+        lastLoginAt: dbUser.last_login_at,
+        lastVisitedPage: dbUser.last_visited_page,
       };
     } catch (error) {
       console.error("Error getting user by Google ID:", error);
@@ -244,6 +256,9 @@ export class AzureStorage implements IStorage {
         authProvider: dbUser.auth_provider,
         googleId: dbUser.google_id,
         createdAt: dbUser.created_at,
+        isActive: dbUser.is_active,
+        lastLoginAt: dbUser.last_login_at,
+        lastVisitedPage: dbUser.last_visited_page,
       };
     } catch (error) {
       console.error("Error getting user by username:", error);
@@ -282,6 +297,9 @@ export class AzureStorage implements IStorage {
         authProvider: dbUser.auth_provider,
         googleId: dbUser.google_id,
         createdAt: dbUser.created_at,
+        isActive: dbUser.is_active,
+        lastLoginAt: dbUser.last_login_at,
+        lastVisitedPage: dbUser.last_visited_page,
       };
     } catch (error) {
       console.error("Error creating user:", error);
@@ -374,7 +392,20 @@ export class AzureStorage implements IStorage {
       const result = await request.query(
         "SELECT * FROM users ORDER BY created_at DESC",
       );
-      return result.recordset;
+      return result.recordset.map((dbUser) => ({
+        id: dbUser.id,
+        email: dbUser.email,
+        password: dbUser.password,
+        displayName: dbUser.display_name,
+        beawareUsername: dbUser.beaware_username,
+        role: dbUser.role,
+        authProvider: dbUser.auth_provider,
+        googleId: dbUser.google_id,
+        createdAt: dbUser.created_at,
+        isActive: dbUser.is_active,
+        lastLoginAt: dbUser.last_login_at,
+        lastVisitedPage: dbUser.last_visited_page,
+      }));
     } catch (error) {
       console.error("Error getting all users:", error);
       return [];
@@ -2253,6 +2284,9 @@ export class AzureStorage implements IStorage {
         authProvider: dbUser.auth_provider,
         googleId: dbUser.google_id,
         createdAt: dbUser.created_at,
+        isActive: dbUser.is_active,
+        lastLoginAt: dbUser.last_login_at,
+        lastVisitedPage: dbUser.last_visited_page,
       };
     } catch (error) {
       console.error("Error updating user:", error);
@@ -2676,6 +2710,242 @@ export class AzureStorage implements IStorage {
     } catch (error) {
       console.error("Error deleting API config:", error);
       return false;
+    }
+  }
+
+  // Admin User Management & Stats Methods
+
+  async getAllUsersAdmin(): Promise<User[]> {
+    try {
+      await this.ensureConnection();
+      const request = pool.request();
+      
+      // Check if columns exist first to avoid errors during migration
+      const columnsCheck = await request.query(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'users'
+      `);
+      
+      const columns = columnsCheck.recordset.map(row => row.COLUMN_NAME.toLowerCase());
+      const hasIsActive = columns.includes('is_active');
+      const hasLastLogin = columns.includes('last_login_at');
+      const hasLastPage = columns.includes('last_visited_page');
+      
+      let query = "SELECT * FROM users ORDER BY created_at DESC";
+      
+      const result = await request.query(query);
+      
+      return result.recordset.map(dbUser => ({
+        id: dbUser.id,
+        email: dbUser.email,
+        password: dbUser.password,
+        displayName: dbUser.display_name,
+        beawareUsername: dbUser.beaware_username,
+        role: dbUser.role,
+        authProvider: dbUser.auth_provider,
+        googleId: dbUser.google_id,
+        createdAt: dbUser.created_at,
+        isActive: hasIsActive ? dbUser.is_active : true,
+        lastLoginAt: hasLastLogin ? dbUser.last_login_at : null,
+        lastVisitedPage: hasLastPage ? dbUser.last_visited_page : null
+      }));
+    } catch (error) {
+      console.error("Error getting all users for admin:", error);
+      return [];
+    }
+  }
+
+  async updateUserStatus(userId: number, isActive: boolean): Promise<boolean> {
+    try {
+      await this.ensureConnection();
+      const request = pool.request();
+      request.input('userId', sql.Int, userId);
+      request.input('isActive', sql.Bit, isActive);
+      
+      const result = await request.query(`
+        UPDATE users 
+        SET is_active = @isActive 
+        WHERE id = @userId
+      `);
+      
+      return result.rowsAffected[0] > 0;
+    } catch (error) {
+      console.error("Error updating user status:", error);
+      return false;
+    }
+  }
+
+  async logUserActivity(userId: number, pagePath?: string): Promise<void> {
+    try {
+      await this.ensureConnection();
+      const request = pool.request();
+      request.input('userId', sql.Int, userId);
+      
+      let updateQuery = "UPDATE users SET last_login_at = GETDATE()";
+      
+      if (pagePath) {
+        request.input('pagePath', sql.NVarChar, pagePath);
+        updateQuery += ", last_visited_page = @pagePath";
+      }
+      
+      updateQuery += " WHERE id = @userId";
+      
+      await request.query(updateQuery);
+    } catch (error) {
+      console.error("Error logging user activity:", error);
+    }
+  }
+
+  async getAdminStats(): Promise<any> {
+    try {
+      await this.ensureConnection();
+      const request = pool.request();
+      
+      // Get today's stats
+      const today = new Date().toISOString().split('T')[0];
+      request.input('today', sql.Date, today);
+      
+      // Check if tables exist
+      const tablesCheck = await request.query(`
+        SELECT TABLE_NAME 
+        FROM INFORMATION_SCHEMA.TABLES 
+        WHERE TABLE_NAME IN ('site_stats', 'page_visits')
+      `);
+      
+      const tables = tablesCheck.recordset.map(row => row.TABLE_NAME);
+      const hasSiteStats = tables.includes('site_stats');
+      const hasPageVisits = tables.includes('page_visits');
+      
+      let dailyStats = { guestVisits: 0, userVisits: 0, totalVisits: 0 };
+      let topPages = [];
+      
+      if (hasSiteStats) {
+        const statsResult = await request.query(`
+          SELECT * FROM site_stats WHERE date = @today
+        `);
+        if (statsResult.recordset.length > 0) {
+          const row = statsResult.recordset[0];
+          dailyStats = {
+            guestVisits: row.guest_visits || 0,
+            userVisits: row.user_visits || 0,
+            totalVisits: row.total_visits || 0
+          };
+        }
+      }
+      
+      if (hasPageVisits) {
+        const pagesResult = await request.query(`
+          SELECT TOP 10 page_path, visit_count 
+          FROM page_visits 
+          ORDER BY visit_count DESC
+        `);
+        topPages = pagesResult.recordset.map(row => ({
+          path: row.page_path,
+          count: row.visit_count
+        }));
+      }
+      
+      // Get user counts
+      const userCountsResult = await request.query(`
+        SELECT 
+          COUNT(*) as total,
+          SUM(CASE WHEN role = 'admin' THEN 1 ELSE 0 END) as admins,
+          SUM(CASE WHEN role = 'lawyer' THEN 1 ELSE 0 END) as lawyers
+        FROM users
+      `);
+      
+      const userCounts = userCountsResult.recordset[0];
+      
+      return {
+        users: {
+          total: userCounts.total,
+          admins: userCounts.admins,
+          lawyers: userCounts.lawyers,
+          regular: userCounts.total - userCounts.admins - userCounts.lawyers
+        },
+        visits: dailyStats,
+        topPages: topPages
+      };
+    } catch (error) {
+      console.error("Error getting admin stats:", error);
+      return {
+        users: { total: 0, admins: 0, lawyers: 0, regular: 0 },
+        visits: { guestVisits: 0, userVisits: 0, totalVisits: 0 },
+        topPages: []
+      };
+    }
+  }
+
+  async trackPageVisit(path: string): Promise<void> {
+    try {
+      await this.ensureConnection();
+      const request = pool.request();
+      request.input('path', sql.NVarChar, path);
+      
+      // Check if table exists
+      const tableCheck = await request.query(`
+        SELECT COUNT(*) as exists_count 
+        FROM INFORMATION_SCHEMA.TABLES 
+        WHERE TABLE_NAME = 'page_visits'
+      `);
+      
+      if (tableCheck.recordset[0].exists_count === 0) return;
+      
+      // Upsert page visit
+      await request.query(`
+        MERGE page_visits AS target
+        USING (SELECT @path AS page_path) AS source
+        ON (target.page_path = source.page_path)
+        WHEN MATCHED THEN
+          UPDATE SET visit_count = target.visit_count + 1, last_visited_at = GETDATE()
+        WHEN NOT MATCHED THEN
+          INSERT (page_path, visit_count, last_visited_at)
+          VALUES (@path, 1, GETDATE());
+      `);
+    } catch (error) {
+      console.error("Error tracking page visit:", error);
+    }
+  }
+
+  async trackUserVisit(userId: number | null): Promise<void> {
+    try {
+      await this.ensureConnection();
+      const request = pool.request();
+      const today = new Date().toISOString().split('T')[0];
+      request.input('today', sql.Date, today);
+      
+      // Check if table exists
+      const tableCheck = await request.query(`
+        SELECT COUNT(*) as exists_count 
+        FROM INFORMATION_SCHEMA.TABLES 
+        WHERE TABLE_NAME = 'site_stats'
+      `);
+      
+      if (tableCheck.recordset[0].exists_count === 0) return;
+      
+      const isGuest = userId === null;
+      
+      // Upsert site stats
+      let updateSql = "";
+      if (isGuest) {
+        updateSql = "guest_visits = target.guest_visits + 1";
+      } else {
+        updateSql = "user_visits = target.user_visits + 1";
+      }
+      
+      await request.query(`
+        MERGE site_stats AS target
+        USING (SELECT @today AS date) AS source
+        ON (target.date = source.date)
+        WHEN MATCHED THEN
+          UPDATE SET ${updateSql}, total_visits = target.total_visits + 1, updated_at = GETDATE()
+        WHEN NOT MATCHED THEN
+          INSERT (date, guest_visits, user_visits, total_visits)
+          VALUES (@today, ${isGuest ? 1 : 0}, ${isGuest ? 0 : 1}, 1);
+      `);
+    } catch (error) {
+      console.error("Error tracking user visit:", error);
     }
   }
 }

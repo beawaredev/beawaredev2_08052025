@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
+import { apiRequest } from "@/lib/api-interceptor";
 
 /* ---------- Pages ---------- */
 import Home from "@/pages/general/Home";
@@ -127,6 +128,22 @@ function MainRouter() {
 function AppShell() {
   const { user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [location] = useLocation();
+
+  // Track page visits
+  useEffect(() => {
+    // Track page visit
+    apiRequest("/api/analytics/visit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: location }),
+    }).catch(err => console.error("Failed to track visit", err));
+
+    // Track user visit (daily unique)
+    apiRequest("/api/analytics/user-visit", {
+      method: "POST",
+    }).catch(err => console.error("Failed to track user visit", err));
+  }, [location]);
 
   return (
     <div className="flex h-screen overflow-hidden">

@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // Inject worries admin via lazy loading (code split)
 const WorriesManager = lazy(() => import("@/components/admin/WorriesManager"));
 
+import { AdminUsersPanel } from "@/components/admin/AdminUsersPanel";
 import { Badge } from "@/components/ui/badge";
 import {
   AlertCircleIcon,
@@ -20,6 +21,7 @@ import {
   MessageSquare,
   Sparkles,
   LayoutGrid,
+  UsersIcon,
 } from "lucide-react";
 import { queryClient as globalQueryClient } from "@/lib/queryClient";
 import { toast } from "@/hooks/use-toast";
@@ -370,6 +372,11 @@ export default function AdminPanel() {
               <Video className="h-4 w-4 mr-1" /> Videos
             </span>
           </TabsTrigger>
+          <TabsTrigger value="users">
+            <span className="flex items-center">
+              <UsersIcon className="h-4 w-4 mr-1" /> Users & Stats
+            </span>
+          </TabsTrigger>
           <TabsTrigger value="security">
             <span className="flex items-center">
               <ShieldCheckIcon className="h-4 w-4 mr-1" /> Security Checklist
@@ -390,6 +397,11 @@ export default function AdminPanel() {
         {/* Videos */}
         <TabsContent value="videos" className="mt-6">
           <ScamVideoManager />
+        </TabsContent>
+
+        {/* Users & Stats */}
+        <TabsContent value="users" className="mt-6">
+          <AdminUsersPanel />
         </TabsContent>
 
         {/* Security Checklist */}
