@@ -977,6 +977,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
+      // Check if user is active
+      if (user.isActive === false) {
+        return res.status(403).json({ message: "Account is disabled. Please contact support." });
+      }
+
+      // Log activity
+      await storage.logUserActivity(user.id);
+
       // Special case for admin users in dev/testing
       if (email === "admin@beaware.com" || email === "admin@scamreport.com") {
         console.log("Admin login attempt detected");
@@ -4160,6 +4168,79 @@ ${message}
       }
     },
   );
+
+  // Admin User Management Routes
+  apiRouter.get("/admin/users", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const users = await storage.getAllUsersAdmin();
+      res.json(users);
+    } catch (error) {
+      console.error("Error fetching users for admin:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  apiRouter.patch("/admin/users/:id/status", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const { isActive } = req.body;
+      
+      if (typeof isActive !== 'boolean') {
+        return res.status(400).json({ message: "isActive must be a boolean" });
+      }
+      
+      const success = await storage.updateUserStatus(userId, isActive);
+      
+      if (success) {
+        res.json({ message: "User status updated successfully" });
+      } else {
+        res.status(404).json({ message: "User not found" });
+      }
+    } catch (error) {
+      console.error("Error updating user status:", error);
+      res.status(500).json({ message: "Failed to update user status" });
+    }
+  });
+
+  apiRouter.get("/admin/stats", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const stats = await storage.getAdminStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching admin stats:", error);
+      res.status(500).json({ message: "Failed to fetch admin stats" });
+    }
+  });
+
+  // Analytics Routes
+  apiRouter.post("/analytics/visit", async (req: Request, res: Response) => {
+    try {
+      const { path } = req.body;
+      if (path) {
+        await storage.trackPageVisit(path);
+        
+        // Also update user's last visited page if logged in
+        if (req.user) {
+          await storage.logUserActivity(req.user.id, path);
+        }
+      }
+      res.status(200).send();
+    } catch (error) {
+      console.error("Error tracking visit:", error);
+      res.status(200).send(); // Don't fail the request
+    }
+  });
+
+  apiRouter.post("/analytics/user-visit", async (req: Request, res: Response) => {
+    try {
+      const userId = req.user ? req.user.id : null;
+      await storage.trackUserVisit(userId);
+      res.status(200).send();
+    } catch (error) {
+      console.error("Error tracking user visit:", error);
+      res.status(200).send();
+    }
+  });
 
   // Register the API router
   app.use("/api", apiRouter);
