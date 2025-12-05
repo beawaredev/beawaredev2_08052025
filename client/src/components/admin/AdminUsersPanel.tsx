@@ -165,7 +165,7 @@ export function AdminUsersPanel() {
                   placeholder="Search users..."
                   className="pl-8"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
                 />
               </div>
               <Select value={roleFilter} onValueChange={setRoleFilter}>
@@ -234,7 +234,7 @@ export function AdminUsersPanel() {
                         <TableCell>
                           <Switch
                             checked={user.isActive !== false}
-                            onCheckedChange={(checked) => 
+                            onCheckedChange={(checked: boolean) => 
                               toggleStatusMutation.mutate({ userId: user.id, isActive: checked })
                             }
                             disabled={user.role === 'admin'} // Prevent disabling admins

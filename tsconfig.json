@@ -1,27 +1,34 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
     "skipLibCheck": true,
-    "outDir": "dist",
-    "rootDir": ".",
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Linting */
+    "strict": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true,
+    
     "baseUrl": ".",
     "paths": {
       "@/*": ["client/src/*"],
       "@shared/*": ["shared/*"],
       "@assets/*": ["attached_assets/*"]
     },
-    /* Skip type checking */
-    "noEmitOnError": false,
-    "noImplicitAny": false,
-    "strictNullChecks": false,
-    "allowJs": true,
-    "checkJs": false,
-    "strict": false
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true
   },
-  "include": ["server/**/*.ts", "shared/**/*.ts"],
+  "include": ["client/src/**/*", "shared/**/*.ts", "server/**/*.ts"],
   "exclude": ["node_modules"]
 }
