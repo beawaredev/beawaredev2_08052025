@@ -14,6 +14,7 @@ import Login from "@/pages/auth/Login";
 import Register from "@/pages/auth/Register";
 import ForgotPassword from "@/pages/auth/ForgotPassword";
 import ResetPassword from "@/pages/auth/ResetPassword";
+import VerifyEmail from "@/pages/auth/VerifyEmail";
 import LawyerRegister from "@/pages/legal/LawyerRegister";
 import LegalHelp from "@/pages/legal/LegalHelp";
 import Settings from "@/pages/user/Settings";
@@ -88,6 +89,7 @@ function MainRouter() {
       <Route path="/google-signup-confirm" component={GoogleSignupConfirm} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
+      <Route path="/verify-email" component={VerifyEmail} />
       <Route path="/lawyer-register" component={LawyerRegister} />
       <Route path="/scam-videos" component={ScamVideos} />
       <Route path="/help" component={ScamHelp} />

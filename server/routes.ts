@@ -9,7 +9,7 @@ import path from "path";
 import fs from "fs";
 import multer from "multer";
 import { storage } from "./storage.js";
-import { sendPasswordResetEmail } from "./emailService.js";
+import { sendPasswordResetEmail, sendVerificationEmail } from "./emailService.js";
 import { getVersionInfo } from "../shared/version.js";
 import crypto from "crypto";
 import {
@@ -450,6 +450,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userData.password = await hashPassword(userData.password);
         }
 
+        // Generate verification token for local auth
+        let emailVerificationToken = undefined;
+        if (!userData.googleId) {
+          emailVerificationToken = crypto.randomBytes(32).toString("hex");
+          (userData as any).emailVerificationToken = emailVerificationToken;
+        }
+
         console.log(
           "Creating user with data:",
           JSON.stringify({ ...userData, password: "[HASHED]" }),
@@ -457,6 +464,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Create the user
         const user = await storage.createUser(userData);
+
+        // Send verification email for local auth
+        if (emailVerificationToken && user.email) {
+          const protocol = req.protocol;
+          const host = req.get("host");
+          const baseUrl = `${protocol}://${host}`;
+          
+          // Send email asynchronously without blocking response
+          sendVerificationEmail(user.email, emailVerificationToken, baseUrl)
+            .catch(err => console.error("Failed to send verification email:", err));
+        }
 
         // Remove password from response
         const { password, ...userWithoutPassword } = user;
@@ -487,6 +505,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Failed to create user",
         error: error instanceof Error ? error.message : "Unknown error",
       });
+    }
+  });
+
+  // Verify Email Route
+  apiRouter.post("/auth/verify-email", async (req: Request, res: Response) => {
+    try {
+      const { token } = req.body;
+
+      if (!token) {
+        return res.status(400).json({ message: "Verification token is required" });
+      }
+
+      const success = await storage.verifyUserEmail(token);
+
+      if (success) {
+        return res.status(200).json({ message: "Email verified successfully" });
+      } else {
+        return res.status(400).json({ message: "Invalid or expired verification token" });
+      }
+    } catch (error) {
+      console.error("Email verification error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Resend Verification Email Route
+  apiRouter.post("/auth/resend-verification", async (req: Request, res: Response) => {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({ message: "Email is required" });
+      }
+
+      const user = await storage.getUserByEmail(email);
+
+      if (!user) {
+        // Return success even if user not found to prevent email enumeration
+        return res.status(200).json({ message: "If an account exists, a verification email has been sent" });
+      }
+
+      if (user.isEmailVerified) {
+        return res.status(400).json({ message: "Email is already verified" });
+      }
+
+      // Generate new token
+      const emailVerificationToken = crypto.randomBytes(32).toString("hex");
+      await storage.updateUserVerificationToken(user.id, emailVerificationToken);
+
+      const protocol = req.protocol;
+      const host = req.get("host");
+      const baseUrl = `${protocol}://${host}`;
+
+      // Send email
+      await sendVerificationEmail(user.email, emailVerificationToken, baseUrl);
+
+      return res.status(200).json({ message: "Verification email sent" });
+    } catch (error) {
+      console.error("Resend verification error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Refresh User Route
+  apiRouter.post("/auth/refresh", async (req: Request, res: Response) => {
+    try {
+      const { userId } = req.body;
+
+      if (!userId) {
+        return res.status(400).json({ message: "User ID is required" });
+      }
+
+      const user = await storage.getUser(userId);
+
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Remove password from response
+      const { password, ...userWithoutPassword } = user;
+
+      return res.status(200).json({
+        success: true,
+        user: userWithoutPassword,
+      });
+    } catch (error) {
+      console.error("Refresh user error:", error);
+      res.status(500).json({ message: "Internal server error" });
     }
   });
 

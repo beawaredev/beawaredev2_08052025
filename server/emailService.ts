@@ -137,6 +137,60 @@ function generateEmailHTML(resetUrl: string): string {
   `;
 }
 
+export async function sendVerificationEmail(email: string, verificationToken: string, baseUrl: string): Promise<boolean> {
+  try {
+    console.log('Attempting to send verification email to:', email);
+    
+    const verifyUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
+    
+    // Log the verification URL for immediate access
+    console.log('=== VERIFICATION EMAIL ===');
+    console.log('To:', email);
+    console.log('From: BeAware Security <beaware.fyi@gmail.com>');
+    console.log('Subject: Verify Your Email - BeAware');
+    console.log('Verify URL:', verifyUrl);
+    console.log('===========================');
+    
+    try {
+      const transporter = createTransporter();
+      await transporter.verify();
+      
+      const fromEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'beaware.fyi@gmail.com';
+      const fromName = process.env.EMAIL_FROM_NAME || 'BeAware Security';
+
+      await transporter.sendMail({
+        from: `"${fromName}" <${fromEmail}>`,
+        to: email,
+        subject: 'Verify Your Email - BeAware',
+        text: `Welcome to BeAware!\n\nPlease verify your email address by clicking the link below:\n\n${verifyUrl}\n\nIf you did not sign up for BeAware, please ignore this email.`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2>Welcome to BeAware!</h2>
+            <p>Please verify your email address to activate your account.</p>
+            <p>Click the button below to verify your email:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${verifyUrl}" style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">Verify Email</a>
+            </div>
+            <p>Or copy and paste this link into your browser:</p>
+            <p><a href="${verifyUrl}">${verifyUrl}</a></p>
+            <p>If you did not sign up for BeAware, please ignore this email.</p>
+          </div>
+        `
+      });
+      
+      console.log('Verification email sent successfully');
+      return true;
+    } catch (emailError) {
+      console.error('Failed to send verification email via SMTP:', emailError);
+      // Return true as we logged the link
+      return true;
+    }
+  } catch (error) {
+    console.error('Error in sendVerificationEmail:', error);
+    return false;
+  }
+}
+
 function generateEmailText(resetUrl: string): string {
   return `
 BeAware Password Reset

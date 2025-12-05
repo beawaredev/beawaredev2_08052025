@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { auth } from "@/lib/firebase";
 import {
   GoogleAuthProvider,
@@ -17,6 +17,7 @@ export interface AuthUser {
   beawareUsername?: string | null;
   role: UserRole;
   authProvider: AuthProviderName;
+  isEmailVerified?: boolean;
 }
 
 interface AuthContextShape {
@@ -31,6 +32,7 @@ interface AuthContextShape {
   ) => Promise<any>;
   loginWithGoogle: () => Promise<any>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 
   /** Redirect helpers */
   setIntendedPath: (path: string) => void;
@@ -76,10 +78,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  /** ----- Refresh User ----- */
+  const refreshUser = useCallback(async () => {
+    const currentUser = loadUserFromStorage();
+    if (!currentUser?.id) return;
+
+    try {
+      const res = await fetch("/api/auth/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: currentUser.id }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.user) {
+          const nextUser: AuthUser = {
+            ...data.user,
+            authProvider: currentUser.authProvider,
+            role: (data.user.role as UserRole) || "user",
+          };
+          saveUserToStorage(nextUser);
+          setUser(nextUser);
+        }
+      }
+    } catch (error) {
+      console.error("Error refreshing user:", error);
+    }
+  }, []);
+
   // Hydrate from localStorage and keep Google sessions in sync
   useEffect(() => {
     const stored = loadUserFromStorage();
-    if (stored) setUser(stored);
+    if (stored) {
+      setUser(stored);
+      // Trigger background refresh
+      refreshUser();
+    }
 
     const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
       try {
@@ -271,6 +306,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         register,
         loginWithGoogle,
         logout,
+        refreshUser,
         setIntendedPath,
         completePostLoginRedirect,
       }}

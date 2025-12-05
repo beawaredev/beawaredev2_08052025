@@ -15,6 +15,7 @@ export interface User {
   isActive?: boolean;
   lastLoginAt?: string;
   lastVisitedPage?: string;
+  isEmailVerified?: boolean;
 }
 
 export interface ScamReport {
@@ -166,6 +167,7 @@ export class AzureStorage implements IStorage {
         isActive: dbUser.is_active,
         lastLoginAt: dbUser.last_login_at,
         lastVisitedPage: dbUser.last_visited_page,
+        isEmailVerified: dbUser.is_email_verified,
       };
     } catch (error) {
       console.error("Error getting user:", error);
@@ -197,6 +199,7 @@ export class AzureStorage implements IStorage {
         isActive: dbUser.is_active,
         lastLoginAt: dbUser.last_login_at,
         lastVisitedPage: dbUser.last_visited_page,
+        isEmailVerified: dbUser.is_email_verified,
       };
     } catch (error) {
       console.error("Error getting user by email:", error);
@@ -228,6 +231,7 @@ export class AzureStorage implements IStorage {
         isActive: dbUser.is_active,
         lastLoginAt: dbUser.last_login_at,
         lastVisitedPage: dbUser.last_visited_page,
+        isEmailVerified: dbUser.is_email_verified,
       };
     } catch (error) {
       console.error("Error getting user by Google ID:", error);
@@ -259,6 +263,7 @@ export class AzureStorage implements IStorage {
         isActive: dbUser.is_active,
         lastLoginAt: dbUser.last_login_at,
         lastVisitedPage: dbUser.last_visited_page,
+        isEmailVerified: dbUser.is_email_verified,
       };
     } catch (error) {
       console.error("Error getting user by username:", error);
@@ -270,8 +275,14 @@ export class AzureStorage implements IStorage {
     try {
       await this.ensureConnection();
       const request = pool.request();
+      
+      // Determine verification status
+      // Google users are verified by default, local users need verification
+      const isEmailVerified = userData.authProvider === 'google' ? 1 : 0;
+      const verificationToken = userData.emailVerificationToken ? `'${userData.emailVerificationToken.replace(/'/g, "''")}'` : "NULL";
+
       const result = await request.query(`
-        INSERT INTO users (email, password, display_name, beaware_username, role, auth_provider, google_id)
+        INSERT INTO users (email, password, display_name, beaware_username, role, auth_provider, google_id, is_email_verified, email_verification_token)
         OUTPUT INSERTED.*
         VALUES (
           '${userData.email.replace(/'/g, "''")}',
@@ -280,7 +291,9 @@ export class AzureStorage implements IStorage {
           ${userData.beawareUsername ? `'${userData.beawareUsername.replace(/'/g, "''")}'` : "NULL"},
           '${(userData.role || "user").replace(/'/g, "''")}',
           '${(userData.authProvider || "local").replace(/'/g, "''")}',
-          ${userData.googleId ? `'${userData.googleId.replace(/'/g, "''")}'` : "NULL"}
+          ${userData.googleId ? `'${userData.googleId.replace(/'/g, "''")}'` : "NULL"},
+          ${isEmailVerified},
+          ${verificationToken}
         )
       `);
 
@@ -300,10 +313,47 @@ export class AzureStorage implements IStorage {
         isActive: dbUser.is_active,
         lastLoginAt: dbUser.last_login_at,
         lastVisitedPage: dbUser.last_visited_page,
+        isEmailVerified: dbUser.is_email_verified,
       };
     } catch (error) {
       console.error("Error creating user:", error);
       throw error;
+    }
+  }
+
+  async verifyUserEmail(token: string): Promise<boolean> {
+    try {
+      await this.ensureConnection();
+      const request = pool.request();
+      
+      const result = await request.query(`
+        UPDATE users 
+        SET is_email_verified = 1, email_verification_token = NULL 
+        WHERE email_verification_token = '${token.replace(/'/g, "''")}'
+      `);
+      
+      return result.rowsAffected[0] > 0;
+    } catch (error) {
+      console.error("Error verifying user email:", error);
+      return false;
+    }
+  }
+
+  async updateUserVerificationToken(userId: number, token: string): Promise<boolean> {
+    try {
+      await this.ensureConnection();
+      const request = pool.request();
+      
+      const result = await request.query(`
+        UPDATE users 
+        SET email_verification_token = '${token.replace(/'/g, "''")}'
+        WHERE id = ${userId}
+      `);
+      
+      return result.rowsAffected[0] > 0;
+    } catch (error) {
+      console.error("Error updating verification token:", error);
+      return false;
     }
   }
 
