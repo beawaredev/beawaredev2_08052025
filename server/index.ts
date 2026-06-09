@@ -19,12 +19,11 @@ const configPath = path.join(process.cwd(), "deploy-config.js");
 let config = {
   server: { port: process.env.PORT || 5000, host: "0.0.0.0" },
   database: {
-    server:
-      process.env.AZURE_SQL_SERVER || "beawaredevdbserver.database.windows.net",
+    server: process.env.AZURE_SQL_SERVER!,
     port: parseInt(process.env.AZURE_SQL_PORT || "1433"),
-    database: process.env.AZURE_SQL_DATABASE || "Beawaredevdb",
-    user: process.env.AZURE_SQL_USER || "beawaredevadmin",
-    password: process.env.AZURE_SQL_PASSWORD || "Getmeup81$",
+    database: process.env.AZURE_SQL_DATABASE!,
+    user: process.env.AZURE_SQL_USER!,
+    password: process.env.AZURE_SQL_PASSWORD!,
   },
   firebase: {
     apiKey: process.env.VITE_FIREBASE_API_KEY,
