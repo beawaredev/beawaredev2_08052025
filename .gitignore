@@ -1,6 +1,61 @@
-node_modules
+# ---- Dependencies ----
+node_modules/
+
+# ---- Build output ----
+dist/
+compiled/
+coverage/
+
+# ---- Environment files ----
+.env
+.env.*
+railway-env.json
+client/.env
+client/.env.*
+server/.env
+server/.env.*
+
+# ---- Logs & PIDs ----
+logs/
+*.log
+*.pid
+*.pid.lock
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---- Uploads & runtime data ----
+uploads/
+
+# ---- Vite/TS caches ----
+.vite/
+*.tsbuildinfo
+
+# ---- Editor/OS files ----
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.tmp
+
+# ---- Local workspace files ----
+*.local
+*.code-workspace
+.env
+/client/.env
+node_modules/
+dist/
+/.cache
+/.idea
+*.lognode_modules
 dist
 .DS_Store
 server/public
 vite.config.ts.*
 *.tar.gz
+README_DEV.md
+scripts/test-db.js
+scripts/restart-all.ps1
+scripts/start-backend.ps1
