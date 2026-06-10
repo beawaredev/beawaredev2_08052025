@@ -34,6 +34,9 @@ uploads/
 .vite/
 *.tsbuildinfo
 
+# ---- Stray tsc build artifacts emitted at project root ----
+/vite.config.js
+
 # ---- Editor/OS files ----
 .DS_Store
 Thumbs.db
