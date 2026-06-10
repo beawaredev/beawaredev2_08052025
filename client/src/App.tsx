@@ -28,6 +28,7 @@ import DigitalSecurityChecklist from "@/pages/user/DigitalSecurityChecklist";
 import SecurityScore from "@/pages/user/SecurityScore";
 import GoogleSignupConfirm from "@/pages/auth/GoogleSignupConfirm";
 import ScamLookup from "@/pages/scams/ScamLookup";
+import Books from "@/pages/general/Books";
 import NotFound from "@/pages/general/not-found";
 
 /* ---------- Layout ---------- */
@@ -92,6 +93,7 @@ function MainRouter() {
       <Route path="/verify-email" component={VerifyEmail} />
       <Route path="/lawyer-register" component={LawyerRegister} />
       <Route path="/scam-videos" component={ScamVideos} />
+      <Route path="/books" component={Books} />
       <Route path="/help" component={ScamHelp} />
       <Route path="/contact" component={ContactUs} />
       <Route path="/legal-help" component={LegalHelp} />

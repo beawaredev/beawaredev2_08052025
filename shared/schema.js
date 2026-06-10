@@ -180,6 +180,7 @@ export const apiConfigs = sqliteTable("api_configs", {
     timeout: integer("timeout").default(30), // seconds
     parameterMapping: text("parameter_mapping"), // JSON mapping of parameters with runtime variables
     headers: text("headers"), // JSON object of HTTP headers
+    organizationName: text("organization_name"), // Name of the organization providing the data
     createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
     updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
 });

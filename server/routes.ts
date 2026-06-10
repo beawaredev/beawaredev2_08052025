@@ -30,6 +30,7 @@ import {
   type SecurityChecklistItem,
   type UserSecurityProgress,
   scamReports,
+  insertBookSchema,
 } from "../shared/schema.js";
 import { sql, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -4340,6 +4341,89 @@ ${message}
     } catch (error) {
       console.error("Error fetching admin stats:", error);
       res.status(500).json({ message: "Failed to fetch admin stats" });
+    }
+  });
+
+  // Books Routes
+  // Public: published books only, no auth required
+  apiRouter.get("/books", async (req: Request, res: Response) => {
+    try {
+      res.set(
+        "Cache-Control",
+        "no-store, no-cache, must-revalidate, proxy-revalidate",
+      );
+      res.removeHeader("ETag");
+
+      const books = await storage.getPublishedBooks();
+      res.json(books);
+    } catch (error) {
+      console.error("Error fetching books:", error);
+      res.status(500).json({ message: "Failed to fetch books" });
+    }
+  });
+
+  // Admin: all books (published and unpublished)
+  apiRouter.get("/admin/books", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const books = await storage.getAllBooks();
+      res.json(books);
+    } catch (error) {
+      console.error("Error fetching books for admin:", error);
+      res.status(500).json({ message: "Failed to fetch books" });
+    }
+  });
+
+  // Admin: create a new book
+  apiRouter.post("/admin/books", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const parsed = insertBookSchema.parse({
+        ...req.body,
+        created_by: user.id,
+      });
+
+      const book = await storage.addBook(parsed);
+      res.status(201).json(book);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid book data", errors: error.errors });
+      }
+      console.error("Error creating book:", error);
+      res.status(500).json({ message: "Failed to create book" });
+    }
+  });
+
+  // Admin: update a book
+  apiRouter.patch("/admin/books/:id", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const updatedBook = await storage.updateBook(id, req.body);
+
+      if (!updatedBook) {
+        return res.status(404).json({ message: "Book not found" });
+      }
+
+      res.json(updatedBook);
+    } catch (error) {
+      console.error("Error updating book:", error);
+      res.status(500).json({ message: "Failed to update book" });
+    }
+  });
+
+  // Admin: delete a book
+  apiRouter.delete("/admin/books/:id", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const success = await storage.deleteBook(id);
+
+      if (!success) {
+        return res.status(404).json({ message: "Book not found" });
+      }
+
+      res.json({ message: "Book deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting book:", error);
+      res.status(500).json({ message: "Failed to delete book" });
     }
   });
 

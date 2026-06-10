@@ -22,10 +22,12 @@ import {
   Sparkles,
   LayoutGrid,
   UsersIcon,
+  BookOpen,
 } from "lucide-react";
 import { queryClient as globalQueryClient } from "@/lib/queryClient";
 import { toast } from "@/hooks/use-toast";
 import { ScamVideoManager } from "@/components/admin/ScamVideoManager";
+import { BooksManager } from "@/components/admin/BooksManager";
 import { apiRequest } from "@/lib/api-interceptor";
 import {
   Dialog,
@@ -392,11 +394,21 @@ export default function AdminPanel() {
               <AlertCircleIcon className="h-4 w-4 mr-1" /> Scam APIs
             </span>
           </TabsTrigger>
+          <TabsTrigger value="books">
+            <span className="flex items-center">
+              <BookOpen className="h-4 w-4 mr-1" /> Books
+            </span>
+          </TabsTrigger>
         </TabsList>
 
         {/* Videos */}
         <TabsContent value="videos" className="mt-6">
           <ScamVideoManager />
+        </TabsContent>
+
+        {/* Books */}
+        <TabsContent value="books" className="mt-6">
+          <BooksManager />
         </TabsContent>
 
         {/* Users & Stats */}

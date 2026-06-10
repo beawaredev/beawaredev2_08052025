@@ -141,6 +141,21 @@ export const scamVideos = sqliteTable("scam_videos", {
   updated_at: text("updated_at").default("CURRENT_TIMESTAMP"),
 });
 
+// Books table
+export const books = sqliteTable("books", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  title: text("title").notNull(),
+  author: text("author"),
+  description: text("description"),
+  link: text("link").notNull(),
+  cover_image_url: text("cover_image_url"),
+  is_published: integer("is_published", { mode: "boolean" }).default(true),
+  sort_order: integer("sort_order").default(0),
+  created_by: integer("created_by").notNull(),
+  created_at: text("created_at").default("CURRENT_TIMESTAMP"),
+  updated_at: text("updated_at").default("CURRENT_TIMESTAMP"),
+});
+
 // Lawyer profiles table
 export const lawyerProfiles = sqliteTable("lawyer_profiles", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -362,6 +377,8 @@ export type ScamStat = typeof scamStats.$inferSelect;
 export type InsertScamStat = typeof scamStats.$inferInsert;
 export type ScamVideo = typeof scamVideos.$inferSelect;
 export type InsertScamVideo = typeof scamVideos.$inferInsert;
+export type Book = typeof books.$inferSelect;
+export type InsertBook = typeof books.$inferInsert;
 export type LawyerProfile = typeof lawyerProfiles.$inferSelect;
 export type InsertLawyerProfile = typeof lawyerProfiles.$inferInsert;
 export type LawyerRequest = typeof lawyerRequests.$inferSelect;
@@ -397,6 +414,12 @@ export const insertConsolidatedScamSchema = createInsertSchema(
   consolidatedScams,
 ).omit({
   id: true,
+});
+
+export const insertBookSchema = createInsertSchema(books).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
 });
 
 export const insertScamVideoSchema = (() => {

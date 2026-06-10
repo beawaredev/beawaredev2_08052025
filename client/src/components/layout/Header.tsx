@@ -194,6 +194,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
     { name: "Home", path: "/" },
     { name: "Scam Lookup", path: "/scam-lookup" },
     { name: "Educational Videos", path: "/scam-videos" },
+    { name: "Books", path: "/books" },
     { name: "Scam Help", path: "/help" },
     { name: "Contact Us", path: "/contact" },
   ];

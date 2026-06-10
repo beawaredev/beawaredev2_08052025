@@ -1,8 +1,9 @@
-import { InsertUser, User, InsertScamReport, ScamReport, InsertScamComment, ScamComment, 
+import { InsertUser, User, InsertScamReport, ScamReport, InsertScamComment, ScamComment,
   ConsolidatedScam, InsertConsolidatedScam, ScamReportConsolidation, InsertScamReportConsolidation,
   LawyerProfile, InsertLawyerProfile, LawyerRequest, InsertLawyerRequest, InsertScamVideo, ScamVideo,
   ScamStat, ScamType, RequestStatus, SecurityChecklistItem, InsertSecurityChecklistItem,
-  UserSecurityProgress, InsertUserSecurityProgress, ApiConfig, InsertApiConfig } from "../shared/schema.js";
+  UserSecurityProgress, InsertUserSecurityProgress, ApiConfig, InsertApiConfig,
+  Book, InsertBook } from "../shared/schema.js";
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -46,7 +47,15 @@ export interface IStorage {
   getAllScamVideos(): Promise<ScamVideo[]>;
   getFeaturedScamVideos(): Promise<ScamVideo[]>;
   updateScamVideo(id: number, updates: Partial<ScamVideo>): Promise<ScamVideo | undefined>;
-  
+
+  // Books methods
+  addBook(book: InsertBook): Promise<Book>;
+  getBook(id: number): Promise<Book | undefined>;
+  getAllBooks(): Promise<Book[]>;
+  getPublishedBooks(): Promise<Book[]>;
+  updateBook(id: number, updates: Partial<Book>): Promise<Book | undefined>;
+  deleteBook(id: number): Promise<boolean>;
+
   getScamStats(): Promise<ScamStat>;
   
   // Security checklist methods
@@ -80,7 +89,8 @@ export class MemStorage implements IStorage {
   private scamVideos: Map<number, ScamVideo> = new Map();
   private securityChecklistItems: Map<number, SecurityChecklistItem> = new Map();
   private userSecurityProgress: Map<number, UserSecurityProgress> = new Map();
-  
+  private books: Map<number, Book> = new Map();
+
   private userId: number = 1;
   private scamReportId: number = 1;
   private commentId: number = 1;
@@ -91,6 +101,7 @@ export class MemStorage implements IStorage {
   private scamVideoId: number = 1;
   private securityChecklistItemId: number = 1;
   private userSecurityProgressId: number = 1;
+  private bookId: number = 1;
   
   constructor() {
     // Initialize security checklist items first
@@ -567,7 +578,65 @@ export class MemStorage implements IStorage {
     this.scamVideos.set(id, updatedVideo);
     return updatedVideo;
   }
-  
+
+  async addBook(book: InsertBook): Promise<Book> {
+    const id = this.bookId++;
+    const now = new Date().toISOString();
+
+    const newBook: Book = {
+      id,
+      title: book.title,
+      author: book.author ?? null,
+      description: book.description ?? null,
+      link: book.link,
+      cover_image_url: book.cover_image_url ?? null,
+      is_published: book.is_published ?? true,
+      sort_order: book.sort_order ?? 0,
+      created_by: book.created_by,
+      created_at: now,
+      updated_at: now
+    };
+
+    this.books.set(id, newBook);
+    return newBook;
+  }
+
+  async getBook(id: number): Promise<Book | undefined> {
+    return this.books.get(id);
+  }
+
+  async getAllBooks(): Promise<Book[]> {
+    return Array.from(this.books.values())
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  }
+
+  async getPublishedBooks(): Promise<Book[]> {
+    return Array.from(this.books.values())
+      .filter(book => book.is_published)
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  }
+
+  async updateBook(id: number, updates: Partial<Book>): Promise<Book | undefined> {
+    const existingBook = this.books.get(id);
+    if (!existingBook) {
+      return undefined;
+    }
+
+    const updatedBook: Book = {
+      ...existingBook,
+      ...updates,
+      id, // Preserve the original ID
+      updated_at: new Date().toISOString()
+    };
+
+    this.books.set(id, updatedBook);
+    return updatedBook;
+  }
+
+  async deleteBook(id: number): Promise<boolean> {
+    return this.books.delete(id);
+  }
+
   async getScamStats(): Promise<ScamStat> {
     const allReports = await this.getAllScamReports();
     

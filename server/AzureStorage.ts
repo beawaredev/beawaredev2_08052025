@@ -88,6 +88,8 @@ import {
   InsertSecurityChecklistItem,
   UserSecurityProgress,
   InsertUserSecurityProgress,
+  Book,
+  InsertBook,
 } from "../shared/schema.js";
 
 // Azure SQL Database Storage Implementation
@@ -2147,6 +2149,226 @@ export class AzureStorage implements IStorage {
       return affected > 0;
     } catch (error) {
       console.error("Error deleting scam video:", error);
+      return false;
+    }
+  }
+
+  // ---- Books methods ----
+  async getBook(id: number): Promise<Book | undefined> {
+    try {
+      await this.ensureConnection();
+
+      const result = await pool
+        .request()
+        .input("id", sql.Int, id)
+        .query("SELECT * FROM dbo.books WHERE id = @id");
+
+      const r = result.recordset[0];
+      if (!r) return undefined;
+
+      return {
+        id: r.id,
+        title: r.title,
+        author: r.author,
+        description: r.description,
+        link: r.link,
+        cover_image_url: r.cover_image_url,
+        is_published: r.is_published,
+        sort_order: r.sort_order,
+        created_by: r.created_by,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+      };
+    } catch (error) {
+      console.error("Error in getBook:", error);
+      throw error;
+    }
+  }
+
+  async getAllBooks(): Promise<Book[]> {
+    try {
+      await this.ensureConnection();
+
+      const result = await pool
+        .request()
+        .query("SELECT * FROM dbo.books ORDER BY sort_order ASC, created_at DESC");
+
+      return result.recordset.map((r) => ({
+        id: r.id,
+        title: r.title,
+        author: r.author,
+        description: r.description,
+        link: r.link,
+        cover_image_url: r.cover_image_url,
+        is_published: r.is_published,
+        sort_order: r.sort_order,
+        created_by: r.created_by,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+      }));
+    } catch (error) {
+      console.error("Error in getAllBooks:", error);
+      throw error;
+    }
+  }
+
+  async getPublishedBooks(): Promise<Book[]> {
+    try {
+      await this.ensureConnection();
+
+      const result = await pool
+        .request()
+        .query(
+          "SELECT * FROM dbo.books WHERE is_published = 1 ORDER BY sort_order ASC, created_at DESC",
+        );
+
+      return result.recordset.map((r) => ({
+        id: r.id,
+        title: r.title,
+        author: r.author,
+        description: r.description,
+        link: r.link,
+        cover_image_url: r.cover_image_url,
+        is_published: r.is_published,
+        sort_order: r.sort_order,
+        created_by: r.created_by,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+      }));
+    } catch (error) {
+      console.error("Error in getPublishedBooks:", error);
+      throw error;
+    }
+  }
+
+  async addBook(book: InsertBook): Promise<Book> {
+    await this.ensureConnection();
+    const request = pool.request();
+
+    const b: any = book as any;
+    const title = b.title;
+    const author = b.author ?? null;
+    const description = b.description ?? null;
+    const link = b.link;
+    const cover_image_url = b.cover_image_url ?? null;
+    const is_published = b.is_published ?? true;
+    const sort_order = b.sort_order ?? 0;
+    const created_by = b.created_by;
+
+    request
+      .input("title", sql.NVarChar(255), title)
+      .input("author", sql.NVarChar(255), author)
+      .input("description", sql.NVarChar(sql.MAX), description)
+      .input("link", sql.NVarChar(2048), link)
+      .input("cover_image_url", sql.NVarChar(2048), cover_image_url)
+      .input("is_published", sql.Bit, is_published)
+      .input("sort_order", sql.Int, sort_order)
+      .input("created_by", sql.Int, created_by);
+
+    const result = await request.query(`
+      INSERT INTO dbo.books
+        (title, author, description, link, cover_image_url, is_published, sort_order, created_by, created_at, updated_at)
+      OUTPUT INSERTED.*
+      VALUES
+        (@title, @author, @description, @link, @cover_image_url, @is_published, @sort_order, @created_by, GETDATE(), GETDATE());
+    `);
+
+    const r = result.recordset[0];
+    return {
+      id: r.id,
+      title: r.title,
+      author: r.author,
+      description: r.description,
+      link: r.link,
+      cover_image_url: r.cover_image_url,
+      is_published: r.is_published,
+      sort_order: r.sort_order,
+      created_by: r.created_by,
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+    };
+  }
+
+  async updateBook(id: number, updates: Partial<Book>): Promise<Book | undefined> {
+    try {
+      await this.ensureConnection();
+      const request = pool.request();
+
+      const title = typeof updates.title === "string" ? updates.title : null;
+      const author = typeof updates.author === "string" ? updates.author : null;
+      const description =
+        typeof updates.description === "string" ? updates.description : null;
+      const link = typeof updates.link === "string" ? updates.link : null;
+      const cover_image_url =
+        typeof updates.cover_image_url === "string" ? updates.cover_image_url : null;
+      const is_published =
+        typeof updates.is_published === "boolean" ? updates.is_published : null;
+      const sort_order =
+        typeof updates.sort_order === "number" ? updates.sort_order : null;
+
+      request
+        .input("id", sql.Int, id)
+        .input("title", sql.NVarChar(255), title)
+        .input("author", sql.NVarChar(255), author)
+        .input("description", sql.NVarChar(sql.MAX), description)
+        .input("link", sql.NVarChar(2048), link)
+        .input("cover_image_url", sql.NVarChar(2048), cover_image_url)
+        .input("is_published", sql.Bit, is_published)
+        .input("sort_order", sql.Int, sort_order);
+
+      const result = await request.query(`
+        UPDATE dbo.books
+        SET
+          title           = COALESCE(@title, title),
+          author          = COALESCE(@author, author),
+          description     = COALESCE(@description, description),
+          link            = COALESCE(@link, link),
+          cover_image_url = COALESCE(@cover_image_url, cover_image_url),
+          is_published    = COALESCE(@is_published, is_published),
+          sort_order      = COALESCE(@sort_order, sort_order),
+          updated_at      = GETDATE()
+        OUTPUT INSERTED.*
+        WHERE id = @id;
+      `);
+
+      const r = result.recordset[0];
+      if (!r) return undefined;
+
+      return {
+        id: r.id,
+        title: r.title,
+        author: r.author,
+        description: r.description,
+        link: r.link,
+        cover_image_url: r.cover_image_url,
+        is_published: r.is_published,
+        sort_order: r.sort_order,
+        created_by: r.created_by,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+      };
+    } catch (error) {
+      console.error("Error updating book:", error);
+      return undefined;
+    }
+  }
+
+  async deleteBook(id: number): Promise<boolean> {
+    try {
+      await this.ensureConnection();
+      const request = pool.request();
+
+      const result = await request
+        .input("id", sql.Int, id)
+        .query("DELETE FROM dbo.books WHERE id = @id");
+
+      const affected = Array.isArray(result.rowsAffected)
+        ? result.rowsAffected[0] || 0
+        : 0;
+
+      return affected > 0;
+    } catch (error) {
+      console.error("Error deleting book:", error);
       return false;
     }
   }
