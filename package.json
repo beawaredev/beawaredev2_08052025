@@ -7,7 +7,7 @@
     "build": "vite build && tsc -p server/tsconfig.json || true",
     "start": "node --import tsx server/index.ts",
     "db:push": "drizzle-kit push",
-    "dev": "TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS=\"--experimental-modules --es-module-specifier-resolution=node --no-warnings\" tsx watch server/index.ts",
+    "dev": "cross-env TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS=\"--experimental-modules --es-module-specifier-resolution=node --no-warnings\" tsx watch server/index.ts",
     "deploy": "npm run start"
   },
   "dependencies": {
@@ -77,6 +77,7 @@
     "openid-client": "^6.6.2",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
+    "quill": "^2.0.3",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
@@ -98,8 +99,6 @@
     "zod-validation-error": "^3.4.0"
   },
   "devDependencies": {
-    "@replit/vite-plugin-cartographer": "^0.0.11",
-    "@replit/vite-plugin-runtime-error-modal": "^0.0.3",
     "@tailwindcss/typography": "^0.5.15",
     "@types/express": "4.17.21",
     "@types/express-session": "^1.18.0",
@@ -111,6 +110,7 @@
     "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^4.3.2",
     "autoprefixer": "^10.4.20",
+    "cross-env": "^10.1.0",
     "drizzle-kit": "^0.30.4",
     "esbuild": "^0.25.0",
     "postcss": "^8.4.47",

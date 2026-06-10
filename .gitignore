@@ -4,3 +4,21 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Environment files (contain secrets) - keep .example files tracked
+.env
+.env.*
+!.env.example
+!*.env.example
+
+# Build/runtime output
+compiled/
+logs/
+*.log
+*.pid
+
+# Editor
+.vscode/
+
+# Deployment secrets
+railway-env.json
