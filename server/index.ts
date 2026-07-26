@@ -7,10 +7,6 @@ import { registerRoutes } from "./routes.js";
 import { getVersionInfo } from "../shared/version.js";
 import registerWorryRoutes from "./routes.worries.js";
 
-// ✅ Reuse the same global SQL pool the rest of the app uses
-// (Your storage code also uses this pool via ./db.js)
-import { pool } from "./db.js";
-
 // Simple logging function
 const log = (message: string) => console.log(message);
 
@@ -284,34 +280,6 @@ app.use(
   },
 );
 
-/* ------------------------------------------------
-   ✅ Reuse the existing global SQL pool for worries
--------------------------------------------------- */
-const getMainPool = async () => {
-  // (mssql) ConnectionPool has .connected and .connecting flags
-  if (!(pool as any).connected) {
-    if ((pool as any).connecting) {
-      await new Promise((resolve) => {
-        const t = setInterval(() => {
-          if ((pool as any).connected || !(pool as any).connecting) {
-            clearInterval(t);
-            resolve(true);
-          }
-        }, 100);
-      });
-    } else {
-      console.log("Establishing Azure SQL Database connection...");
-      await (pool as any).connect();
-      const cfg = (pool as any).config || {};
-      console.log(
-        `🧭 [SQL CONNECTED] server=${cfg.server} database=${cfg.database} ` +
-          `encrypt=${cfg.options?.encrypt} trustServerCertificate=${cfg.options?.trustServerCertificate}`,
-      );
-    }
-  }
-  return pool as any;
-};
-
 /* ---------------------------------
    Version / deployment info (kept)
 ---------------------------------- */
@@ -341,8 +309,7 @@ logDeploymentInfo();
   // Your existing routes (kept)
   const server = await registerRoutes(app);
 
-  // ✅ Single, injected mount — use the shared pool
-  registerWorryRoutes(app, { getPool: getMainPool });
+  registerWorryRoutes(app);
 
   // Central error handler (do NOT rethrow)
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

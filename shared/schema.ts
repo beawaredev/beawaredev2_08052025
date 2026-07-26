@@ -1,9 +1,19 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import {
+  pgTable,
+  serial,
+  text,
+  varchar,
+  integer,
+  boolean,
+  timestamp,
+  date,
+  unique,
+} from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
 
-// Type definitions for SQL Server enums (since drizzle-orm/mssql doesn't support enums directly)
+// Enum-like string unions (kept as plain text columns, validated at the app layer)
 export type ScamType = "phone" | "email" | "business";
 export type Role = "admin" | "user" | "lawyer";
 export type AuthProvider = "local" | "google";
@@ -33,217 +43,312 @@ export type ScamCheckType =
   | "domain";
 
 // Users table
-export const users = sqliteTable("users", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  email: text("email").notNull().unique(),
-  password: text("password"),
-  displayName: text("display_name").notNull(),
-  beawareUsername: text("beaware_username").unique(),
-  role: text("role").notNull().default("user"),
-  authProvider: text("auth_provider").notNull().default("local"),
-  googleId: text("google_id"),
-  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  password: varchar("password", { length: 255 }),
+  displayName: varchar("display_name", { length: 255 }).notNull(),
+  beawareUsername: varchar("beaware_username", { length: 100 }).unique(),
+  role: varchar("role", { length: 50 }).notNull().default("user"),
+  authProvider: varchar("auth_provider", { length: 50 })
+    .notNull()
+    .default("local"),
+  googleId: varchar("google_id", { length: 255 }),
+  isActive: boolean("is_active").default(true),
+  isEmailVerified: boolean("is_email_verified").default(false),
+  emailVerificationToken: varchar("email_verification_token", {
+    length: 255,
+  }),
+  lastLoginAt: timestamp("last_login_at"),
+  lastVisitedPage: varchar("last_visited_page", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Scam reports table
-export const scamReports = sqliteTable("scam_reports", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const scamReports = pgTable("scam_reports", {
+  id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
-  scamType: text("scam_type").notNull(),
-  scamPhoneNumber: text("scam_phone_number"),
-  scamEmail: text("scam_email"),
-  scamBusinessName: text("scam_business_name"),
-  incidentDate: text("incident_date").notNull(),
-  country: text("country").notNull().default("USA"),
-  city: text("city"),
-  state: text("state"),
-  zipCode: text("zip_code"),
+  scamType: varchar("scam_type", { length: 50 }).notNull(),
+  scamPhoneNumber: varchar("scam_phone_number", { length: 50 }),
+  scamEmail: varchar("scam_email", { length: 255 }),
+  scamBusinessName: varchar("scam_business_name", { length: 255 }),
+  incidentDate: date("incident_date").notNull(),
+  country: varchar("country", { length: 100 }).notNull().default("USA"),
+  city: varchar("city", { length: 100 }),
+  state: varchar("state", { length: 100 }),
+  zipCode: varchar("zip_code", { length: 20 }),
   description: text("description").notNull(),
-  hasProofDocument: integer("has_proof_document", { mode: "boolean" }).default(
-    false,
-  ),
-  proofFilePath: text("proof_file_path"),
-  proofFileName: text("proof_file_name"),
-  proofFileType: text("proof_file_type"),
+  hasProofDocument: boolean("has_proof_document").default(false),
+  proofFilePath: varchar("proof_file_path", { length: 500 }),
+  proofFileName: varchar("proof_file_name", { length: 255 }),
+  proofFileType: varchar("proof_file_type", { length: 100 }),
   proofFileSize: integer("proof_file_size"),
-  reportedAt: text("reported_at").default("CURRENT_TIMESTAMP"),
-  isVerified: integer("is_verified", { mode: "boolean" }).default(false),
+  reportedAt: timestamp("reported_at").defaultNow(),
+  isVerified: boolean("is_verified").default(false),
   verifiedBy: integer("verified_by"),
-  verifiedAt: text("verified_at"),
-  isPublished: integer("is_published", { mode: "boolean" }).default(true),
+  verifiedAt: timestamp("verified_at"),
+  isPublished: boolean("is_published").default(true),
   publishedBy: integer("published_by"),
-  publishedAt: text("published_at"),
+  publishedAt: timestamp("published_at"),
 });
 
 // Scam comments table
-export const scamComments = sqliteTable("scam_comments", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const scamComments = pgTable("scam_comments", {
+  id: serial("id").primaryKey(),
   scamReportId: integer("scam_report_id").notNull(),
   userId: integer("user_id").notNull(),
   comment: text("comment").notNull(),
-  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Consolidated scams table
-export const consolidatedScams = sqliteTable("consolidated_scams", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  scamType: text("scam_type").notNull(),
-  identifier: text("identifier").notNull().unique(),
+export const consolidatedScams = pgTable("consolidated_scams", {
+  id: serial("id").primaryKey(),
+  scamType: varchar("scam_type", { length: 50 }).notNull(),
+  identifier: varchar("identifier", { length: 255 }).notNull().unique(),
   reportCount: integer("report_count").notNull().default(1),
-  firstReported: text("first_reported").default("CURRENT_TIMESTAMP"),
-  lastReported: text("last_reported").default("CURRENT_TIMESTAMP"),
-  isVerified: integer("is_verified", { mode: "boolean" }).default(false),
-  verifiedAt: text("verified_at"),
+  firstReported: timestamp("first_reported").defaultNow(),
+  lastReported: timestamp("last_reported").defaultNow(),
+  isVerified: boolean("is_verified").default(false),
+  verifiedAt: timestamp("verified_at"),
   verifiedBy: integer("verified_by"),
-  riskLevel: text("risk_level").default("medium"),
+  riskLevel: varchar("risk_level", { length: 50 }).default("medium"),
   description: text("description"),
   commonPatterns: text("common_patterns"),
-  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
-  updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Scam report consolidations table
-export const scamReportConsolidations = sqliteTable(
+export const scamReportConsolidations = pgTable(
   "scam_report_consolidations",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: serial("id").primaryKey(),
     scamReportId: integer("scam_report_id").notNull(),
     consolidatedScamId: integer("consolidated_scam_id").notNull(),
-    createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+    createdAt: timestamp("created_at").defaultNow(),
   },
 );
 
 // Scam statistics table
-export const scamStats = sqliteTable("scam_stats", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const scamStats = pgTable("scam_stats", {
+  id: serial("id").primaryKey(),
   totalReports: integer("total_reports").notNull().default(0),
   verifiedReports: integer("verified_reports").notNull().default(0),
   phoneScams: integer("phone_scams").notNull().default(0),
   emailScams: integer("email_scams").notNull().default(0),
   businessScams: integer("business_scams").notNull().default(0),
-  updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Scam videos table
-export const scamVideos = sqliteTable("scam_videos", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  title: text("title").notNull(),
+export const scamVideos = pgTable("scam_videos", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
-  video_url: text("video_url").notNull(),
-  thumbnail_url: text("thumbnail_url"),
-  scam_type: text("scam_type"),
+  video_url: varchar("video_url", { length: 2048 }).notNull(),
+  thumbnail_url: varchar("thumbnail_url", { length: 2048 }),
+  scam_type: varchar("scam_type", { length: 50 }),
   consolidated_scam_id: integer("consolidated_scam_id"),
-  is_featured: integer("is_featured", { mode: "boolean" }).default(false),
+  is_featured: boolean("is_featured").default(false),
   view_count: integer("view_count").default(0),
   duration: integer("duration"),
   created_by: integer("created_by").notNull(),
-  created_at: text("created_at").default("CURRENT_TIMESTAMP"),
-  updated_at: text("updated_at").default("CURRENT_TIMESTAMP"),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
 });
 
 // Books table
-export const books = sqliteTable("books", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  title: text("title").notNull(),
-  author: text("author"),
+export const books = pgTable("books", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  author: varchar("author", { length: 255 }),
   description: text("description"),
-  link: text("link").notNull(),
-  cover_image_url: text("cover_image_url"),
-  is_published: integer("is_published", { mode: "boolean" }).default(true),
+  link: varchar("link", { length: 2048 }).notNull(),
+  cover_image_url: varchar("cover_image_url", { length: 2048 }),
+  is_published: boolean("is_published").default(true),
   sort_order: integer("sort_order").default(0),
   created_by: integer("created_by").notNull(),
-  created_at: text("created_at").default("CURRENT_TIMESTAMP"),
-  updated_at: text("updated_at").default("CURRENT_TIMESTAMP"),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
 });
 
 // Lawyer profiles table
-export const lawyerProfiles = sqliteTable("lawyer_profiles", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const lawyerProfiles = pgTable("lawyer_profiles", {
+  id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().unique(),
-  firstName: text("first_name").notNull(),
-  lastName: text("last_name").notNull(),
-  lawFirm: text("law_firm"),
-  barNumber: text("bar_number").notNull(),
-  barState: text("bar_state").notNull(),
-  specialization: text("specialization").notNull(),
+  firstName: varchar("first_name", { length: 255 }).notNull(),
+  lastName: varchar("last_name", { length: 255 }).notNull(),
+  lawFirm: varchar("law_firm", { length: 255 }),
+  barNumber: varchar("bar_number", { length: 100 }).notNull(),
+  barState: varchar("bar_state", { length: 100 }).notNull(),
+  specialization: varchar("specialization", { length: 100 }).notNull(),
   yearsExperience: integer("years_experience"),
   bio: text("bio"),
-  phoneNumber: text("phone_number"),
-  email: text("email").notNull(),
+  phoneNumber: varchar("phone_number", { length: 50 }),
+  email: varchar("email", { length: 255 }).notNull(),
   hourlyRate: integer("hourly_rate"),
-  verificationStatus: text("verification_status").notNull().default("pending"),
+  verificationStatus: varchar("verification_status", { length: 50 })
+    .notNull()
+    .default("pending"),
   verifiedBy: integer("verified_by"),
-  verifiedAt: text("verified_at"),
-  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
-  updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
+  verifiedAt: timestamp("verified_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Lawyer requests table
-export const lawyerRequests = sqliteTable("lawyer_requests", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const lawyerRequests = pgTable("lawyer_requests", {
+  id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
   scamReportId: integer("scam_report_id"),
   lawyerProfileId: integer("lawyer_profile_id"),
-  requestType: text("request_type").notNull(),
+  requestType: varchar("request_type", { length: 100 }).notNull(),
   description: text("description").notNull(),
-  urgencyLevel: text("urgency_level").notNull().default("medium"),
-  preferredContactMethod: text("preferred_contact_method")
+  urgencyLevel: varchar("urgency_level", { length: 50 })
+    .notNull()
+    .default("medium"),
+  preferredContactMethod: varchar("preferred_contact_method", { length: 50 })
     .notNull()
     .default("email"),
-  contactInfo: text("contact_info").notNull(),
+  contactInfo: varchar("contact_info", { length: 255 }).notNull(),
   estimatedLoss: integer("estimated_loss"),
-  status: text("status").notNull().default("pending"),
-  assignedAt: text("assigned_at"),
-  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
-  updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
+  status: varchar("status", { length: 50 }).notNull().default("pending"),
+  assignedAt: timestamp("assigned_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Security checklist items table (static checklist items)
-export const securityChecklistItems = sqliteTable("security_checklist_items", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  title: text("title").notNull(),
+export const securityChecklistItems = pgTable("security_checklist_items", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
   description: text("description").notNull(),
-  category: text("category").notNull(),
-  priority: text("priority").notNull().default("medium"), // high, medium, low
+  category: varchar("category", { length: 100 }).notNull(),
+  priority: varchar("priority", { length: 50 }).notNull().default("medium"), // high, medium, low
   recommendationText: text("recommendation_text").notNull(),
-  helpUrl: text("help_url"),
-  toolLaunchUrl: text("tool_launch_url"),
-  youtubeVideoUrl: text("youtube_video_url"),
+  helpUrl: varchar("help_url", { length: 500 }),
+  toolLaunchUrl: varchar("tool_launch_url", { length: 500 }),
+  youtubeVideoUrl: varchar("youtube_video_url", { length: 500 }),
   estimatedTimeMinutes: integer("estimated_time_minutes"),
-  isActive: integer("is_active", { mode: "boolean" }).default(true),
+  isActive: boolean("is_active").default(true),
   sortOrder: integer("sort_order").default(0),
-  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
-  updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // User security checklist progress table
-export const userSecurityProgress = sqliteTable("user_security_progress", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const userSecurityProgress = pgTable("user_security_progress", {
+  id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
   checklistItemId: integer("checklist_item_id").notNull(),
-  isCompleted: integer("is_completed", { mode: "boolean" }).default(false),
-  completedAt: text("completed_at"),
+  isCompleted: boolean("is_completed").default(false),
+  completedAt: timestamp("completed_at"),
   notes: text("notes"),
-  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
-  updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
-});
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  userChecklistItemUnique: unique().on(table.userId, table.checklistItemId),
+}));
 
 // API configurations table for scam data lookup services
-export const apiConfigs = sqliteTable("api_configs", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  name: text("name").notNull(), // e.g., "IPQS", "VirusTotal", "AbuseIPDB"
-  type: text("type").notNull(), // phone, email, url, darkweb, ip, domain
-  url: text("url").notNull(), // API endpoint URL
-  apiKey: text("api_key").notNull(), // Encrypted API key
-  enabled: integer("enabled", { mode: "boolean" }).default(true),
+export const apiConfigs = pgTable("api_configs", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(), // e.g., "IPQS", "VirusTotal", "AbuseIPDB"
+  type: varchar("type", { length: 50 }).notNull(), // phone, email, url, darkweb, ip, domain
+  url: varchar("url", { length: 2048 }).notNull(), // API endpoint URL
+  apiKey: varchar("api_key", { length: 500 }).notNull(), // Encrypted API key
+  enabled: boolean("enabled").default(true),
   description: text("description"),
   rateLimit: integer("rate_limit").default(60), // requests per minute
   timeout: integer("timeout").default(30), // seconds
   parameterMapping: text("parameter_mapping"), // JSON mapping of parameters with runtime variables
   headers: text("headers"), // JSON object of HTTP headers
-  organizationName: text("organization_name"), // Name of the organization providing the data
-  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
-  updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
+  organizationName: varchar("organization_name", { length: 255 }), // Name of the organization providing the data
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Password resets table
+export const passwordResets = pgTable("password_resets", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  resetToken: varchar("reset_token", { length: 255 }).notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Page visit analytics table
+export const pageVisits = pgTable("page_visits", {
+  id: serial("id").primaryKey(),
+  pagePath: varchar("page_path", { length: 255 }).notNull().unique(),
+  visitCount: integer("visit_count").default(0),
+  lastVisitedAt: timestamp("last_visited_at").defaultNow(),
+});
+
+// Daily site-visit analytics table
+export const siteStats = pgTable("site_stats", {
+  id: serial("id").primaryKey(),
+  date: date("date").notNull().unique(),
+  guestVisits: integer("guest_visits").default(0),
+  userVisits: integer("user_visits").default(0),
+  totalVisits: integer("total_visits").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// "Worries" feature: top-level worry topics shown to users
+export const worries = pgTable("worries", {
+  id: serial("id").primaryKey(),
+  worryKey: varchar("worry_key", { length: 64 }).notNull().unique(),
+  label: varchar("label", { length: 128 }).notNull(),
+  blurb: varchar("blurb", { length: 256 }),
+  iconName: varchar("icon_name", { length: 64 }),
+  isActive: boolean("is_active").default(true),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Randomized empathetic headlines shown per worry
+export const worryResponseLines = pgTable("worry_response_lines", {
+  id: serial("id").primaryKey(),
+  worryId: integer("worry_id").notNull(),
+  lineText: varchar("line_text", { length: 512 }).notNull(),
+});
+
+// Recommendations shown for a given worry
+export const worryRecommendations = pgTable("worry_recommendations", {
+  id: serial("id").primaryKey(),
+  worryId: integer("worry_id").notNull(),
+  slug: varchar("slug", { length: 64 }).notNull(),
+  title: varchar("title", { length: 256 }).notNull(),
+  rationale: text("rationale").notNull(),
+  pointsText: varchar("points_text", { length: 32 }),
+  estText: varchar("est_text", { length: 32 }),
+  sortOrder: integer("sort_order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Keywords used to match a recommendation to a security checklist item
+export const worryRecommendationKeywords = pgTable(
+  "worry_recommendation_keywords",
+  {
+    id: serial("id").primaryKey(),
+    recommendationId: integer("recommendation_id").notNull(),
+    keyword: varchar("keyword", { length: 64 }).notNull(),
+  },
+);
+
+// Analytics: every time a user (or guest) views a worry's detail page
+export const userWorryEvents = pgTable("user_worry_events", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id"),
+  worryId: integer("worry_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Relations
@@ -360,6 +465,64 @@ export const securityChecklistItemsRelations = relations(
   }),
 );
 
+export const passwordResetsRelations = relations(passwordResets, ({ one }) => ({
+  user: one(users, {
+    fields: [passwordResets.userId],
+    references: [users.id],
+  }),
+}));
+
+export const worriesRelations = relations(worries, ({ many }) => ({
+  responseLines: many(worryResponseLines),
+  recommendations: many(worryRecommendations),
+  events: many(userWorryEvents),
+}));
+
+export const worryResponseLinesRelations = relations(
+  worryResponseLines,
+  ({ one }) => ({
+    worry: one(worries, {
+      fields: [worryResponseLines.worryId],
+      references: [worries.id],
+    }),
+  }),
+);
+
+export const worryRecommendationsRelations = relations(
+  worryRecommendations,
+  ({ one, many }) => ({
+    worry: one(worries, {
+      fields: [worryRecommendations.worryId],
+      references: [worries.id],
+    }),
+    keywords: many(worryRecommendationKeywords),
+  }),
+);
+
+export const worryRecommendationKeywordsRelations = relations(
+  worryRecommendationKeywords,
+  ({ one }) => ({
+    recommendation: one(worryRecommendations, {
+      fields: [worryRecommendationKeywords.recommendationId],
+      references: [worryRecommendations.id],
+    }),
+  }),
+);
+
+export const userWorryEventsRelations = relations(
+  userWorryEvents,
+  ({ one }) => ({
+    worry: one(worries, {
+      fields: [userWorryEvents.worryId],
+      references: [worries.id],
+    }),
+    user: one(users, {
+      fields: [userWorryEvents.userId],
+      references: [users.id],
+    }),
+  }),
+);
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -391,6 +554,25 @@ export type InsertUserSecurityProgress =
   typeof userSecurityProgress.$inferInsert;
 export type ApiConfig = typeof apiConfigs.$inferSelect;
 export type InsertApiConfig = typeof apiConfigs.$inferInsert;
+export type PasswordReset = typeof passwordResets.$inferSelect;
+export type InsertPasswordReset = typeof passwordResets.$inferInsert;
+export type PageVisit = typeof pageVisits.$inferSelect;
+export type InsertPageVisit = typeof pageVisits.$inferInsert;
+export type SiteStat = typeof siteStats.$inferSelect;
+export type InsertSiteStat = typeof siteStats.$inferInsert;
+export type Worry = typeof worries.$inferSelect;
+export type InsertWorry = typeof worries.$inferInsert;
+export type WorryResponseLine = typeof worryResponseLines.$inferSelect;
+export type InsertWorryResponseLine = typeof worryResponseLines.$inferInsert;
+export type WorryRecommendation = typeof worryRecommendations.$inferSelect;
+export type InsertWorryRecommendation =
+  typeof worryRecommendations.$inferInsert;
+export type WorryRecommendationKeyword =
+  typeof worryRecommendationKeywords.$inferSelect;
+export type InsertWorryRecommendationKeyword =
+  typeof worryRecommendationKeywords.$inferInsert;
+export type UserWorryEvent = typeof userWorryEvents.$inferSelect;
+export type InsertUserWorryEvent = typeof userWorryEvents.$inferInsert;
 
 // Zod schemas - simplified to avoid type inference issues
 export const insertUserSchema = createInsertSchema(users).omit({
@@ -508,4 +690,37 @@ export const insertApiConfigSchema = createInsertSchema(apiConfigs).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+});
+
+export const insertPasswordResetSchema = createInsertSchema(
+  passwordResets,
+).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertWorrySchema = createInsertSchema(worries).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertWorryResponseLineSchema = createInsertSchema(
+  worryResponseLines,
+).omit({
+  id: true,
+});
+
+export const insertWorryRecommendationSchema = createInsertSchema(
+  worryRecommendations,
+).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertWorryRecommendationKeywordSchema = createInsertSchema(
+  worryRecommendationKeywords,
+).omit({
+  id: true,
 });

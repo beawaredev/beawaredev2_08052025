@@ -1,136 +1,15 @@
 // server/routes.worries.ts
 import type { Request, Response, NextFunction } from "express";
-import sql from "mssql";
-import util from "node:util";
-
-/**
- * Connection strategy (in this order) — preserved:
- * A) Injected getPool() from index.ts
- * B) Shared modules ./AzureStorage or ./db
- * C) Env-based fallbacks (SQLAZURECONNSTR_* or AZURE_SQL_* or AZURE_SQL_CONNECTION)
- */
-
-// ---- Types / wiring
-export type GetPoolFn = () => Promise<sql.ConnectionPool>;
-let injectedGetPool: GetPoolFn | null = null;
-let cachedPool: sql.ConnectionPool | null = null;
-
-type MaybePoolExport = {
-  getPool?: () => Promise<sql.ConnectionPool>;
-  ensureConnection?: () => Promise<sql.ConnectionPool>;
-  pool?: sql.ConnectionPool;
-};
-
-// ---- Connection helpers (kept and extended)
-function pickSqlAzureConnStr(): string | null {
-  const keys = Object.keys(process.env).filter((k) =>
-    k.startsWith("SQLAZURECONNSTR_"),
-  );
-  if (keys.length) {
-    keys.sort();
-    const v = process.env[keys[0]];
-    if (v) return v;
-  }
-  return null;
-}
-
-function buildConnStrFromParts(): string | null {
-  const server = process.env.AZURE_SQL_SERVER;
-  const database = process.env.AZURE_SQL_DATABASE;
-  const user = process.env.AZURE_SQL_USER;
-  const password = process.env.AZURE_SQL_PASSWORD;
-  if (server && database && user && password) {
-    return [
-      `Server=${server}`,
-      `Database=${database}`,
-      `User Id=${user}`,
-      `Password=${password}`,
-      `Encrypt=true`,
-      `TrustServerCertificate=false`,
-    ].join(";");
-  }
-  return null;
-}
-
-async function connectWith(connStr: string): Promise<sql.ConnectionPool> {
-  const pool = new sql.ConnectionPool(connStr);
-  await pool.connect();
-  return pool;
-}
-
-async function trySharedModule(
-  path: string,
-): Promise<sql.ConnectionPool | null> {
-  try {
-    const mod: MaybePoolExport = await import(path).catch(
-      () => ({}) as MaybePoolExport,
-    );
-    if (mod?.getPool) {
-      const p = await mod.getPool();
-      if (p?.connected) {
-        console.log(`🧭 [WORRIES] Using ${path}.getPool()`);
-        return p;
-      }
-    }
-    if (mod?.ensureConnection) {
-      const p = await mod.ensureConnection();
-      if (p?.connected) {
-        console.log(`🧭 [WORRIES] Using ${path}.ensureConnection()`);
-        return p;
-      }
-    }
-    if (mod?.pool && mod.pool.connected) {
-      console.log(`🧭 [WORRIES] Using ${path}.pool`);
-      return mod.pool;
-    }
-  } catch {
-    // ignore
-  }
-  return null;
-}
-
-async function resolvePool(): Promise<sql.ConnectionPool> {
-  if (cachedPool?.connected) return cachedPool;
-
-  // A) Injected getter
-  if (injectedGetPool) {
-    cachedPool = await injectedGetPool();
-    if (cachedPool?.connected) return cachedPool;
-  }
-
-  // B) Shared modules your app already uses
-  const viaAzureStorage = await trySharedModule("./AzureStorage");
-  if (viaAzureStorage) return (cachedPool = viaAzureStorage);
-
-  const viaDb = await trySharedModule("./db");
-  if (viaDb) return (cachedPool = viaDb);
-
-  // C) Env fallbacks
-  const appSvc = pickSqlAzureConnStr();
-  if (appSvc) {
-    console.log("🧭 [WORRIES] Connecting with SQLAZURECONNSTR_*");
-    cachedPool = await connectWith(appSvc);
-    return cachedPool;
-  }
-
-  const parts = buildConnStrFromParts();
-  if (parts) {
-    console.log("🧭 [WORRIES] Connecting with discrete AZURE_SQL_* parts");
-    cachedPool = await connectWith(parts);
-    return cachedPool;
-  }
-
-  const direct = process.env.AZURE_SQL_CONNECTION;
-  if (direct) {
-    console.log("🧭 [WORRIES] Connecting with AZURE_SQL_CONNECTION");
-    cachedPool = await connectWith(direct);
-    return cachedPool;
-  }
-
-  throw new Error(
-    "No SQL connection available. Set one of: injected getPool, shared AzureStorage/db pool, SQLAZURECONNSTR_*, AZURE_SQL_SERVER/AZURE_SQL_DATABASE/AZURE_SQL_USER/AZURE_SQL_PASSWORD, or AZURE_SQL_CONNECTION.",
-  );
-}
+import { eq, and, asc } from "drizzle-orm";
+import { pgDb } from "./pgClient.js";
+import {
+  worries,
+  worryResponseLines,
+  worryRecommendations,
+  worryRecommendationKeywords,
+  userWorryEvents,
+  securityChecklistItems,
+} from "../shared/schema.js";
 
 // ---- Utilities
 function toEmbed(url?: string | null): string {
@@ -159,24 +38,25 @@ export async function listWorries(
   next: NextFunction,
 ) {
   try {
-    const pool = await resolvePool();
     const filterActive = String(req.query.active || "").trim() === "1";
-    const result = await pool.request().query(`
-      SELECT id, worry_key AS worry_key, label, blurb, icon_name AS icon_name, sort_order, is_active
-      FROM [dbo].[worries]
-      ${filterActive ? "WHERE is_active = 1" : ""}
-      ORDER BY sort_order, id
-    `);
-    console.log(
-      "GET /api/worries:\n" +
-        util.inspect(result.recordset, {
-          depth: null,
-          breakLength: 80,
-          maxArrayLength: null,
-          compact: false,
-        }),
-    );
-    res.json(result.recordset);
+    const rows = filterActive
+      ? await pgDb
+          .select()
+          .from(worries)
+          .where(eq(worries.isActive, true))
+          .orderBy(asc(worries.sortOrder), asc(worries.id))
+      : await pgDb.select().from(worries).orderBy(asc(worries.sortOrder), asc(worries.id));
+
+    const result = rows.map((w) => ({
+      id: w.id,
+      worry_key: w.worryKey,
+      label: w.label,
+      blurb: w.blurb,
+      icon_name: w.iconName,
+      sort_order: w.sortOrder,
+      is_active: w.isActive,
+    }));
+    res.json(result);
   } catch (err) {
     next(err);
   }
@@ -190,66 +70,91 @@ export async function getWorryDetail(
 ) {
   const { key } = req.params;
   try {
-    const pool = await resolvePool();
+    const [worryRow] = await pgDb
+      .select()
+      .from(worries)
+      .where(and(eq(worries.isActive, true), eq(worries.worryKey, key)))
+      .limit(1);
 
-    const worryQ = await pool.request().input("key", sql.NVarChar(64), key)
-      .query(`
-        SELECT TOP 1 id, worry_key AS [key], label, blurb, icon_name AS iconName
-        FROM [dbo].[worries]
-        WHERE is_active = 1 AND worry_key = @key
-      `);
-
-    if (worryQ.recordset.length === 0) {
+    if (!worryRow) {
       return res.status(404).json({ message: "Worry not found" });
     }
-    const worry = worryQ.recordset[0];
+    const worry = {
+      id: worryRow.id,
+      key: worryRow.worryKey,
+      label: worryRow.label,
+      blurb: worryRow.blurb,
+      iconName: worryRow.iconName,
+    };
 
-    const linesQ = await pool.request().input("worryId", sql.Int, worry.id)
-      .query(`
-        SELECT line_text FROM [dbo].[worry_response_lines]
-        WHERE worry_id = @worryId
-      `);
-    const lines = linesQ.recordset.map((r) => r.line_text);
+    const lineRows = await pgDb
+      .select()
+      .from(worryResponseLines)
+      .where(eq(worryResponseLines.worryId, worryRow.id));
+    const lines = lineRows.map((r) => r.lineText);
     const headline = lines.length
       ? lines[Math.floor(Math.random() * lines.length)]
       : "Let’s take care of this together.";
 
-    const recQ = await pool.request().input("worryId", sql.Int, worry.id)
-      .query(`
-        SELECT id, slug, title, rationale, points_text AS points, est_text AS est, sort_order
-        FROM [dbo].[worry_recommendations]
-        WHERE worry_id = @worryId AND is_active = 1
-        ORDER BY sort_order, id
-      `);
-    const recs = recQ.recordset;
+    const recRows = await pgDb
+      .select()
+      .from(worryRecommendations)
+      .where(
+        and(
+          eq(worryRecommendations.worryId, worryRow.id),
+          eq(worryRecommendations.isActive, true),
+        ),
+      )
+      .orderBy(asc(worryRecommendations.sortOrder), asc(worryRecommendations.id));
+    const recs = recRows.map((r) => ({
+      id: r.id,
+      slug: r.slug,
+      title: r.title,
+      rationale: r.rationale,
+      points: r.pointsText,
+      est: r.estText,
+      sort_order: r.sortOrder,
+    }));
 
-    const kwQ = await pool.request().input("worryId", sql.Int, worry.id).query(`
-        SELECT wr.id AS recommendation_id, wk.keyword
-        FROM [dbo].[worry_recommendations] wr
-        JOIN [dbo].[worry_recommendation_keywords] wk
-          ON wk.recommendation_id = wr.id
-        WHERE wr.worry_id = @worryId AND wr.is_active = 1
-      `);
+    const kwRows = await pgDb
+      .select({
+        recommendation_id: worryRecommendationKeywords.recommendationId,
+        keyword: worryRecommendationKeywords.keyword,
+      })
+      .from(worryRecommendations)
+      .innerJoin(
+        worryRecommendationKeywords,
+        eq(worryRecommendationKeywords.recommendationId, worryRecommendations.id),
+      )
+      .where(
+        and(
+          eq(worryRecommendations.worryId, worryRow.id),
+          eq(worryRecommendations.isActive, true),
+        ),
+      );
 
     const kwByRec = new Map<number, string[]>();
-    for (const row of kwQ.recordset) {
+    for (const row of kwRows) {
       const arr = kwByRec.get(row.recommendation_id) || [];
       arr.push((row.keyword || "").toLowerCase());
       kwByRec.set(row.recommendation_id, arr);
     }
 
-    const checklistQ = await pool.request().query(`
-      SELECT id, title, description, youtube_video_url
-      FROM [dbo].[security_checklist_items]
-      WHERE is_active = 1
-    `);
-    const checklist = checklistQ.recordset;
+    const checklist = await pgDb
+      .select({
+        id: securityChecklistItems.id,
+        title: securityChecklistItems.title,
+        description: securityChecklistItems.description,
+        youtube_video_url: securityChecklistItems.youtubeVideoUrl,
+      })
+      .from(securityChecklistItems)
+      .where(eq(securityChecklistItems.isActive, true));
 
     const enriched = recs.map((r: any) => {
       const keys = (kwByRec.get(r.id) || [r.slug, r.title])
         .filter(Boolean)
         .map((s) => String(s).toLowerCase());
-      const found = checklist.find((item: any) => {
+      const found = checklist.find((item) => {
         const hay = `${item.title} ${item.description}`.toLowerCase();
         return keys.some((k) => hay.includes(k));
       });
@@ -261,41 +166,8 @@ export async function getWorryDetail(
     const userId = req.headers["x-user-id"]
       ? Number(req.headers["x-user-id"])
       : null;
-    await pool
-      .request()
-      .input("uid", userId ? sql.Int : sql.NVarChar, userId ?? null)
-      .input("worryId", sql.Int, worry.id)
-      .query(
-        `INSERT INTO [dbo].[user_worry_events] (user_id, worry_id) VALUES (@uid, @worryId);`,
-      );
+    await pgDb.insert(userWorryEvents).values({ userId, worryId: worryRow.id });
 
-    console.log(
-      "GET /api/worries/:key -> worry:\n" +
-        util.inspect(worry, {
-          depth: null,
-          breakLength: 80,
-          maxArrayLength: null,
-          compact: false,
-        }),
-    );
-    console.log(
-      "GET /api/worries/:key -> response-lines:\n" +
-        util.inspect(lines, {
-          depth: null,
-          breakLength: 80,
-          maxArrayLength: null,
-          compact: false,
-        }),
-    );
-    console.log(
-      "GET /api/worries/:key -> recommendations (enriched):\n" +
-        util.inspect(enriched, {
-          depth: null,
-          breakLength: 80,
-          maxArrayLength: null,
-          compact: false,
-        }),
-    );
     res.json({ worry, headline, recommendations: enriched });
   } catch (err) {
     next(err);
@@ -324,20 +196,29 @@ export async function createWorry(
         .status(400)
         .json({ message: "worry_key and label are required" });
 
-    const pool = await resolvePool();
-    const result = await pool
-      .request()
-      .input("worry_key", sql.NVarChar(64), worry_key)
-      .input("label", sql.NVarChar(128), label)
-      .input("blurb", sql.NVarChar(256), blurb ?? null)
-      .input("icon_name", sql.NVarChar(64), icon_name ?? null)
-      .input("is_active", sql.Bit, !!is_active ? 1 : 0)
-      .input("sort_order", sql.Int, Number(sort_order) || 0).query(`
-        INSERT INTO [dbo].[worries] (worry_key, label, blurb, icon_name, is_active, sort_order)
-        OUTPUT inserted.*
-        VALUES (@worry_key, @label, @blurb, @icon_name, @is_active, @sort_order);
-      `);
-    res.status(201).json(result.recordset[0]);
+    const [row] = await pgDb
+      .insert(worries)
+      .values({
+        worryKey: worry_key,
+        label,
+        blurb: blurb ?? null,
+        iconName: icon_name ?? null,
+        isActive: !!is_active,
+        sortOrder: Number(sort_order) || 0,
+      })
+      .returning();
+
+    res.status(201).json({
+      id: row.id,
+      worry_key: row.worryKey,
+      label: row.label,
+      blurb: row.blurb,
+      icon_name: row.iconName,
+      is_active: row.isActive,
+      sort_order: row.sortOrder,
+      created_at: row.createdAt,
+      updated_at: row.updatedAt,
+    });
   } catch (err) {
     next(err);
   }
@@ -355,37 +236,31 @@ export async function updateWorry(
     const { worry_key, label, blurb, icon_name, is_active, sort_order } =
       req.body || {};
 
-    const pool = await resolvePool();
-    const result = await pool
-      .request()
-      .input("id", sql.Int, id)
-      .input("worry_key", sql.NVarChar(64), worry_key ?? null)
-      .input("label", sql.NVarChar(128), label ?? null)
-      .input("blurb", sql.NVarChar(256), blurb ?? null)
-      .input("icon_name", sql.NVarChar(64), icon_name ?? null)
-      .input(
-        "is_active",
-        sql.Bit,
-        typeof is_active === "boolean" ? (is_active ? 1 : 0) : null,
-      )
-      .input(
-        "sort_order",
-        sql.Int,
-        typeof sort_order === "number" ? sort_order : null,
-      ).query(`
-        UPDATE [dbo].[worries]
-        SET
-          worry_key = COALESCE(@worry_key, worry_key),
-          label = COALESCE(@label, label),
-          blurb = @blurb,
-          icon_name = @icon_name,
-          is_active = COALESCE(@is_active, is_active),
-          sort_order = COALESCE(@sort_order, sort_order),
-          updated_at = getutcdate()
-        WHERE id = @id;
-        SELECT * FROM [dbo].[worries] WHERE id = @id;
-      `);
-    res.json(result.recordset[0]);
+    const setObj: Record<string, any> = {
+      // blurb/icon_name are always overwritten (matches original COALESCE-less behavior)
+      blurb: blurb ?? null,
+      iconName: icon_name ?? null,
+      updatedAt: new Date(),
+    };
+    if (worry_key !== undefined) setObj.worryKey = worry_key;
+    if (label !== undefined) setObj.label = label;
+    if (typeof is_active === "boolean") setObj.isActive = is_active;
+    if (typeof sort_order === "number") setObj.sortOrder = sort_order;
+
+    const [row] = await pgDb.update(worries).set(setObj).where(eq(worries.id, id)).returning();
+    if (!row) return res.status(404).json({ message: "Worry not found" });
+
+    res.json({
+      id: row.id,
+      worry_key: row.worryKey,
+      label: row.label,
+      blurb: row.blurb,
+      icon_name: row.iconName,
+      is_active: row.isActive,
+      sort_order: row.sortOrder,
+      created_at: row.createdAt,
+      updated_at: row.updatedAt,
+    });
   } catch (err) {
     next(err);
   }
@@ -401,15 +276,20 @@ export async function deleteWorry(
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ message: "Invalid id" });
 
-    const pool = await resolvePool();
-    await pool.request().input("id", sql.Int, id).query(`
-      DELETE FROM [dbo].[worry_recommendation_keywords]
-      WHERE recommendation_id IN (SELECT id FROM [dbo].[worry_recommendations] WHERE worry_id = @id);
+    const recIds = await pgDb
+      .select({ id: worryRecommendations.id })
+      .from(worryRecommendations)
+      .where(eq(worryRecommendations.worryId, id));
 
-      DELETE FROM [dbo].[worry_recommendations] WHERE worry_id = @id;
-      DELETE FROM [dbo].[worry_response_lines] WHERE worry_id = @id;
-      DELETE FROM [dbo].[worries] WHERE id = @id;
-    `);
+    for (const { id: recId } of recIds) {
+      await pgDb
+        .delete(worryRecommendationKeywords)
+        .where(eq(worryRecommendationKeywords.recommendationId, recId));
+    }
+    await pgDb.delete(worryRecommendations).where(eq(worryRecommendations.worryId, id));
+    await pgDb.delete(worryResponseLines).where(eq(worryResponseLines.worryId, id));
+    await pgDb.delete(worries).where(eq(worries.id, id));
+
     res.json({ ok: true });
   } catch (err) {
     next(err);
@@ -426,23 +306,12 @@ export async function listResponseLines(
 ) {
   try {
     const worryId = Number(req.params.worryId);
-    const pool = await resolvePool();
-    const r = await pool.request().input("worryId", sql.Int, worryId).query(`
-        SELECT id, line_text
-        FROM [dbo].[worry_response_lines]
-        WHERE worry_id = @worryId
-        ORDER BY id DESC
-      `);
-    console.log(
-      "GET /api/worries/:worryId/response-lines:\n" +
-        util.inspect(r.recordset, {
-          depth: null,
-          breakLength: 80,
-          maxArrayLength: null,
-          compact: false,
-        }),
-    );
-    res.json(r.recordset);
+    const rows = await pgDb
+      .select({ id: worryResponseLines.id, line_text: worryResponseLines.lineText })
+      .from(worryResponseLines)
+      .where(eq(worryResponseLines.worryId, worryId))
+      .orderBy(worryResponseLines.id);
+    res.json(rows.reverse()); // ORDER BY id DESC
   } catch (err) {
     next(err);
   }
@@ -462,16 +331,12 @@ export async function createResponseLine(
         .status(400)
         .json({ message: "worryId and line_text required" });
 
-    const pool = await resolvePool();
-    const r = await pool
-      .request()
-      .input("worryId", sql.Int, worryId)
-      .input("line_text", sql.NVarChar(512), line_text).query(`
-        INSERT INTO [dbo].[worry_response_lines] (worry_id, line_text)
-        OUTPUT inserted.*
-        VALUES (@worryId, @line_text);
-      `);
-    res.status(201).json(r.recordset[0]);
+    const [row] = await pgDb
+      .insert(worryResponseLines)
+      .values({ worryId, lineText: line_text })
+      .returning();
+
+    res.status(201).json({ id: row.id, worry_id: row.worryId, line_text: row.lineText });
   } catch (err) {
     next(err);
   }
@@ -487,10 +352,7 @@ export async function deleteResponseLine(
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ message: "Invalid id" });
 
-    const pool = await resolvePool();
-    await pool.request().input("id", sql.Int, id).query(`
-      DELETE FROM [dbo].[worry_response_lines] WHERE id = @id;
-    `);
+    await pgDb.delete(worryResponseLines).where(eq(worryResponseLines.id, id));
     res.json({ ok: true });
   } catch (err) {
     next(err);
@@ -507,76 +369,54 @@ export async function listRecommendations(
 ) {
   try {
     const worryId = Number(req.params.worryId);
-    const pool = await resolvePool();
 
     // 1) Base recommendations for this worry
-    const recsQ = await pool.request().input("worryId", sql.Int, worryId)
-      .query(`
-        SELECT
-          wr.id,
-          wr.slug,
-          wr.title,
-          wr.rationale,
-          wr.points_text,
-          wr.est_text,
-          wr.sort_order,
-          wr.is_active
-        FROM [dbo].[worry_recommendations] AS wr
-        WHERE wr.worry_id = @worryId
-        ORDER BY wr.sort_order, wr.id
-      `);
+    const recRows = await pgDb
+      .select()
+      .from(worryRecommendations)
+      .where(eq(worryRecommendations.worryId, worryId))
+      .orderBy(asc(worryRecommendations.sortOrder), asc(worryRecommendations.id));
 
     // 2) Keywords mapped to rec.id
-    const kwQ = await pool.request().input("worryId", sql.Int, worryId).query(`
-        SELECT wr.id AS recommendation_id, wk.keyword
-        FROM [dbo].[worry_recommendations] AS wr
-        JOIN [dbo].[worry_recommendation_keywords] AS wk
-          ON wk.recommendation_id = wr.id
-        WHERE wr.worry_id = @worryId
-          AND wr.is_active = 1
-      `);
+    const kwRows = await pgDb
+      .select({
+        recommendation_id: worryRecommendationKeywords.recommendationId,
+        keyword: worryRecommendationKeywords.keyword,
+      })
+      .from(worryRecommendations)
+      .innerJoin(
+        worryRecommendationKeywords,
+        eq(worryRecommendationKeywords.recommendationId, worryRecommendations.id),
+      )
+      .where(
+        and(eq(worryRecommendations.worryId, worryId), eq(worryRecommendations.isActive, true)),
+      );
 
     const kwByRec = new Map<number, string[]>();
-    for (const row of kwQ.recordset) {
+    for (const row of kwRows) {
       const id = Number(row.recommendation_id);
       const arr = kwByRec.get(id) || [];
       if (row.keyword) arr.push(String(row.keyword));
       kwByRec.set(id, arr);
     }
 
-    // 3) Active checklist items (exact schema you provided)
-    const sciQ = await pool.request().query(`
-      SELECT
-        id,
-        title,
-        description,
-        category,
-        priority,
-        recommendation_text,
-        help_url,
-        estimated_time_minutes,
-        sort_order,
-        is_active,
-        created_at,
-        updated_at,
-        tool_launch_url,
-        youtube_video_url
-      FROM [dbo].[security_checklist_items]
-      WHERE is_active = 1
-    `);
-    const checklist = sciQ.recordset;
+    // 3) Active checklist items
+    const checklist = await pgDb
+      .select()
+      .from(securityChecklistItems)
+      .where(eq(securityChecklistItems.isActive, true));
 
     // --- helpers ---
     const norm = (s: any) => (s == null ? "" : String(s)).trim().toLowerCase();
 
     const sanitize = (s: string) => s.replace(/[\s\-_.:/]+/g, " ").trim();
 
-    const scoreItem = (item: any, keys: string[]) => {
+    const scoreItem = (item: (typeof checklist)[number], keys: string[]) => {
       // Score based on total keyword occurrences in title + text fields
       const hay =
         `${norm(item.title)} ` +
         `${norm(item.description)} ` +
-        `${norm(item.recommendation_text)}`;
+        `${norm(item.recommendationText)}`;
       let score = 0;
       for (const k of keys) {
         if (!k) continue;
@@ -599,7 +439,7 @@ export async function listRecommendations(
     };
 
     // 4) Enrich each recommendation with best-matching checklist row
-    const enriched = recsQ.recordset.map((rec: any) => {
+    const enriched = recRows.map((rec) => {
       // UNION: keywords ∪ [slug, title]
       const kw = kwByRec.get(Number(rec.id)) || [];
       const rawKeys = [...kw, rec.slug, rec.title].filter(Boolean) as string[];
@@ -608,7 +448,7 @@ export async function listRecommendations(
       const keys = rawKeys.map(norm).filter(Boolean);
 
       // Pick the highest scoring checklist item
-      let best: any | undefined;
+      let best: (typeof checklist)[number] | undefined;
       let bestScore = 0;
       for (const item of checklist) {
         const s = scoreItem(item, keys);
@@ -618,39 +458,34 @@ export async function listRecommendations(
         }
       }
 
-      // Prefer long-form recommendation_text, then description, then fallback to rationale
+      // Prefer long-form recommendation text, then description, then fallback to rationale
       const longText =
-        (best?.recommendation_text &&
-          String(best.recommendation_text).trim()) ||
+        (best?.recommendationText && String(best.recommendationText).trim()) ||
         (best?.description && String(best.description).trim()) ||
         rec.rationale ||
         null;
 
-      const helpUrl = (best?.help_url && String(best.help_url).trim()) || null;
+      const helpUrl = (best?.helpUrl && String(best.helpUrl).trim()) || null;
 
       const toolLaunchUrl =
-        (best?.tool_launch_url && String(best.tool_launch_url).trim()) || null;
+        (best?.toolLaunchUrl && String(best.toolLaunchUrl).trim()) || null;
 
-      const videoUrl =
-        (best?.youtube_video_url && String(best.youtube_video_url).trim()) ||
-        "";
+      const videoUrl = (best?.youtubeVideoUrl && String(best.youtubeVideoUrl).trim()) || "";
 
       const embedVideoUrl = toEmbed(videoUrl || "");
 
       const estimatedTimeMinutes =
-        typeof best?.estimated_time_minutes === "number"
-          ? best.estimated_time_minutes
-          : null;
+        typeof best?.estimatedTimeMinutes === "number" ? best.estimatedTimeMinutes : null;
 
       return {
         id: rec.id,
         slug: rec.slug,
         title: rec.title,
         rationale: rec.rationale,
-        pointsText: rec.points_text ?? null,
-        estText: rec.est_text ?? null,
-        sortOrder: rec.sort_order,
-        isActive: !!rec.is_active,
+        pointsText: rec.pointsText ?? null,
+        estText: rec.estText ?? null,
+        sortOrder: rec.sortOrder,
+        isActive: !!rec.isActive,
 
         // UI fields
         description: longText,
@@ -659,22 +494,8 @@ export async function listRecommendations(
         videoUrl,
         embedVideoUrl,
         estimatedTimeMinutes,
-
-        // optional debug to confirm which SCI was chosen:
-        // _matchedChecklistId: best?.id ?? null,
-        // _matchScore: bestScore,
       };
     });
-
-    console.log(
-      "GET /api/worries/:worryId/recommendations (enriched):\n" +
-        util.inspect(enriched, {
-          depth: null,
-          breakLength: 80,
-          maxArrayLength: null,
-          compact: false,
-        }),
-    );
 
     res.json(enriched);
   } catch (err) {
@@ -705,24 +526,33 @@ export async function createRecommendation(
         .json({ message: "worryId, slug, title, rationale are required" });
     }
 
-    const pool = await resolvePool();
-    const r = await pool
-      .request()
-      .input("worryId", sql.Int, worryId)
-      .input("slug", sql.NVarChar(64), slug)
-      .input("title", sql.NVarChar(256), title)
-      .input("rationale", sql.NVarChar(sql.MAX), rationale)
-      .input("points_text", sql.NVarChar(32), points_text)
-      .input("est_text", sql.NVarChar(32), est_text)
-      .input("sort_order", sql.Int, Number(sort_order) || 0)
-      .input("is_active", sql.Bit, !!is_active ? 1 : 0).query(`
-        INSERT INTO [dbo].[worry_recommendations]
-          (worry_id, slug, title, rationale, points_text, est_text, sort_order, is_active)
-        OUTPUT inserted.*
-        VALUES
-          (@worryId, @slug, @title, @rationale, @points_text, @est_text, @sort_order, @is_active);
-      `);
-    res.status(201).json(r.recordset[0]);
+    const [row] = await pgDb
+      .insert(worryRecommendations)
+      .values({
+        worryId,
+        slug,
+        title,
+        rationale,
+        pointsText: points_text,
+        estText: est_text,
+        sortOrder: Number(sort_order) || 0,
+        isActive: !!is_active,
+      })
+      .returning();
+
+    res.status(201).json({
+      id: row.id,
+      worry_id: row.worryId,
+      slug: row.slug,
+      title: row.title,
+      rationale: row.rationale,
+      points_text: row.pointsText,
+      est_text: row.estText,
+      sort_order: row.sortOrder,
+      is_active: row.isActive,
+      created_at: row.createdAt,
+      updated_at: row.updatedAt,
+    });
   } catch (err) {
     next(err);
   }
@@ -747,39 +577,39 @@ export async function updateRecommendation(
       sort_order,
       is_active,
     } = req.body || {};
-    const pool = await resolvePool();
-    const r = await pool
-      .request()
-      .input("id", sql.Int, id)
-      .input("slug", sql.NVarChar(64), slug ?? null)
-      .input("title", sql.NVarChar(256), title ?? null)
-      .input("rationale", sql.NVarChar(sql.MAX), rationale ?? null)
-      .input("points_text", sql.NVarChar(32), points_text ?? null)
-      .input("est_text", sql.NVarChar(32), est_text ?? null)
-      .input(
-        "sort_order",
-        sql.Int,
-        typeof sort_order === "number" ? sort_order : null,
-      )
-      .input(
-        "is_active",
-        sql.Bit,
-        typeof is_active === "boolean" ? (is_active ? 1 : 0) : null,
-      ).query(`
-        UPDATE [dbo].[worry_recommendations]
-        SET
-          slug = COALESCE(@slug, slug),
-          title = COALESCE(@title, title),
-          rationale = COALESCE(@rationale, rationale),
-          points_text = @points_text,
-          est_text = @est_text,
-          sort_order = COALESCE(@sort_order, sort_order),
-          is_active = COALESCE(@is_active, is_active),
-          updated_at = getutcdate()
-        WHERE id = @id;
-        SELECT * FROM [dbo].[worry_recommendations] WHERE id = @id;
-      `);
-    res.json(r.recordset[0]);
+
+    const setObj: Record<string, any> = {
+      // points_text/est_text are always overwritten (matches original COALESCE-less behavior)
+      pointsText: points_text ?? null,
+      estText: est_text ?? null,
+      updatedAt: new Date(),
+    };
+    if (slug !== undefined) setObj.slug = slug;
+    if (title !== undefined) setObj.title = title;
+    if (rationale !== undefined) setObj.rationale = rationale;
+    if (typeof sort_order === "number") setObj.sortOrder = sort_order;
+    if (typeof is_active === "boolean") setObj.isActive = is_active;
+
+    const [row] = await pgDb
+      .update(worryRecommendations)
+      .set(setObj)
+      .where(eq(worryRecommendations.id, id))
+      .returning();
+    if (!row) return res.status(404).json({ message: "Recommendation not found" });
+
+    res.json({
+      id: row.id,
+      worry_id: row.worryId,
+      slug: row.slug,
+      title: row.title,
+      rationale: row.rationale,
+      points_text: row.pointsText,
+      est_text: row.estText,
+      sort_order: row.sortOrder,
+      is_active: row.isActive,
+      created_at: row.createdAt,
+      updated_at: row.updatedAt,
+    });
   } catch (err) {
     next(err);
   }
@@ -795,11 +625,11 @@ export async function deleteRecommendation(
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ message: "Invalid id" });
 
-    const pool = await resolvePool();
-    await pool.request().input("id", sql.Int, id).query(`
-      DELETE FROM [dbo].[worry_recommendation_keywords] WHERE recommendation_id = @id;
-      DELETE FROM [dbo].[worry_recommendations] WHERE id = @id;
-    `);
+    await pgDb
+      .delete(worryRecommendationKeywords)
+      .where(eq(worryRecommendationKeywords.recommendationId, id));
+    await pgDb.delete(worryRecommendations).where(eq(worryRecommendations.id, id));
+
     res.json({ ok: true });
   } catch (err) {
     next(err);
@@ -816,14 +646,12 @@ export async function listRecommendationKeywords(
 ) {
   try {
     const id = Number(req.params.id);
-    const pool = await resolvePool();
-    const r = await pool.request().input("id", sql.Int, id).query(`
-        SELECT id, keyword
-        FROM [dbo].[worry_recommendation_keywords]
-        WHERE recommendation_id = @id
-        ORDER BY id DESC
-      `);
-    res.json(r.recordset);
+    const rows = await pgDb
+      .select({ id: worryRecommendationKeywords.id, keyword: worryRecommendationKeywords.keyword })
+      .from(worryRecommendationKeywords)
+      .where(eq(worryRecommendationKeywords.recommendationId, id))
+      .orderBy(worryRecommendationKeywords.id);
+    res.json(rows.reverse()); // ORDER BY id DESC
   } catch (err) {
     next(err);
   }
@@ -841,16 +669,12 @@ export async function createRecommendationKeyword(
     if (!id || !keyword)
       return res.status(400).json({ message: "id and keyword required" });
 
-    const pool = await resolvePool();
-    const r = await pool
-      .request()
-      .input("id", sql.Int, id)
-      .input("keyword", sql.NVarChar(64), keyword).query(`
-        INSERT INTO [dbo].[worry_recommendation_keywords] (recommendation_id, keyword)
-        OUTPUT inserted.*
-        VALUES (@id, @keyword);
-      `);
-    res.status(201).json(r.recordset[0]);
+    const [row] = await pgDb
+      .insert(worryRecommendationKeywords)
+      .values({ recommendationId: id, keyword })
+      .returning();
+
+    res.status(201).json({ id: row.id, recommendation_id: row.recommendationId, keyword: row.keyword });
   } catch (err) {
     next(err);
   }
@@ -866,10 +690,7 @@ export async function deleteRecommendationKeyword(
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ message: "Invalid id" });
 
-    const pool = await resolvePool();
-    await pool.request().input("id", sql.Int, id).query(`
-      DELETE FROM [dbo].[worry_recommendation_keywords] WHERE id = @id;
-    `);
+    await pgDb.delete(worryRecommendationKeywords).where(eq(worryRecommendationKeywords.id, id));
     res.json({ ok: true });
   } catch (err) {
     next(err);
@@ -885,31 +706,24 @@ export async function listSecurityChecklist(
   next: NextFunction,
 ) {
   try {
-    const pool = await resolvePool();
-    const r = await pool.request().query(`
-      SELECT
-        id,
-        title,
-        description,
-        recommendation_text AS recommendationText,
-        help_url AS helpUrl,
-        estimated_time_minutes AS estimatedTimeMinutes,
-        sort_order,
-        youtube_video_url AS video_url
-      FROM [dbo].[security_checklist_items]
-      WHERE is_active = 1
-      ORDER BY sort_order, id
-    `);
-    console.log(
-      "GET /api/security-checklist:\n" +
-        util.inspect(r.recordset, {
-          depth: null,
-          breakLength: 80,
-          maxArrayLength: null,
-          compact: false,
-        }),
+    const rows = await pgDb
+      .select()
+      .from(securityChecklistItems)
+      .where(eq(securityChecklistItems.isActive, true))
+      .orderBy(asc(securityChecklistItems.sortOrder), asc(securityChecklistItems.id));
+
+    res.json(
+      rows.map((r) => ({
+        id: r.id,
+        title: r.title,
+        description: r.description,
+        recommendationText: r.recommendationText,
+        helpUrl: r.helpUrl,
+        estimatedTimeMinutes: r.estimatedTimeMinutes,
+        sort_order: r.sortOrder,
+        video_url: r.youtubeVideoUrl,
+      })),
     );
-    res.json(r.recordset);
   } catch (err) {
     next(err);
   }
@@ -917,18 +731,8 @@ export async function listSecurityChecklist(
 
 // ====================== MOUNT HELPERS ======================
 
-/** Optional: set an injected getPool() from index.ts */
-export function setWorriesGetPool(fn: GetPoolFn) {
-  injectedGetPool = fn;
-}
-
 /** Register all routes on an Express app instance */
-export default function registerWorryRoutes(
-  app: import("express").Express,
-  opts?: { getPool?: GetPoolFn },
-) {
-  if (opts?.getPool) injectedGetPool = opts.getPool;
-
+export default function registerWorryRoutes(app: import("express").Express) {
   // Public reads
   app.get("/api/worries", listWorries); // supports ?active=1
   app.get("/api/worries/:key", getWorryDetail);

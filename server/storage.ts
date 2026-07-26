@@ -932,8 +932,8 @@ export const upload = multer({
   }
 });
 
-// Import Azure Storage
-import { AzureStorage } from './AzureStorage.js';
+// Import Postgres Storage
+import { PgStorage } from './PgStorage.js';
 
-// Use Azure Storage exclusively
-export const storage = new AzureStorage();
+// Use Postgres Storage exclusively
+export const storage = new PgStorage();

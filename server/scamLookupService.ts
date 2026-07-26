@@ -1,4 +1,4 @@
-import { ApiConfig } from './AzureStorage.js';
+import { ApiConfig } from '../shared/schema.js';
 
 // Scam lookup service interface
 export interface ScamLookupResult {
