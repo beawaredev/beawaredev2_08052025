@@ -316,6 +316,7 @@ export const worryResponseLines = pgTable("worry_response_lines", {
   id: serial("id").primaryKey(),
   worryId: integer("worry_id").notNull(),
   lineText: varchar("line_text", { length: 512 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Recommendations shown for a given worry
